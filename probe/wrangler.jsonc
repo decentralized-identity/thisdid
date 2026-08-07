@@ -5,8 +5,7 @@
   "compatibility_date": "2024-12-18",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // Cron granularity bottoms out at 1 minute; the scheduled handler runs a
-  // second probe round after a 30s sleep for the effective 30-second cadence.
+  // One probe round per minute.
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
     // Same upstream Universal Resolver bases as the main Worker (wrangler.jsonc).

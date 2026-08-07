@@ -6,7 +6,7 @@ Decentralized Identifier and returns a unified, DID-Core & DIF-conformant resolu
 A smart **routing engine** matches every DID to the right method driver: common methods are
 resolved in-Worker by bundled drivers, and the long tail is routed to redundant upstream
 Universal Resolvers with failover. A connected **probe sub-worker** health-checks every route
-with real canary DID resolutions every 30 seconds, feeding the engine live per-resolver health
+with real canary DID resolutions every minute, feeding the engine live per-resolver health
 (surfaced at [`/status`](https://thisdid.com/status)). The same edge Worker serves the
 marketing/landing SPA and the JSON resolver API from a single origin via content negotiation.
 
@@ -38,7 +38,7 @@ marketing/landing SPA and the JSON resolver API from a single origin via content
         ▲ vendor/did-resolver = DIF did-resolver core (git submodule)
 
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
-│  cron `* * * * *` ×2 rounds  →  canary DID resolution per route every 30s    │
+│  cron `* * * * *`  →  one canary DID resolution round per route every minute │
 │  results → D1 `probes` log  +  KV `routing:health:v1` snapshot → GET /status │
 │  shares the main Worker's D1 + KV by id · never sits on the request path     │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -109,9 +109,8 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 #### Resolver health probes (`thisdid-probe`)
 
 The routing engine is fed by a **connected sub-worker** ([`probe/`](probe/)) that pings every
-route with **real canary DID resolutions** — not TCP checks — on an effective **30-second
-cadence** (Cloudflare crons bottom out at 1 minute, so a `* * * * *` trigger runs one probe
-round immediately and a second after a 30s sleep). One canary per authoritative route:
+route with **real canary DID resolutions** — not TCP checks — **once per minute**
+(cron `* * * * *`). One canary per authoritative route:
 `did:web` for the in-Worker driver, `did:key` via Godiddy, `did:algo` + `did:nfd` via
 GoPlausible, `did:iden3` via Archon — each bounded by the same 8s timeout as live traffic.
 
@@ -121,7 +120,7 @@ Each round is recorded twice:
   probe log (30-day retention, pruned hourly), kept **separate from `resolutions`** so probe
   traffic never pollutes user analytics.
 - **KV `routing:health:v1` snapshot** — per provider: `status` (`up`/`degraded`/`down`), EWMA
-  latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 90s
+  latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 3 min
   trips `down`).
 
 The snapshot + 24h aggregates are public at **`GET /status`**. The probe worker connects to the
@@ -265,8 +264,7 @@ Public config lives in `wrangler.jsonc` → `vars`:
 | `RESOLVER_LABEL` | Service label reported by `/health`. |
 
 The probe sub-worker keeps its own copy of the three resolver-base vars in
-[`probe/wrangler.jsonc`](probe/wrangler.jsonc) (same values) plus `PROBE_SPACING_MS` to shrink
-the 30s round gap in dev.
+[`probe/wrangler.jsonc`](probe/wrangler.jsonc) (same values).
 
 Godiddy requires an API key, kept as a **secret** (never committed):
 

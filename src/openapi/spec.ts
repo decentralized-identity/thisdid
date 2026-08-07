@@ -94,7 +94,7 @@ export function openApiSpec(origin: string) {
           summary: 'Per-resolver route health',
           description:
             'Live health of every resolver route (ThisDID local, GoPlausible, godiddy, archon), fed by ' +
-            'the thisdid-probe sub-worker: canary DID resolutions every 30 seconds. Returns the current ' +
+            'the thisdid-probe sub-worker: canary DID resolutions every minute. Returns the current ' +
             'snapshot (status, EWMA latency, rolling success rate, consecutive failures) plus 24h ' +
             'aggregates. `configured: false` until the probe worker has reported.',
           responses: {

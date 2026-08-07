@@ -1,10 +1,8 @@
 /**
  * thisdid-probe — connected sub-worker that health-checks every resolver route
- * with real canary DID resolutions on an effective 30-second cadence.
+ * with real canary DID resolutions once per minute (cron `* * * * *`).
  *
- * Cloudflare cron granularity bottoms out at 1 minute, so the `* * * * *`
- * trigger runs one probe round immediately and a second after a 30s wall-clock
- * sleep. Each round:
+ * Each round:
  *   - fires all canaries in parallel (same 8s bound as live traffic),
  *   - appends one row per canary to the D1 `probes` table (NOT `resolutions` —
  *     probe traffic must never pollute user-facing analytics),
@@ -26,8 +24,6 @@ interface ProbeEnv {
   GOPLAUSIBLE_RESOLVER: string
   /** Same secret as the main Worker (set separately: `wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc`). */
   GODIDDY_API_KEY?: string
-  /** Gap between the two probe rounds within one cron tick, ms (default 30000; shrink in dev). */
-  PROBE_SPACING_MS?: string
   DB?: D1Database
   STATS_KV?: KVNamespace
 }
@@ -43,11 +39,10 @@ const CANARIES: { step: Step; did: string }[] = [
 
 /** Same wall-clock bound as a live routing step (STEP_TIMEOUT_MS in src/resolve.ts). */
 const PROBE_TIMEOUT_MS = 8000
-const DEFAULT_SPACING_MS = 30_000
 const RETENTION_MS = 30 * 24 * 3600 * 1000
 
 // Health-fold tuning: latency EWMA reacts in ~3 rounds, success rate in ~7;
-// 3 all-canary-failed rounds (~90s) trips "down"; EWMA above 4s reads "degraded".
+// 3 all-canary-failed rounds (~3 min) trips "down"; EWMA above 4s reads "degraded".
 const EWMA_LATENCY = 0.3
 const EWMA_SUCCESS = 0.15
 const BREAKER_FAILS = 3
@@ -223,9 +218,6 @@ async function prune(env: ProbeEnv): Promise<void> {
 
 export default {
   async scheduled(ctrl, env, ctx) {
-    await runRound(env)
-    const spacing = Number(env.PROBE_SPACING_MS) || DEFAULT_SPACING_MS
-    await new Promise((resolve) => setTimeout(resolve, spacing))
     await runRound(env)
     // Housekeeping once an hour, off the round path.
     if (new Date(ctrl.scheduledTime).getUTCMinutes() === 0) ctx.waitUntil(prune(env))
