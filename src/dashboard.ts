@@ -13,6 +13,25 @@ export function renderDashboard(): string {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>thisDID · Analytics</title>
+<meta name="description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<link rel="canonical" href="https://thisdid.com/dashboard"/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://thisdid.com/dashboard"/>
+<meta property="og:site_name" content="thisDID"/>
+<meta property="og:title" content="thisDID · Resolver Analytics"/>
+<meta property="og:description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:image" content="https://thisdid.com/poster.png"/>
+<meta property="og:image:secure_url" content="https://thisdid.com/poster.png"/>
+<meta property="og:image:type" content="image/png"/>
+<meta property="og:image:width" content="1599"/>
+<meta property="og:image:height" content="1165"/>
+<meta property="og:image:alt" content="thisDID — the DIF universal resolver that distributes DID resolution"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="thisDID · Resolver Analytics"/>
+<meta name="twitter:description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<meta name="twitter:image" content="https://thisdid.com/poster.png"/>
+<meta name="twitter:image:alt" content="thisDID — the DIF universal resolver that distributes DID resolution"/>
 <link rel="icon" href="/favicon.png" type="image/png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -21,7 +40,8 @@ export function renderDashboard(): string {
   *{box-sizing:border-box}body{margin:0;font-family:Manrope,system-ui,sans-serif;background:radial-gradient(1000px 500px at 85% -10%,rgba(217,119,87,.16),transparent 60%),var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
   a{color:inherit}.wrap{max-width:1200px;margin:0 auto;padding:26px}
   header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
-  .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));display:grid;place-items:center}
+  .logo{height:34px;padding:5px 9px;border-radius:10px;background:#f4efe6;display:grid;place-items:center}
+  .logo img{height:22px;width:auto;display:block}
   .brand{font-family:'Space Grotesk';font-weight:700;font-size:19px}.brand b{color:var(--accent)}
   .tag{font-size:13px;color:var(--faint)}
   .live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);font-weight:600}
@@ -91,7 +111,7 @@ export function renderDashboard(): string {
 </style></head>
 <body><div id="bar"></div><div class="wrap">
   <header>
-    <span class="logo"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 3.5 21 20H3L12 3.5Z" fill="#fff"/><path d="M12 10.5 16.2 18H7.8L12 10.5Z" fill="#d97757"/></svg></span>
+    <span class="logo"><img src="/DIF_logo.png" alt="DIF"/></span>
     <span class="brand">this<b>DID</b></span><span class="tag">Resolver Analytics</span>
     <span class="spacer"></span>
     <span class="live"><span class="dot"></span>live</span>
@@ -306,18 +326,30 @@ export function renderDashboard(): string {
     setActive('.tab','data-t',state.tab);
   }
 
-  function sk(h){ return '<div class="skel" style="height:'+h+'px"></div>'; }
+  function sk(h,w,st){ return '<div class="skel" style="height:'+h+'px'+(w?';width:'+w:'')+(st?';'+st:'')+'"></div>'; }
+  function skBars(n){
+    var out='',ws=[88,64,46,72,34,52];
+    for(var i=0;i<n;i++) out+='<div class="bar-row"><span class="skel" style="height:11px;width:'+(i%2?72:96)+'px;flex:none"></span><span class="bar-track"><span class="bar-fill skel" style="width:'+ws[i%ws.length]+'%"></span></span><span class="skel" style="height:11px;width:42px;flex:none"></span></div>';
+    return out;
+  }
+  function skTable(cols,rows){
+    var out='',ws=[86,64,78,52,70,58];
+    for(var i=0;i<rows;i++) out+='<tr><td colspan="'+cols+'">'+sk(13,ws[i%ws.length]+'%')+'</td></tr>';
+    return out;
+  }
   function skeletons(){
-    var cards=''; for(var i=0;i<5;i++) cards+=sk(84);
+    var cards=''; for(var i=0;i<5;i++) cards+='<div class="stat">'+sk(24,'68%','margin:4px 0')+sk(10,'52%','margin-top:12px')+'</div>';
     q('kpis').innerHTML=cards;
     q('timeline').innerHTML=sk(190);
-    q('pie').innerHTML=sk(150);
-    q('methods').innerHTML=sk(150);
-    q('country').innerHTML=sk(120);
-    q('latency').innerHTML=sk(120);
+    q('pie').innerHTML='<div class="pie-wrap"><div class="skel" style="width:140px;height:140px;border-radius:50%;flex:none"></div><div class="legend" style="flex:1;min-width:120px">'+sk(12,'78%')+sk(12,'60%','margin-top:10px')+sk(12,'68%','margin-top:10px')+'</div></div>';
+    var vb='',hs=[55,85,40,70,52,92,34,62,46,76];
+    for(var i=0;i<10;i++) vb+='<div class="vbar"><span class="skel" style="height:'+hs[i]+'%"></span><em><span class="skel" style="display:inline-block;height:9px;width:26px"></span></em></div>';
+    q('methods').innerHTML='<div class="vbars">'+vb+'</div>';
+    q('country').innerHTML=skBars(6);
+    q('latency').innerHTML=skBars(4);
     q('calendar').innerHTML=sk(130);
-    q('lb').innerHTML='<tr><td colspan="3">'+sk(150)+'</td></tr>';
-    q('recent').innerHTML='<tr><td colspan="7">'+sk(200)+'</td></tr>';
+    q('lb').innerHTML=skTable(3,5);
+    q('recent').innerHTML=skTable(7,6);
     q('older').style.display='none';
   }
   function load(fresh){

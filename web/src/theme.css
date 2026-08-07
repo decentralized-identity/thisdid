@@ -39,6 +39,7 @@ body {
   --j-null: #a99f8f;
   --j-punc: #7d7364;
   --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  --skel-hi: rgba(255, 255, 255, 0.06);
 }
 [data-theme='light'] {
   --bg: #f6f2e9;
@@ -64,6 +65,7 @@ body {
   --j-null: #9c9584;
   --j-punc: #a79e8d;
   --shadow: 0 24px 50px -24px rgba(60, 40, 20, 0.28);
+  --skel-hi: rgba(30, 24, 16, 0.06);
 }
 
 @keyframes spin {
@@ -89,6 +91,21 @@ body {
   100% {
     top: 10%;
   }
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+/* Skeleton placeholder for data-dependent elements while they load */
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--skel-hi) 37%, var(--surface2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.3s ease infinite;
 }
 .fu {
   animation: fadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;

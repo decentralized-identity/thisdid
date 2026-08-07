@@ -28,6 +28,7 @@ export function App() {
   const [tab, setTab] = useState<'overview' | 'json'>('overview')
   const [scan, setScan] = useState(false)
   const [stats, setStats] = useState<LiveStatsData | null>(null)
+  const [statsPending, setStatsPending] = useState(true)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
@@ -91,7 +92,12 @@ export function App() {
   // Live all-time stats for the KPI strip and the routing animation (polled).
   useEffect(() => {
     let alive = true
-    const load = () => void fetchStats().then((s) => alive && s && setStats(s))
+    const load = () =>
+      void fetchStats().then((s) => {
+        if (!alive) return
+        if (s) setStats(s)
+        setStatsPending(false)
+      })
     load()
     const id = setInterval(load, 20000)
     return () => {
@@ -139,7 +145,7 @@ export function App() {
         stats={stats}
       />
 
-      <LiveStats stats={stats} />
+      <LiveStats stats={stats} loading={statsPending} />
 
       <div ref={resultsRef} />
       {result && <Results view={result.view} tab={tab} setTab={setTab} copy={copy} copied={copied} />}
