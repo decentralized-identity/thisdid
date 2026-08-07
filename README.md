@@ -1,6 +1,6 @@
 # ThisDID
 
-**ThisDID.com** is ThisDID conformant, DIF Universal ** DID Resolver** — one endpoint that resolves any
+**ThisDID.com** is W3C DID-Core conformant, DIF Universal ** DID Resolver** — one endpoint that resolves any
 Decentralized Identifier and returns a unified, DID-Core & DIF-conformant resolution result.
 
 A smart **routing engine** matches every DID to the right method driver: common methods are
