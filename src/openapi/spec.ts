@@ -5,13 +5,13 @@ export function openApiSpec(origin: string) {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'ThisDID Universal Resolver API',
+      title: 'DIF ThisDID Universal Resolver API',
       version: '2.0.0',
       description:
-        'A W3C DID-Core & DIF-conformant Universal Resolver. Implements the DIF Universal ' +
-        'Resolver HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method ' +
+        'ThisDID is the W3C DID-Core conformant, DIF Universal Resolver. Implements the DIF Universal ' +
+        'Resolver TS with HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method ' +
         'is resolved through an ordered fallback chain of thisDID in-Worker drivers plus the ' +
-        'Godiddy, GoPlausible and Archon Universal Resolvers.',
+        'Godiddy, GoPlausible and Archon Universal Resolvers. Open to more resolvers to join.',
       license: { name: 'Apache-2.0' },
     },
     servers: [{ url: origin }],
