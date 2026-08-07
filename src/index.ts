@@ -177,11 +177,13 @@ app.get('/recent', async (c) => {
   const limit = Number(url.searchParams.get('limit')) || undefined
   return c.json(await recentPage(c.env, parseFilter(url), before, limit))
 })
-// Human dashboard page (content-negotiates to /data JSON for machines).
-app.get('/dashboard', async (c) => {
+// Human analytics page (content-negotiates to /data JSON for machines).
+app.get('/analytics', async (c) => {
   if (wantsJson(c.req.header('accept'))) return c.json(await getStats(c.env, parseFilter(new URL(c.req.url))))
   return c.html(renderDashboard())
 })
+// Legacy path — permanently moved (keeps old links and bookmarks working).
+app.get('/dashboard', (c) => c.redirect('/analytics', 301))
 
 // ── Root & DID-at-root: content-negotiate SPA vs. JSON resolution ──────────
 // `did:...` deep links (e.g. thisdid.com/did:web:example.com) resolve to JSON

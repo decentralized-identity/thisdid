@@ -110,7 +110,7 @@ export function openApiSpec(origin: string) {
           description:
             'Aggregated analytics over the D1 resolution event log (totals, success rate, average & ' +
             'total latency, counts by method / provider / route / country, timeline, and the first page ' +
-            'of recent events). Filter with `?range=&country=&method=`. The human dashboard is `/dashboard`.',
+            'of recent events). Filter with `?range=&country=&method=`. The human analytics page is `/analytics`.',
           parameters: [
             { name: 'range', in: 'query', schema: { type: 'string', enum: ['hourly', 'day', 'week', 'month', 'ytd', 'all'] } },
             { name: 'country', in: 'query', schema: { type: 'string' } },

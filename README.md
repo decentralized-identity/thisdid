@@ -186,7 +186,7 @@ Base: `https://thisdid.com`
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec. |
 | `GET` | `/docs` | Swagger UI. |
 | `POST` | `/mcp` | Model Context Protocol endpoint (agentic access). |
-| `GET` | `/dashboard` | Resolution analytics dashboard (HTML; JSON with `Accept: application/json`). |
+| `GET` | `/analytics` | Resolution analytics page (HTML; JSON with `Accept: application/json`). `/dashboard` 301-redirects here. |
 | `GET` | `/data` | Analytics aggregates (JSON). |
 | `GET` | `/recent` | Live resolution feed, cursor-paginated (`?before=&limit=`). |
 
@@ -210,10 +210,10 @@ resolver to AI agents / MCP clients as callable tools — point any MCP-compatib
 | `describe_routing` | Return the ordered fallback chain (ThisDID / godiddy / archon) for a method. | `method` |
 | `get_resolver_health` | Report resolver service status. | — |
 
-### Analytics (`/dashboard`)
+### Analytics (`/analytics`)
 
-Every resolution request is recorded and surfaced at **`/dashboard`** (a live, self-refreshing
-dashboard) with a filterable **`/data`** JSON API. Storage uses **both** Cloudflare stores:
+Every resolution request is recorded and surfaced at **`/analytics`** (a live, self-refreshing
+analytics page; the old `/dashboard` path 301-redirects) with a filterable **`/data`** JSON API. Storage uses **both** Cloudflare stores:
 
 - **D1** (`DB`) — the authoritative event log: one row per resolution, tagged with `provider`
   (`ThisDID`/`godiddy`/`archon`), `resolver`, `route`, `duration_ms`, `country`, `method` and more

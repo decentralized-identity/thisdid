@@ -60,9 +60,9 @@ export function Header({ mode, setMode, onScan }: Props) {
             <Icon.Monitor />
           </button>
         </div>
-        <a href="/dashboard" className="hdr-cta" title="Dashboard" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, borderRadius: 10, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', color: '#fff', boxShadow: '0 8px 20px -8px var(--glow)', whiteSpace: 'nowrap' }}>
+        <a href="/analytics" className="hdr-cta" title="Analytics" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, borderRadius: 10, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', color: '#fff', boxShadow: '0 8px 20px -8px var(--glow)', whiteSpace: 'nowrap' }}>
           <Icon.GridIcon size={15} />
-          <span className="cta-label">Dashboard</span>
+          <span className="cta-label">Analytics</span>
         </a>
       </div>
     </header>

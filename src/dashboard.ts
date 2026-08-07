@@ -1,6 +1,7 @@
 /**
- * Interactive analytics dashboard (ThisDID dark theme), served at /dashboard.
- * The shell is static HTML + inline vanilla JS that fetches /dashboard/data
+ * Interactive analytics page (ThisDID dark theme), served at /analytics
+ * (/dashboard 301-redirects there).
+ * The shell is static HTML + inline vanilla JS that fetches /data
  * (with range/country/method filters) and renders KPIs, charts, tabbed
  * leaderboards and a live request feed. No third-party scripts (GDPR-friendly).
  *
@@ -14,9 +15,9 @@ export function renderDashboard(): string {
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ThisDID · Analytics</title>
 <meta name="description" content="Live, GDPR-friendly analytics for the ThisDID universal DID resolver — requests, latency, providers, methods and geography."/>
-<link rel="canonical" href="https://thisdid.com/dashboard"/>
+<link rel="canonical" href="https://thisdid.com/analytics"/>
 <meta property="og:type" content="website"/>
-<meta property="og:url" content="https://thisdid.com/dashboard"/>
+<meta property="og:url" content="https://thisdid.com/analytics"/>
 <meta property="og:site_name" content="ThisDID"/>
 <meta property="og:title" content="ThisDID · Resolver Analytics"/>
 <meta property="og:description" content="Live, GDPR-friendly analytics for the ThisDID universal DID resolver — requests, latency, providers, methods and geography."/>
