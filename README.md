@@ -11,7 +11,7 @@ with real canary DID resolutions every 30 seconds, feeding the engine live per-r
 marketing/landing SPA and the JSON resolver API from a single origin via content negotiation.
 
 > v2 is a ground-up rewrite. The previous CRA/MUI app (wallet connect, DID-URL shortener, credit,
-> WebAuthn) has been removed; this repo is now resolver-only. History is preserved in git.
+> WebAuthn) has been removed; this repo is now resolver-router with TS DID Resolver embedded API and UI.
 
 ---
 
