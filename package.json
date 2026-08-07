@@ -1,0 +1,34 @@
+{
+  "name": "thisdid",
+  "version": "2.0.0",
+  "private": true,
+  "description": "ThisDID.com — DIF Universal W3C DID Resolver.",
+  "type": "module",
+  "workspaces": [
+    "vendor/did-resolver",
+    "web"
+  ],
+  "scripts": {
+    "build:vendor": "npm run build -w did-resolver",
+    "build:web": "npm run build -w @thisdid/web",
+    "build": "npm run build:vendor && npm run build:web",
+    "dev": "npm run build:web && concurrently -k -n worker,web -c blue,magenta \"npm:dev:worker\" \"npm:dev:web\"",
+    "dev:worker": "wrangler dev",
+    "dev:web": "npm run dev -w @thisdid/web",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "@hono/swagger-ui": "^0.5.1",
+    "did-resolver": "*",
+    "web-did-resolver": "^2.0.27"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "wrangler": "^4.40.0",
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "concurrently": "^9.1.2"
+  }
+}

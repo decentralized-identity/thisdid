@@ -1,0 +1,169 @@
+/* Design tokens — see .notes/design_handoff_thisdid_resolver/README.md */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: 'Manrope', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  background: rgba(217, 119, 87, 0.28);
+}
+
+[data-theme='dark'] {
+  --bg: #16130f;
+  --bg2: #1c1811;
+  --surface: #201c15;
+  --surface2: #29241b;
+  --border: rgba(255, 255, 255, 0.09);
+  --border2: rgba(217, 119, 87, 0.22);
+  --text: #f4efe6;
+  --dim: #a99f8f;
+  --faint: #6f6656;
+  --accent: #d97757;
+  --accent-bright: #ff916a;
+  --twist: #b587f0;
+  --twist-bright: #c9a3ff;
+  --res-b: #5fd0e0;
+  --res-c: #f0b968;
+  --glow: rgba(217, 119, 87, 0.35);
+  --j-key: #ff916a;
+  --j-str: #9ecb8a;
+  --j-num: #c9a3ff;
+  --j-bool: #6cc8e0;
+  --j-null: #a99f8f;
+  --j-punc: #7d7364;
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+[data-theme='light'] {
+  --bg: #f6f2e9;
+  --bg2: #efe9dc;
+  --surface: #ffffff;
+  --surface2: #f4efe4;
+  --border: rgba(30, 24, 16, 0.1);
+  --border2: rgba(201, 99, 63, 0.28);
+  --text: #241d14;
+  --dim: #6b6252;
+  --faint: #9c9584;
+  --accent: #c9633f;
+  --accent-bright: #d97757;
+  --twist: #8b5cf6;
+  --twist-bright: #a78bfa;
+  --res-b: #2f9fb0;
+  --res-c: #d38f36;
+  --glow: rgba(201, 99, 63, 0.22);
+  --j-key: #c9633f;
+  --j-str: #4c8a3f;
+  --j-num: #7c4dcf;
+  --j-bool: #2f83a0;
+  --j-null: #9c9584;
+  --j-punc: #a79e8d;
+  --shadow: 0 24px 50px -24px rgba(60, 40, 20, 0.28);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fadeUp {
+  from {
+    transform: translateY(16px);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes scanline {
+  0% {
+    top: 10%;
+  }
+  50% {
+    top: 86%;
+  }
+  100% {
+    top: 10%;
+  }
+}
+.fu {
+  animation: fadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+a {
+  color: inherit;
+}
+button {
+  font-family: inherit;
+}
+input {
+  font-family: inherit;
+}
+
+/* Header row — spacing lives here so it can go responsive */
+.hdr {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 14px 26px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+.cta-label {
+  display: inline;
+}
+.hdr-cta {
+  padding: 9px 16px;
+}
+
+/* Responsive: stack two-column layouts under ~900px */
+@media (max-width: 900px) {
+  .hero-grid,
+  .split-2,
+  .net-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .steps-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .json-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .site-nav {
+    display: none !important;
+  }
+  .hdr {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .net-grid {
+    padding: 28px !important;
+  }
+}
+
+/* Phones: tighten the header so the actions never overflow */
+@media (max-width: 560px) {
+  .hdr {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .cta-label {
+    display: none; /* Dashboard button becomes icon-only */
+  }
+  .hdr-cta {
+    padding: 9px 12px;
+  }
+  .steps-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .net-grid {
+    padding: 22px !important;
+  }
+}

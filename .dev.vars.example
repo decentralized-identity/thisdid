@@ -1,0 +1,3 @@
+# Copy to .dev.vars (gitignored) for local `wrangler dev`.
+# godiddy Universal Resolver requires an API key / OAuth2 token (Authorization: Bearer).
+GODIDDY_API_KEY=""

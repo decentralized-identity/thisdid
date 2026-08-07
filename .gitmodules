@@ -1,0 +1,3 @@
+[submodule "vendor/did-resolver"]
+	path = vendor/did-resolver
+	url = https://github.com/GoPlausible/did-resolver
