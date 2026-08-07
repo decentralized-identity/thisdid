@@ -336,8 +336,12 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     calClauses.push('method = ?')
     calBinds.push(filter.method)
   }
-  const group = (col: string) =>
-    db.prepare(`SELECT COALESCE(${col},'—') k, COUNT(*) c FROM resolutions ${w.sql} GROUP BY k ORDER BY c DESC LIMIT 50`).bind(...w.binds)
+  // Failed resolutions have no provider/resolver (nobody answered), so those
+  // groupings label them explicitly as NOT_FOUND instead of a cryptic "—".
+  const group = (col: string, nullLabel = '—') =>
+    db
+      .prepare(`SELECT COALESCE(${col},'${nullLabel}') k, COUNT(*) c FROM resolutions ${w.sql} GROUP BY k ORDER BY c DESC LIMIT 50`)
+      .bind(...w.binds)
 
   // One D1 round-trip for every read the dashboard needs.
   const [totalsR, latR, tlR, recentR, calR, cOptR, mOptR, mR, pR, rR, cR] = await db.batch<Record<string, number | string | null>>([
@@ -351,8 +355,8 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     db.prepare("SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k"),
     db.prepare("SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k"),
     group('method'),
-    group('provider'),
-    group('resolver'),
+    group('provider', 'NOT_FOUND'),
+    group('resolver', 'NOT_FOUND'),
     group('country'),
   ])
 

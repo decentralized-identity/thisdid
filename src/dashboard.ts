@@ -176,7 +176,7 @@ export function renderDashboard(): string {
 (function(){
   var state = { range:'day', country:'', method:'', tab:'method', cursor:null, paged:false };
   var last = null;
-  var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968' };
+  var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968', NOT_FOUND:'#8b8375' };
   var PAL = ['#d97757','#e0724c','#cf7ea0','#b587f0','#8f8bf0','#5fd0e0','#57b96a','#f0b968','#d38f36','#a78bfa'];
   function pcolor(k){ return PC[k] || '#8b8375'; }
   function mcolor(i){ return PAL[i % PAL.length]; }
