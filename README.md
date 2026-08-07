@@ -5,8 +5,10 @@ Decentralized Identifier and returns a unified, DID-Core & DIF-conformant resolu
 
 A smart **routing engine** matches every DID to the right method driver: common methods are
 resolved in-Worker by bundled drivers, and the long tail is routed to redundant upstream
-Universal Resolvers with failover. The same edge Worker serves the marketing/landing SPA and the
-JSON resolver API from a single origin via content negotiation.
+Universal Resolvers with failover. A connected **probe sub-worker** health-checks every route
+with real canary DID resolutions every 30 seconds, feeding the engine live per-resolver health
+(surfaced at [`/status`](https://thisdid.com/status)). The same edge Worker serves the
+marketing/landing SPA and the JSON resolver API from a single origin via content negotiation.
 
 > v2 is a ground-up rewrite. The previous CRA/MUI app (wallet connect, DID-URL shortener, credit,
 > WebAuthn) has been removed; this repo is now resolver-only. History is preserved in git.
@@ -23,16 +25,23 @@ JSON resolver API from a single origin via content negotiation.
 │                             Accept: */json      → API service info           │
 │   GET /:did                 Accept: */json      → resolve (deep link)        │
 │   GET /1.0/identifiers/:did                      → DIF Universal Resolver     │
-│   GET /methods /health /openapi.json /docs       → discovery + Swagger UI     │
+│   GET /methods /health /status /openapi.json /docs → discovery + Swagger UI   │
 │                                                                              │
 │   resolve()  ──►  routing registry (src/resolvers/registry.ts)               │
 │                     per-method ordered chain of:                             │
-│                     ├─ local   → vendored did-resolver core + drivers        │
-│                     ├─ godiddy → api.godiddy.com (upstream, API key)         │
-│                     └─ archon  → resolver.archon.technology (upstream)       │
+│                     ├─ local       → vendored did-resolver core + drivers    │
+│                     ├─ goplausible → goplausible.xyz (upstream, open)        │
+│                     ├─ godiddy     → api.godiddy.com (upstream, API key)     │
+│                     └─ archon      → resolver.archon.technology (upstream)   │
 └──────────────────────────────────────────────────────────────────────────────┘
         ▲ static assets = web/dist (Vite + React + TS SPA, deployable as Pages)
         ▲ vendor/did-resolver = DIF did-resolver core (git submodule)
+
+┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
+│  cron `* * * * *` ×2 rounds  →  canary DID resolution per route every 30s    │
+│  results → D1 `probes` log  +  KV `routing:health:v1` snapshot → GET /status │
+│  shares the main Worker's D1 + KV by id · never sits on the request path     │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 | Path | What it is |
@@ -40,6 +49,7 @@ JSON resolver API from a single origin via content negotiation.
 | `src/` | The Cloudflare Worker — the ThisDID Resolver API and SPA host. |
 | `web/` | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`. |
 | `vendor/did-resolver` | Vendored DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, as a **git submodule**. |
+| `probe/` | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
 | `wrangler.jsonc` | Worker + static-assets config. |
 
 ### Smart routing
@@ -96,6 +106,33 @@ Every response's `didResolutionMetadata` is extended with `route` (`local`/`upst
 (e.g. `local→godiddy→archon`) so clients — and the SPA route banner — can see exactly how a DID
 was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registry.
 
+#### Resolver health probes (`thisdid-probe`)
+
+The routing engine is fed by a **connected sub-worker** ([`probe/`](probe/)) that pings every
+route with **real canary DID resolutions** — not TCP checks — on an effective **30-second
+cadence** (Cloudflare crons bottom out at 1 minute, so a `* * * * *` trigger runs one probe
+round immediately and a second after a 30s sleep). One canary per authoritative route:
+`did:web` for the in-Worker driver, `did:key` via Godiddy, `did:algo` + `did:nfd` via
+GoPlausible, `did:iden3` via Archon — each bounded by the same 8s timeout as live traffic.
+
+Each round is recorded twice:
+
+- **D1 `probes` table** ([`migrations/0002_probes.sql`](migrations/0002_probes.sql)) — the raw
+  probe log (30-day retention, pruned hourly), kept **separate from `resolutions`** so probe
+  traffic never pollutes user analytics.
+- **KV `routing:health:v1` snapshot** — per provider: `status` (`up`/`degraded`/`down`), EWMA
+  latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 90s
+  trips `down`).
+
+The snapshot + 24h aggregates are public at **`GET /status`**. The probe worker connects to the
+main Worker only through the shared D1 + KV namespaces — it never sits on the request path, so
+if it stops, resolution is completely unaffected and `/status` simply reports
+`configured: false`.
+
+This health data is the input to the engine's **rules-based chain planner** (next phase): pinned
+preferences (e.g. `iden3`→Archon) plus a circuit breaker and latency/reliability scoring that
+reorder each method's chain live, always failing open to the static baseline above.
+
 ---
 
 ## Getting started
@@ -103,7 +140,7 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 Requires **Node ≥ 20** and the repo cloned **with submodules**:
 
 ```bash
-git clone --recurse-submodules https://github.com/GoPlausible/this-did
+git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
 # already cloned? →  git submodule update --init --recursive
 
 npm install            # installs all workspaces (root Worker, web/, vendor/)
@@ -126,6 +163,8 @@ For live SPA editing run both: `npm run dev` in one terminal, `npm run dev:web` 
 ```bash
 npm run build          # → vendor/did-resolver/lib + web/dist
 npm run deploy         # builds, then `wrangler deploy`
+npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)
+npm run dev:probe      # probe worker locally; trigger: GET /__scheduled?cron=*+*+*+*+*
 ```
 
 The Worker serves `web/dist` through its `ASSETS` binding, so a single `wrangler deploy` ships both
@@ -144,6 +183,7 @@ Base: `https://thisdid.com`
 | `GET` | `/{did}` (Accept: json) | Resolve via a root deep link. |
 | `GET` | `/methods` | Supported method metadata + full driver list. |
 | `GET` | `/health` | Liveness probe. |
+| `GET` | `/status` | Per-resolver route health (probe snapshot + 24h aggregates). |
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec. |
 | `GET` | `/docs` | Swagger UI. |
 | `POST` | `/mcp` | Model Context Protocol endpoint (agentic access). |
@@ -224,11 +264,16 @@ Public config lives in `wrangler.jsonc` → `vars`:
 | `ARCHON_RESOLVER` | Archon Universal Resolver base (DID appended as `/{did}`). |
 | `RESOLVER_LABEL` | Service label reported by `/health`. |
 
+The probe sub-worker keeps its own copy of the three resolver-base vars in
+[`probe/wrangler.jsonc`](probe/wrangler.jsonc) (same values) plus `PROBE_SPACING_MS` to shrink
+the 30s round gap in dev.
+
 Godiddy requires an API key, kept as a **secret** (never committed):
 
 ```bash
 # production
 wrangler secret put GODIDDY_API_KEY
+wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc   # probe worker's own copy
 
 # local dev — copy the template and fill it in (.dev.vars is gitignored)
 cp .dev.vars.example .dev.vars

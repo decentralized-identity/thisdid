@@ -87,6 +87,21 @@ export function openApiSpec(origin: string) {
           responses: { '200': { description: 'Service is healthy.' } },
         },
       },
+      '/status': {
+        get: {
+          tags: ['Discovery'],
+          operationId: 'status',
+          summary: 'Per-resolver route health',
+          description:
+            'Live health of every resolver route (ThisDID local, GoPlausible, godiddy, archon), fed by ' +
+            'the thisdid-probe sub-worker: canary DID resolutions every 30 seconds. Returns the current ' +
+            'snapshot (status, EWMA latency, rolling success rate, consecutive failures) plus 24h ' +
+            'aggregates. `configured: false` until the probe worker has reported.',
+          responses: {
+            '200': { description: 'Resolver health snapshot.', content: { 'application/json': { schema: { type: 'object' } } } },
+          },
+        },
+      },
       '/data': {
         get: {
           tags: ['Discovery'],

@@ -16,6 +16,8 @@
     "dev:worker": "wrangler dev",
     "dev:web": "npm run dev -w @thisdid/web",
     "deploy": "npm run build && wrangler deploy",
+    "dev:probe": "wrangler dev --config probe/wrangler.jsonc --test-scheduled",
+    "deploy:probe": "wrangler deploy --config probe/wrangler.jsonc",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types"
   },

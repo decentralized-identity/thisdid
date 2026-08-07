@@ -5,6 +5,8 @@ import { resolveDid } from './resolve'
 import { openApiSpec } from './openapi/spec'
 import { FEATURED_METHODS, ALL_METHODS } from './methods'
 import { getStats, parseFilter, recentPage, recordResolution } from './analytics'
+import { getHealth } from './routing/health'
+import { providerTag, type Step } from './resolvers/registry'
 import { renderDashboard } from './dashboard'
 import type { Context } from 'hono'
 import type { Env, ThisDidResolution } from './types'
@@ -131,6 +133,37 @@ app.get('/docs', (c) =>
       '</body></html>',
   ),
 )
+
+// ── Resolver-route health (probe sub-worker data; read-only, additive) ─────
+// Snapshot comes from the `thisdid-probe` Worker via shared KV; 24h aggregates
+// from its D1 `probes` table. Resolution never depends on this endpoint.
+app.use('/status', cors())
+app.get('/status', async (c) => {
+  const snap = await getHealth(c.env)
+  let last24h: Record<string, unknown>[] | null = null
+  try {
+    if (c.env.DB) {
+      const { results } = await c.env.DB.prepare(
+        'SELECT provider, COUNT(*) AS probes, SUM(success) AS ok, ' +
+          'ROUND(AVG(CASE WHEN success = 1 THEN duration_ms END)) AS avgMs ' +
+          'FROM probes WHERE ts > ? GROUP BY provider ORDER BY provider',
+      )
+        .bind(Date.now() - 24 * 3600 * 1000)
+        .all()
+      last24h = results
+    }
+  } catch {
+    last24h = null // probes table absent until the probe worker's first round
+  }
+  return c.json({
+    updated: snap?.updatedTs ?? null,
+    providers: snap
+      ? Object.fromEntries(Object.entries(snap.providers).map(([step, h]) => [providerTag(step as Step), h]))
+      : null,
+    last24h,
+    configured: !!snap,
+  })
+})
 
 // ── Analytics (D1 event log + KV cache) ────────────────────────────────────
 app.use('/data', cors())
