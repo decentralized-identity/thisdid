@@ -3,8 +3,9 @@
  *
  *  - D1 (`env.DB`)      → authoritative event log: one row per resolution request.
  *                         All dashboard aggregates are SQL over this table.
- *  - KV (`env.STATS_KV`) → a live lifetime counter (`analytics:total`, best-effort)
- *                         plus a read-through cache of the unfiltered summaries.
+ *  - KV (`env.STATS_KV`) → read-through cache of the unfiltered summaries
+ *                         (`analytics:sum:<range>`, 60s TTL). The probe sub-worker
+ *                         also shares this namespace for `routing:health:v1`.
  *
  * GDPR: we store no IP, no cookies and no user-agent — only coarse `cf.country`,
  * the requested DID (the resource, like a URL in a server log), and timing.
