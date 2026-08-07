@@ -58,14 +58,14 @@ export function Hero({ query, setQuery, onResolve, onExample, resolving, progres
       <div className="fu" style={{ minWidth: 0 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '6px 13px', borderRadius: 999, border: '1px solid var(--border2)', background: 'color-mix(in srgb,var(--accent) 10%, transparent)', fontSize: 12.5, fontWeight: 600, color: 'var(--accent-bright)', marginBottom: 22 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 0 4px var(--glow)' }} />
-          W3C DID Core &amp; DIF compliant · live globally
+          DIF's, W3C DID Core &amp; DID resolution routing · live globally
         </div>
         <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 'clamp(38px,4.6vw,60px)', lineHeight: 1.02, letterSpacing: '-.03em', margin: '0 0 18px' }}>
-          The universal resolver that{' '}
-          <span style={{ background: 'linear-gradient(115deg,var(--accent),var(--twist))', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>thinks</span> before it routes.
+          The DIF universal resolver that{' '}
+          <span style={{ background: 'linear-gradient(115deg,var(--accent),var(--twist))', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>distributes</span> DID resolution.
         </h1>
         <p style={{ fontSize: 17.5, lineHeight: 1.6, color: 'var(--dim)', margin: '0 0 26px', maxWidth: 540 }}>
-          thisDID resolves any W3C Decentralized Identifier. A smart rules engine matches every DID to its verified method driver and returns one unified, conformant document. One endpoint, every DID.
+          DIF thisDID universally resolves any W3C Decentralized Identifier. A smart rules engine matches every DID to its verified method driver and returns a unified, conformant document. One endpoint, every DID, every resolver.
         </p>
 
         <div style={{ position: 'relative' }}>

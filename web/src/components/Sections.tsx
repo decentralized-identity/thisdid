@@ -21,7 +21,7 @@ export function HowItWorks() {
     <section id="how" style={{ maxWidth: 1240, margin: '0 auto', padding: '66px 26px 20px' }}>
       <div style={{ maxWidth: 640, marginBottom: 34 }}>
         <div style={eyebrow('var(--accent)')}>How thisDID resolves</div>
-        <h2 style={h2}>A routing engine, not just a proxy.</h2>
+        <h2 style={h2}>DID resolver and routing engine.</h2>
         <p style={lead}>Every request hits a rules engine that picks the fastest, most trustworthy driver for that method — then normalizes the response into one conformant document.</p>
       </div>
       <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
@@ -167,10 +167,8 @@ export function Footer() {
   return (
     <footer style={{ maxWidth: 1240, margin: '40px auto 0', padding: '40px 26px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', display: 'grid', placeItems: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3.5 21 20H3L12 3.5Z" fill="#fff" />
-          </svg>
+        <span style={{ background: '#f4efe6', borderRadius: 8, padding: '4px 7px', display: 'grid', placeItems: 'center' }}>
+          <img src="/DIF_logo.png" alt="DIF" style={{ height: 18, width: 'auto', display: 'block' }} />
         </span>
         <span style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 15 }}>
           this<span style={{ color: 'var(--accent)' }}>DID</span>
