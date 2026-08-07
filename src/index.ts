@@ -111,20 +111,20 @@ app.get('/docs', (c) =>
     '<!doctype html><html lang="en"><head><meta charset="utf-8"/>' +
       '<meta name="viewport" content="width=device-width, initial-scale=1"/>' +
       '<title>ThisDID Resolver API</title>' +
-      '<meta name="description" content="OpenAPI documentation for the thisDID universal DID resolver — DIF-conformant resolution, discovery and analytics endpoints."/>' +
+      '<meta name="description" content="OpenAPI documentation for the ThisDID universal DID resolver — DIF-conformant resolution, discovery and analytics endpoints."/>' +
       '<link rel="canonical" href="https://thisdid.com/docs"/>' +
       '<meta property="og:type" content="website"/>' +
       '<meta property="og:url" content="https://thisdid.com/docs"/>' +
-      '<meta property="og:site_name" content="thisDID"/>' +
-      '<meta property="og:title" content="thisDID · Resolver API Docs"/>' +
-      '<meta property="og:description" content="OpenAPI documentation for the thisDID universal DID resolver."/>' +
+      '<meta property="og:site_name" content="ThisDID"/>' +
+      '<meta property="og:title" content="ThisDID · Resolver API Docs"/>' +
+      '<meta property="og:description" content="OpenAPI documentation for the ThisDID universal DID resolver."/>' +
       '<meta property="og:image" content="https://thisdid.com/poster.png"/>' +
       '<meta property="og:image:width" content="1599"/>' +
       '<meta property="og:image:height" content="1165"/>' +
-      '<meta property="og:image:alt" content="thisDID — the DIF universal resolver that distributes DID resolution"/>' +
+      '<meta property="og:image:alt" content="ThisDID — the DIF universal resolver that distributes DID resolution"/>' +
       '<meta name="twitter:card" content="summary_large_image"/>' +
-      '<meta name="twitter:title" content="thisDID · Resolver API Docs"/>' +
-      '<meta name="twitter:description" content="OpenAPI documentation for the thisDID universal DID resolver."/>' +
+      '<meta name="twitter:title" content="ThisDID · Resolver API Docs"/>' +
+      '<meta name="twitter:description" content="OpenAPI documentation for the ThisDID universal DID resolver."/>' +
       '<meta name="twitter:image" content="https://thisdid.com/poster.png"/>' +
       '<link rel="icon" href="/favicon.png" type="image/png"/></head><body>' +
       SwaggerUI({ url: '/openapi.json' }) +

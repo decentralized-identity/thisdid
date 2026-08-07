@@ -10,7 +10,7 @@ export function openApiSpec(origin: string) {
       description:
         'ThisDID is the W3C DID-Core conformant, DIF Universal Resolver. Implements the DIF Universal ' +
         'Resolver TS with HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method ' +
-        'is resolved through an ordered fallback chain of thisDID in-Worker drivers plus the ' +
+        'is resolved through an ordered fallback chain of ThisDID in-Worker drivers plus the ' +
         'Godiddy, GoPlausible and Archon Universal Resolvers. Open to more resolvers to join.',
       license: { name: 'Apache-2.0' },
     },
@@ -28,7 +28,7 @@ export function openApiSpec(origin: string) {
           summary: 'Resolve a DID to its DID document',
           description:
             'Resolves a Decentralized Identifier and returns a W3C DID Resolution Result. ' +
-            'The `didResolutionMetadata` is extended with thisDID routing fields ' +
+            'The `didResolutionMetadata` is extended with ThisDID routing fields ' +
             '(`route`, `resolver`, `network`, `durationMs`, `via`).',
           parameters: [
             {
@@ -140,7 +140,7 @@ export function openApiSpec(origin: string) {
             '**Tools**\n' +
             '- `resolve_did` — resolve a W3C DID to its DID document with routing & resolution metadata. Args: `did`.\n' +
             '- `list_did_methods` — list supported DID methods (featured + full driver list).\n' +
-            '- `describe_routing` — return the ordered fallback chain (thisDID / godiddy / archon) for a method. Args: `method`.\n' +
+            '- `describe_routing` — return the ordered fallback chain (ThisDID / godiddy / archon) for a method. Args: `method`.\n' +
             '- `get_resolver_health` — report resolver service status.\n\n' +
             'Transport: JSON-RPC 2.0 over HTTP (MCP Streamable HTTP); `GET /mcp` opens the SSE stream.',
           requestBody: {

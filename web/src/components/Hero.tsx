@@ -65,7 +65,7 @@ export function Hero({ query, setQuery, onResolve, onExample, resolving, progres
           <span style={{ background: 'linear-gradient(115deg,var(--accent),var(--twist))', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>distributes</span> DID resolution.
         </h1>
         <p style={{ fontSize: 17.5, lineHeight: 1.6, color: 'var(--dim)', margin: '0 0 26px', maxWidth: 540 }}>
-          DIF thisDID universally resolves any W3C Decentralized Identifier. A smart rules engine matches every DID to its verified method driver and returns a unified, conformant document. One endpoint, every DID, every resolver.
+          DIF ThisDID universally resolves any W3C Decentralized Identifier. A smart rules engine matches every DID to its verified method driver and returns a unified, conformant document. One endpoint, every DID, every resolver.
         </p>
 
         <div style={{ position: 'relative' }}>
@@ -140,7 +140,7 @@ export function Hero({ query, setQuery, onResolve, onExample, resolving, progres
           </div>
         )}
         <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', flexWrap: 'wrap', gap: '6px 13px', fontSize: 11, fontWeight: 600, color: 'var(--dim)' }}>
-          <Legend c="var(--accent)" label="Answered by thisDID" />
+          <Legend c="var(--accent)" label="Answered by ThisDID" />
           <Legend c="var(--twist)" label="GoPlausible" href="https://goplausible.com" />
           <Legend c="var(--res-b)" label="Godiddy" href="https://godiddy.com" />
           <Legend c="var(--res-c)" label="Archon" href="https://archon.technology" />

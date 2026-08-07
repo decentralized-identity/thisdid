@@ -1,7 +1,7 @@
 /**
- * Resolution orchestrator. Parses the DID, walks its routing chain (thisDID
+ * Resolution orchestrator. Parses the DID, walks its routing chain (ThisDID
  * local + redundant upstreams in a method-specific order), and returns the first
- * successful result annotated with thisDID route metadata for the UI banner.
+ * successful result annotated with ThisDID route metadata for the UI banner.
  */
 import { parse, type DIDResolutionResult } from 'did-resolver'
 import { chainFor, providerTag, stepRoute, type Step } from './resolvers/registry'
@@ -29,7 +29,7 @@ function upstreamBase(step: Step, env: Env): string {
 }
 
 function resolverLabel(step: Step, method: string): string {
-  if (step === 'local') return `thisDID (${method} driver)`
+  if (step === 'local') return `ThisDID (${method} driver)`
   if (step === 'goplausible') return 'GoPlausible universal-resolver'
   return `${step} universal-resolver`
 }

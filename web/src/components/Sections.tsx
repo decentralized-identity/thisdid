@@ -20,7 +20,7 @@ export function HowItWorks() {
   return (
     <section id="how" style={{ maxWidth: 1240, margin: '0 auto', padding: '66px 26px 20px' }}>
       <div style={{ maxWidth: 640, marginBottom: 34 }}>
-        <div style={eyebrow('var(--accent)')}>How thisDID resolves</div>
+        <div style={eyebrow('var(--accent)')}>How ThisDID resolves</div>
         <h2 style={h2}>DID resolver and routing engine.</h2>
         <p style={lead}>Every request hits a rules engine that picks the fastest, most trustworthy driver for that method — then normalizes the response into one conformant document.</p>
       </div>
@@ -45,7 +45,7 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
       <div style={{ maxWidth: 640, marginBottom: 28 }}>
         <div style={eyebrow('var(--twist)')}>Supported methods</div>
         <h2 style={h2}>One endpoint. Every DID method.</h2>
-        <p style={lead}>thisDID dispatches each identifier to a conformant method driver — a growing fleet of 70+ resolvers behind a single API.</p>
+        <p style={lead}>ThisDID dispatches each identifier to a conformant method driver — a growing fleet of 70+ resolvers behind a single API.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 14 }}>
         {graded.map((m) => (
@@ -77,7 +77,7 @@ const PROVIDERS = [
     by: 'GoPlausible',
     glyph: 'G',
     color: 'var(--twist)',
-    desc: 'Algorand-native resolver worker. thisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.',
+    desc: 'Algorand-native resolver worker. ThisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.',
     resolver: 'goplausible.com',
     href: 'https://goplausible.com',
   },
@@ -86,7 +86,7 @@ const PROVIDERS = [
     by: 'Danube Tech',
     glyph: 'G',
     color: 'var(--res-b)',
-    desc: 'Hosted Universal Resolver & Registrar API. thisDID routes here for most methods that need an upstream driver.',
+    desc: 'Hosted Universal Resolver & Registrar API. ThisDID routes here for most methods that need an upstream driver.',
     resolver: 'api.godiddy.com',
     href: 'https://godiddy.com',
   },
@@ -95,7 +95,7 @@ const PROVIDERS = [
     by: 'Archon Technology',
     glyph: 'A',
     color: 'var(--res-c)',
-    desc: 'Universal Resolver running the iden3 & did:cid drivers. thisDID routes iden3 here first, and uses it as a final fallback elsewhere.',
+    desc: 'Universal Resolver running the iden3 & did:cid drivers. ThisDID routes iden3 here first, and uses it as a final fallback elsewhere.',
     resolver: 'resolver.archon.technology',
     href: 'https://archon.technology',
   },
@@ -107,7 +107,7 @@ export function ResolverProviders() {
       <div style={{ maxWidth: 640, marginBottom: 28 }}>
         <div style={eyebrow('var(--res-b)')}>Resolver providers</div>
         <h2 style={h2}>Redundant routes, trusted partners.</h2>
-        <p style={lead}>When thisDID can’t resolve a method in-Worker, it routes to these conformant Universal Resolvers — in a method-specific order, with automatic fallback.</p>
+        <p style={lead}>When ThisDID can’t resolve a method in-Worker, it routes to these conformant Universal Resolvers — in a method-specific order, with automatic fallback.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
         {PROVIDERS.map((p) => (
@@ -144,7 +144,7 @@ export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
       <div className="net-grid" style={{ borderRadius: 24, border: '1px solid var(--border2)', overflow: 'hidden', background: 'linear-gradient(130deg,color-mix(in srgb,var(--accent) 14%,var(--surface)),color-mix(in srgb,var(--twist) 12%,var(--surface)))', padding: 44, display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 36, alignItems: 'center' }}>
         <div>
           <h2 style={{ ...h2, fontSize: 'clamp(26px,3vw,38px)', margin: '0 0 14px', lineHeight: 1.1 }}>Globally distributed. Always compliant.</h2>
-          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>thisDID runs at the edge worldwide, returning fully W3C DID-Core and DIF-conformant resolution results with signed metadata — ready to plug into any verifiable-credential stack.</p>
+          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>ThisDID runs at the edge worldwide, returning fully W3C DID-Core and DIF-conformant resolution results with signed metadata — ready to plug into any verifiable-credential stack.</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button onClick={onResolveCta} style={{ border: 0, cursor: 'pointer', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', color: '#fff', boxShadow: '0 10px 24px -10px var(--glow)' }}>Resolve a DID now</button>
             <a href="/docs" target="_blank" rel="noopener" style={{ textDecoration: 'none', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>Read the docs</a>
@@ -181,7 +181,7 @@ export function Footer() {
           <Icon.ExternalArrow size={12} />
         </a>
         <a href="/dashboard" style={{ color: 'var(--dim)', textDecoration: 'none', fontWeight: 600 }}>Analytics</a>
-        <span>© 2026 thisDID · W3C DID-Core &amp; DIF conformant</span>
+        <span>© 2026 ThisDID · W3C DID-Core &amp; DIF conformant</span>
       </div>
     </footer>
   )

@@ -18,11 +18,11 @@ export interface Env {
   STATS_KV?: KVNamespace
 }
 
-/** Extra fields thisDID adds to `didResolutionMetadata` so the UI can render the route banner. */
+/** Extra fields ThisDID adds to `didResolutionMetadata` so the UI can render the route banner. */
 export interface ThisDidRouteMeta {
   /** Which layer answered: a local driver, or a routed upstream resolver. */
   route: 'local' | 'upstream'
-  /** Provider tag that answered — `thisDID` | `godiddy` | `archon`. */
+  /** Provider tag that answered — `ThisDID` | `godiddy` | `archon`. */
   provider: string
   /** Human label for the driver/resolver that served the request. */
   resolver: string

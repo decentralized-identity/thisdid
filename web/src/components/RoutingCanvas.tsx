@@ -27,7 +27,7 @@ interface Packet {
   sp: number
 }
 
-/** The animated routing diagram: left nodes → thisDID hub → resolvers.
+/** The animated routing diagram: left nodes → ThisDID hub → resolvers.
  * `labels` sets the 7 left-node captions (top methods or countries, live);
  * `total` is drawn above the hub (all-time resolutions). */
 export function RoutingCanvas({ dark, motion = true, labels, total }: { dark: boolean; motion?: boolean; labels?: string[]; total?: string }) {
@@ -249,7 +249,7 @@ export function RoutingCanvas({ dark, motion = true, labels, total }: { dark: bo
       ctx.font = `700 ${(12 * S).toFixed(1)}px "Space Grotesk", sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('thisDID', hub.x, hub.y)
+      ctx.fillText('ThisDID', hub.x, hub.y)
 
       // all-time total, above the hub
       const totalText = totalRef.current

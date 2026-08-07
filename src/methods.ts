@@ -15,7 +15,7 @@ export interface MethodMeta {
   glyph?: string
   /** a resolvable example DID */
   example?: string
-  /** whether thisDID resolves it with a local driver (vs. routed upstream) */
+  /** whether ThisDID resolves it with a local driver (vs. routed upstream) */
   local?: boolean
 }
 

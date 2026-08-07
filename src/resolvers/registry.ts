@@ -1,8 +1,8 @@
 /**
- * Routing registry — the heart of thisDID's "smart routing".
+ * Routing registry — the heart of ThisDID's "smart routing".
  *
  * Each DID method maps to an ORDERED fallback chain of steps. A step is either:
- *   - `local`   → resolved in-Worker by a bundled did-resolver driver (thisDID itself).
+ *   - `local`   → resolved in-Worker by a bundled did-resolver driver (ThisDID itself).
  *   - `godiddy` → routed to the godiddy Universal Resolver.
  *   - `archon`  → routed to the archon Universal Resolver.
  *
@@ -13,12 +13,12 @@
 
 export type Step = 'local' | 'godiddy' | 'archon' | 'goplausible'
 
-/** Most methods: try thisDID first, then godiddy, then archon. */
+/** Most methods: try ThisDID first, then godiddy, then archon. */
 export const DEFAULT_CHAIN: Step[] = ['local', 'godiddy', 'archon']
 
 /** Per-method chain overrides. */
 export const ROUTE_CHAINS: Record<string, Step[]> = {
-  // iden3: archon is authoritative first, then thisDID, then godiddy.
+  // iden3: archon is authoritative first, then ThisDID, then godiddy.
   iden3: ['archon', 'local', 'godiddy'],
   // Algorand-anchored methods: GoPlausible first, then godiddy, then archon.
   algo: ['goplausible', 'godiddy', 'archon'],
@@ -36,7 +36,7 @@ export function stepRoute(step: Step): 'local' | 'upstream' {
 
 /** Stable, low-cardinality provider tag for analytics. */
 export function providerTag(step: Step): string {
-  if (step === 'local') return 'thisDID'
+  if (step === 'local') return 'ThisDID'
   if (step === 'goplausible') return 'GoPlausible'
   return step
 }

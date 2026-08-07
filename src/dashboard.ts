@@ -1,5 +1,5 @@
 /**
- * Interactive analytics dashboard (thisDID dark theme), served at /dashboard.
+ * Interactive analytics dashboard (ThisDID dark theme), served at /dashboard.
  * The shell is static HTML + inline vanilla JS that fetches /dashboard/data
  * (with range/country/method filters) and renders KPIs, charts, tabbed
  * leaderboards and a live request feed. No third-party scripts (GDPR-friendly).
@@ -12,26 +12,26 @@ export function renderDashboard(): string {
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>thisDID · Analytics</title>
-<meta name="description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<title>ThisDID · Analytics</title>
+<meta name="description" content="Live, GDPR-friendly analytics for the ThisDID universal DID resolver — requests, latency, providers, methods and geography."/>
 <link rel="canonical" href="https://thisdid.com/dashboard"/>
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="https://thisdid.com/dashboard"/>
-<meta property="og:site_name" content="thisDID"/>
-<meta property="og:title" content="thisDID · Resolver Analytics"/>
-<meta property="og:description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<meta property="og:site_name" content="ThisDID"/>
+<meta property="og:title" content="ThisDID · Resolver Analytics"/>
+<meta property="og:description" content="Live, GDPR-friendly analytics for the ThisDID universal DID resolver — requests, latency, providers, methods and geography."/>
 <meta property="og:locale" content="en_US"/>
 <meta property="og:image" content="https://thisdid.com/poster.png"/>
 <meta property="og:image:secure_url" content="https://thisdid.com/poster.png"/>
 <meta property="og:image:type" content="image/png"/>
 <meta property="og:image:width" content="1599"/>
 <meta property="og:image:height" content="1165"/>
-<meta property="og:image:alt" content="thisDID — the DIF universal resolver that distributes DID resolution"/>
+<meta property="og:image:alt" content="ThisDID — the DIF universal resolver that distributes DID resolution"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="thisDID · Resolver Analytics"/>
-<meta name="twitter:description" content="Live, GDPR-friendly analytics for the thisDID universal DID resolver — requests, latency, providers, methods and geography."/>
+<meta name="twitter:title" content="ThisDID · Resolver Analytics"/>
+<meta name="twitter:description" content="Live, GDPR-friendly analytics for the ThisDID universal DID resolver — requests, latency, providers, methods and geography."/>
 <meta name="twitter:image" content="https://thisdid.com/poster.png"/>
-<meta name="twitter:image:alt" content="thisDID — the DIF universal resolver that distributes DID resolution"/>
+<meta name="twitter:image:alt" content="ThisDID — the DIF universal resolver that distributes DID resolution"/>
 <link rel="icon" href="/favicon.png" type="image/png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -176,7 +176,7 @@ export function renderDashboard(): string {
 (function(){
   var state = { range:'day', country:'', method:'', tab:'method', cursor:null, paged:false };
   var last = null;
-  var PC = { thisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968' };
+  var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968' };
   var PAL = ['#d97757','#e0724c','#cf7ea0','#b587f0','#8f8bf0','#5fd0e0','#57b96a','#f0b968','#d38f36','#a78bfa'];
   function pcolor(k){ return PC[k] || '#8b8375'; }
   function mcolor(i){ return PAL[i % PAL.length]; }

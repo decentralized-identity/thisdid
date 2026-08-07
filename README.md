@@ -1,6 +1,6 @@
-# thisDID
+# ThisDID
 
-**thisDID.com** is a Universal **W3C DID Resolver** — one endpoint that resolves any
+**ThisDID.com** is ThisDID conformant, DIF Universal ** DID Resolver** — one endpoint that resolves any
 Decentralized Identifier and returns a unified, DID-Core & DIF-conformant resolution result.
 
 A smart **routing engine** matches every DID to the right method driver: common methods are
@@ -47,7 +47,7 @@ JSON resolver API from a single origin via content negotiation.
 Every DID method is resolved through an **ordered fallback chain** defined in
 [`src/resolvers/registry.ts`](src/resolvers/registry.ts). Each step is one of:
 
-- **`local`** — resolved in-Worker (thisDID itself) by a bundled driver on the vendored
+- **`local`** — resolved in-Worker (ThisDID itself) by a bundled driver on the vendored
   `did-resolver` core. `did:web` ships today; more pure-JS drivers register in
   [`src/resolvers/local.ts`](src/resolvers/local.ts).
 - **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
@@ -67,12 +67,12 @@ did:iden3:…                          any other method (did:web, did:indy, …)
 ────────────                         ──────────────────────────────────────
                                    
   ┌─────────┐  hit? ──► return        ┌─────────┐  hit? ──► return
-  │ Archon  │                         │ thisDID │
+  │ Archon  │                         │ ThisDID │
   └────┬────┘                         │ (local) │
        │ miss / error                 └────┬────┘
        ▼                                   │ miss / error
   ┌─────────┐  hit? ──► return             ▼
-  │ thisDID │                         ┌─────────┐  hit? ──► return
+  │ ThisDID │                         ┌─────────┐  hit? ──► return
   │ (local) │                         │ Godiddy │
   └────┬────┘                         └────┬────┘
        │ miss / error                      │ miss / error
@@ -88,8 +88,8 @@ did:iden3:…                          any other method (did:web, did:indy, …)
 | Method | Chain (in order) |
 |---|---|
 | `algo`, `nfd` | **GoPlausible** → Godiddy → Archon |
-| `iden3` | **Archon** → thisDID (local) → Godiddy |
-| *all others* | **thisDID (local)** → Godiddy → Archon |
+| `iden3` | **Archon** → ThisDID (local) → Godiddy |
+| *all others* | **ThisDID (local)** → Godiddy → Archon |
 
 Every response's `didResolutionMetadata` is extended with `route` (`local`/`upstream`),
 `resolver`, `network`, `durationMs`, `via` (the upstream base that answered), and `chain`
@@ -168,7 +168,7 @@ resolver to AI agents / MCP clients as callable tools — point any MCP-compatib
 |---|---|---|
 | `resolve_did` | Resolve a W3C DID to its DID document with routing & resolution metadata. | `did` |
 | `list_did_methods` | List supported DID methods (featured + full driver list). | — |
-| `describe_routing` | Return the ordered fallback chain (thisDID / godiddy / archon) for a method. | `method` |
+| `describe_routing` | Return the ordered fallback chain (ThisDID / godiddy / archon) for a method. | `method` |
 | `get_resolver_health` | Report resolver service status. | — |
 
 ### Analytics (`/dashboard`)
@@ -177,7 +177,7 @@ Every resolution request is recorded and surfaced at **`/dashboard`** (a live, s
 dashboard) with a filterable **`/data`** JSON API. Storage uses **both** Cloudflare stores:
 
 - **D1** (`DB`) — the authoritative event log: one row per resolution, tagged with `provider`
-  (`thisDID`/`godiddy`/`archon`), `resolver`, `route`, `duration_ms`, `country`, `method` and more
+  (`ThisDID`/`godiddy`/`archon`), `resolver`, `route`, `duration_ms`, `country`, `method` and more
   ([`migrations/0001_init.sql`](migrations/0001_init.sql)). All aggregates are SQL over it.
 - **KV** (`STATS_KV`) — a live lifetime counter plus a short-TTL read-through cache of the unfiltered
   summaries, so the dashboard stays fast and cheap.
@@ -235,7 +235,7 @@ cp .dev.vars.example .dev.vars
 ```
 
 Without a `GODIDDY_API_KEY`, the Godiddy step is skipped (401) and the chain falls through to the
-next resolver, so resolution still works for methods Archon or thisDID can serve.
+next resolver, so resolution still works for methods Archon or ThisDID can serve.
 
 ---
 
