@@ -239,13 +239,6 @@ next resolver, so resolution still works for methods Archon or ThisDID can serve
 
 ---
 
-## Design
-
-The landing page implements the high-fidelity handoff in
-[`.notes/design_handoff_thisdid_resolver`](.notes/design_handoff_thisdid_resolver) — coral-with-a-twist
-palette, dark/light/system theming, the animated smart-routing diagram, and componentized Overview /
-JSON result views.
-
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

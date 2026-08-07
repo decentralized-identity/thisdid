@@ -181,7 +181,7 @@ export function Footer() {
           <Icon.ExternalArrow size={12} />
         </a>
         <a href="/dashboard" style={{ color: 'var(--dim)', textDecoration: 'none', fontWeight: 600 }}>Analytics</a>
-        <span>© 2026 ThisDID · W3C DID-Core &amp; DIF conformant</span>
+        <span>© 2026 ThisDID · DIF W3C DID-Coreconformant universal DID Resolver</span>
       </div>
     </footer>
   )
