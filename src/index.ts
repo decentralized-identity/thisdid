@@ -110,7 +110,7 @@ app.get('/docs', (c) =>
   c.html(
     '<!doctype html><html lang="en"><head><meta charset="utf-8"/>' +
       '<meta name="viewport" content="width=device-width, initial-scale=1"/>' +
-      '<title>ThisDID Resolver API</title>' +
+      '<title>ThisDID DIF Universal DID Resolver API</title>' +
       '<meta name="description" content="OpenAPI documentation for the ThisDID universal DID resolver — DIF-conformant resolution, discovery and analytics endpoints."/>' +
       '<link rel="canonical" href="https://thisdid.com/docs"/>' +
       '<meta property="og:type" content="website"/>' +
