@@ -24,7 +24,7 @@ const label = {
 } as const;
 const sub = { fontSize: 12, color: "var(--dim)", marginTop: 3 } as const;
 
-/** The five all-time resolver metrics, mirrored from the dashboard, on the landing page.
+/** Five resolver metrics, mirrored from the dashboard where applicable, on the landing page.
  * While the first /data fetch is in flight, each value shows its own skeleton shimmer
  * (labels are static, so only the data-dependent parts skeletonize). */
 export function LiveStats({
@@ -45,7 +45,7 @@ export function LiveStats({
       hasSub: true,
     },
     { v: t ? fmt(t.errors) : "—", l: "Not found" },
-    { v: t ? `${fmt(t.latencyTotalMs)} ms` : "—", l: "Total latency" },
+    { v: "4", l: "Providers" },
     { v: t ? `${fmt(t.latencyAvgMs)} ms` : "—", l: "Avg latency" },
   ];
   return (
