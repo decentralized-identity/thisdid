@@ -31,3 +31,4 @@ npm-debug.log*
 .vscode/settings.json
 .pnpm-store
 .pnpm-store/*
+package-lock.json
