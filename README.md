@@ -44,6 +44,28 @@ authoritative specifications and projects:
   resolver interface and core implementation embedded in this repository as a maintained
   submodule.
 
+#### DID Core version compatibility
+
+The published interoperability baseline for ThisDID and its resolver routes is
+**[DID Core v1.0](https://www.w3.org/TR/did-core/)**. DID Core v1.1 is currently an
+**[editor's draft](https://w3c.github.io/did/)**, not a W3C Recommendation. No resolver in the
+current routing chain makes an explicit, independently testable claim of full DID Core v1.1 draft
+conformance, so the table does not infer such a claim merely from accepting or returning a DID
+document that uses draft-compatible properties.
+
+| Resolver route                                                        | DID Core v1.0 | DID Core v1.1 draft | Basis for this classification                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------- | ------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TypeScript DID Resolver**                                           | **Supported** | **Not claimed**     | The embedded DIF [`did-resolver`](https://github.com/decentralized-identity/did-resolver) models the v1 DID context, DID documents, resolution metadata, and the DID Core resolution result. Actual method behavior also depends on the registered method driver.             |
+| **[GoPlausible](https://goplausible.com)**                            | **Supported** | **Not claimed**     | Its public Universal Resolver uses the DIF-compatible [`/api/1.0/identifiers`](https://goplausible.xyz/api/1.0/identifiers) interface and returns DID Core v1 resolution results for the `did:algo` and `did:nfd` routes used here.                                           |
+| **[Godiddy](https://docs.godiddy.com/apis/universal-resolver/index)** | **Supported** | **Not claimed**     | Godiddy documents a DIF Universal Resolver implementation with DID resolution results and DID document representations; its examples use the DID v1 context. Its documentation does not declare DID Core v1.1 draft conformance.                                              |
+| **[Archon](https://archon.technology/specs)**                         | **Supported** | **Not claimed**     | Archon documents DID Core-conformant DID documents and metadata plus the Universal Resolver [`/1.0/identifiers/{did}`](https://resolver.archon.technology/1.0/identifiers/did:web:example.com) interface. Its documentation does not declare DID Core v1.1 draft conformance. |
+
+“Not claimed” does not mean that a resolver must reject every document using a feature appearing
+in the v1.1 draft. It means that ThisDID has found no provider declaration or conformance evidence
+that justifies advertising complete support for that evolving draft. This table should be updated
+when DID Core v1.1 reaches a stable W3C publication or a provider publishes a versioned support
+statement and corresponding tests.
+
 ---
 
 ## Architecture
