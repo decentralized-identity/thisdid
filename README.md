@@ -111,6 +111,31 @@ statement and corresponding tests.
 | `probe/`              | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
 | `wrangler.jsonc`      | Worker + static-assets config.                                                                                           |
 
+### Isolated TypeScript driver Workers
+
+The mother Worker does not bundle the five method packages. Each Tier 1 package is built and
+deployed as its own private Cloudflare Worker, with `workers.dev` and preview URLs disabled. The
+mother invokes only the selected method Worker through a Service Binding; Cloudflare starts or
+reuses that deployed isolate on demand.
+
+| DID method | Service binding | Private Worker        | Published package          | Resolution model       | Configuration                      |
+| ---------- | --------------- | --------------------- | -------------------------- | ---------------------- | ---------------------------------- |
+| `did:web`  | `DRIVER_WEB`    | `thisdid-driver-web`  | `web-did-resolver@2.0.32`  | HTTPS DID document     | None                               |
+| `did:key`  | `DRIVER_KEY`    | `thisdid-driver-key`  | `key-did-resolver@4.0.0`   | Deterministic, offline | None                               |
+| `did:pkh`  | `DRIVER_PKH`    | `thisdid-driver-pkh`  | `pkh-did-resolver@2.0.0`   | Deterministic CAIP-10  | None                               |
+| `did:peer` | `DRIVER_PEER`   | `thisdid-driver-peer` | `peer-did-resolver@2.0.0`  | Deterministic, offline | None                               |
+| `did:ethr` | `DRIVER_ETHR`   | `thisdid-driver-ethr` | `ethr-did-resolver@14.1.2` | ERC-1056 via EVM RPC   | Mainnet/Sepolia RPC Worker secrets |
+
+All five Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
+internal request/response contract. The mother retains generic DID validation, timeouts,
+returned-document ID validation, health-aware fallback, public metadata, rate limiting, and
+analytics. A driver never chooses another provider or records analytics itself.
+
+This separation keeps unrelated cryptographic and blockchain dependency graphs out of the mother
+bundle. Driver source is not copied into ThisDID: the Tier 1 entrypoints consume published
+packages directly. `vendor/did-resolver/src/drivers/` remains reserved for separately approved
+Tier 2 adaptations that do not have a compatible TypeScript package.
+
 ### Smart routing
 
 Every DID method is resolved through an **ordered fallback chain** defined in
@@ -161,6 +186,11 @@ did:iden3:…                          any other method (did:web, did:indy, …)
 | `algo`, `nfd`                       | **GoPlausible** → Godiddy → Archon             |
 | `iden3`                             | **Archon** → TypeScript DID Resolver → Godiddy |
 | _all others_                        | **TypeScript DID Resolver** → Godiddy → Archon |
+
+Only the first row has an implemented local TypeScript driver. For every other advertised method,
+the `local` step reports `notConfigured` and the mother continues to its configured upstream
+providers. A method in the broader catalog describes a routing policy, not a guarantee that every
+upstream deployment can resolve every identifier.
 
 Every response's `didResolutionMetadata` is extended with `route` (`local` for the TypeScript DID
 Resolver, or `upstream` for a remote resolver),
@@ -232,7 +262,11 @@ npm run dev:drivers    # five discoverable local driver processes on ports 8791�
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
 ```
 
-For live SPA editing run both: `npm run dev` in one terminal, `npm run dev:web` in another.
+`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8795
+with separate inspector ports, while clients test the complete routing path through the mother API
+on port 8787. For local ethr resolution, copy
+`src/driver-workers/ethr/.dev.vars.example` to `src/driver-workers/ethr/.dev.vars` and add the full
+Alchemy URLs.
 
 ### Build & deploy
 
@@ -247,7 +281,9 @@ npm run dev:probe      # probe worker locally; trigger: GET /__scheduled?cron=*+
 
 The mother Worker serves `web/dist` through its `ASSETS` binding, so its deployment ships both the
 API and SPA. Driver Workers are separate deployments and must exist before the mother Worker is
-first deployed with its Service Bindings. `web/` can also be deployed independently as a Cloudflare **Pages** project
+first deployed with its Service Bindings. On the initial ethr deployment, deploy its Worker first,
+add its RPC secrets, and then deploy the probe and mother Worker. Later `deploy:all` runs preserve
+the existing secrets. `web/` can also be deployed independently as a Cloudflare **Pages** project
 (point it at the Worker with `VITE_API_BASE`).
 
 ---
@@ -311,6 +347,9 @@ The dashboard shows:
 - **Charts** — a requests-over-time **timeline**, a **routed-to pie**, a **by-method bar chart**, a
   **horizontal by-country bar chart**, a **latency-by-provider comparison** (avg / min / max), and a
   full-width **request-activity heatmap** (GitHub-style, daily over the last ~53 weeks).
+- **Provider status** — four live tiles for **ThisDID**, **GoPlausible**, **Godiddy**, and
+  **Archon**, showing probe status, EWMA latency, success rate, and last probe time. Method-level
+  TypeScript driver health is aggregated into the single ThisDID provider tile.
 - **Leaderboards** — tabbed by **method / routed-to / country / resolver**.
 - **Filters** — by **scope** (Hourly / Day / Week / Month / YTD / All time — each with the matching
   bucket granularity), **country** and **method**.
