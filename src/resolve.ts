@@ -51,7 +51,12 @@ type Attempt = {
   failure?: UpstreamFailure;
 };
 
-async function runStep(step: Step, did: string, env: Env): Promise<Attempt> {
+async function runStep(
+  step: Step,
+  did: string,
+  env: Env,
+  signal: AbortSignal,
+): Promise<Attempt> {
   try {
     if (step === "local") {
       const r = await resolveLocal(did);
@@ -68,7 +73,12 @@ async function runStep(step: Step, did: string, env: Env): Promise<Attempt> {
     }
     // godiddy / archon / goplausible are all DIF Universal Resolver GET endpoints.
     const token = step === "godiddy" ? env.GODIDDY_API_KEY : undefined;
-    const upstream = await fetchUpstream(did, upstreamBase(step, env), token);
+    const upstream = await fetchUpstream(
+      did,
+      upstreamBase(step, env),
+      token,
+      signal,
+    );
     return upstream.ok
       ? { step, result: upstream.result }
       : { step, failure: upstream.failure };
@@ -79,16 +89,20 @@ async function runStep(step: Step, did: string, env: Env): Promise<Attempt> {
 
 /** Bound a step's wall-clock so a hung driver fails over instead of stalling. */
 const STEP_TIMEOUT_MS = 8000;
-async function withTimeout(step: Step, p: Promise<Attempt>): Promise<Attempt> {
+async function withTimeout(
+  step: Step,
+  run: (signal: AbortSignal) => Promise<Attempt>,
+): Promise<Attempt> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      p,
+      run(controller.signal),
       new Promise<Attempt>((resolve) => {
-        timer = setTimeout(
-          () => resolve({ step, failure: { error: "timeout" } }),
-          STEP_TIMEOUT_MS,
-        );
+        timer = setTimeout(() => {
+          controller.abort();
+          resolve({ step, failure: { error: "timeout" } });
+        }, STEP_TIMEOUT_MS);
       }),
     ]);
   } finally {
@@ -124,7 +138,9 @@ export async function resolveDid(
 
   const attempts: Attempt[] = [];
   for (const step of chain) {
-    const attempt = await withTimeout(step, runStep(step, trimmed, env));
+    const attempt = await withTimeout(step, (signal) =>
+      runStep(step, trimmed, env, signal),
+    );
     attempts.push(attempt);
     if (attempt.result) {
       const result = attempt.result as ThisDidResolution;

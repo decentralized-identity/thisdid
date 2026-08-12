@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.0.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - name: Install ThisDID dependencies
+        run: npm ci
+      - name: Install TypeScript DID Resolver dependencies
+        working-directory: vendor/did-resolver
+        run: pnpm install --frozen-lockfile
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Verify TypeScript DID Resolver
+        working-directory: vendor/did-resolver
+        run: pnpm run lint && pnpm run format:check && pnpm run test && pnpm run build
+      - name: Verify ThisDID
+        run: npm run check

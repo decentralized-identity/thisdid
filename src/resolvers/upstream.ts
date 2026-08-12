@@ -17,10 +17,42 @@ export type UpstreamResult =
   | { ok: true; result: DIDResolutionResult }
   | { ok: false; failure: UpstreamFailure };
 
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+
+/** Read at most the configured response limit, cancelling the stream when it exceeds it. */
+async function readBoundedBody(res: Response): Promise<Uint8Array | null> {
+  if (!res.body) return new Uint8Array();
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export async function fetchUpstream(
   did: string,
   base: string,
   token?: string,
+  signal?: AbortSignal,
 ): Promise<UpstreamResult> {
   if (!base) return { ok: false, failure: { error: "notConfigured" } };
   const url = `${base.replace(/\/+$/, "")}/${encodeURIComponent(did)}`;
@@ -29,9 +61,9 @@ export async function fetchUpstream(
   };
   if (token) headers.authorization = `Bearer ${token}`;
   try {
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, signal });
     const declaredLength = Number(res.headers.get("content-length") ?? 0);
-    if (declaredLength > 1024 * 1024) {
+    if (declaredLength > MAX_RESPONSE_BYTES) {
       return {
         ok: false,
         failure: { error: "invalidResponse", status: res.status },
@@ -39,7 +71,14 @@ export async function fetchUpstream(
     }
     let body: Partial<DIDResolutionResult> & Record<string, unknown>;
     try {
-      const decoded: unknown = await res.json();
+      const bytes = await readBoundedBody(res);
+      if (!bytes) {
+        return {
+          ok: false,
+          failure: { error: "invalidResponse", status: res.status },
+        };
+      }
+      const decoded: unknown = JSON.parse(new TextDecoder().decode(bytes));
       if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
         return {
           ok: false,

@@ -85,6 +85,43 @@ describe("resolveDid", () => {
       ),
     ).toBe(true);
   });
+
+  it("passes an abort signal to every upstream request", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        return Response.json(null);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resolveDid("did:algo:requested", env);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects oversized upstream bodies without trusting Content-Length", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              id: "did:algo:requested",
+              padding: "x".repeat(1024 * 1024),
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+
+    const result = await resolveDid("did:algo:requested", env);
+    expect(result.didResolutionMetadata.attempts).toHaveLength(3);
+    expect(
+      result.didResolutionMetadata.attempts?.every(
+        (attempt) => attempt.error === "invalidResponse",
+      ),
+    ).toBe(true);
+  });
 });
 
 it("moves down providers behind healthy fallbacks without deleting them", () => {
