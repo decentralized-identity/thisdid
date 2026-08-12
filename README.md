@@ -1,21 +1,48 @@
 # ThisDID
 
-**ThisDID.com** is a W3C DID Core-conformant DIF Universal DID Resolver: one endpoint that resolves
-any Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
+**ThisDID.com** is a [W3C DID Core](https://www.w3.org/TR/did-core/)-conformant
+[DIF](https://identity.foundation/) Universal DID Resolver: one endpoint that resolves any
+Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
 A smart **routing engine** matches every DID to the appropriate method driver: common methods are
-resolved in-Worker by bundled drivers, and the long tail is routed to redundant upstream
-Universal Resolvers with failover. A connected **probe sub-worker** health-checks every route
-with real canary DID resolutions every minute, feeding the engine live per-resolver health
+resolved by the embedded TypeScript DID Resolver, and the long tail is routed to redundant
+upstream Universal Resolvers with failover. A connected **probe sub-worker** health-checks every
+route with real canary DID resolutions every minute, feeding the engine live per-resolver health
 (surfaced at [`/status`](https://thisdid.com/status)). The same edge Worker serves the
 marketing/landing SPA and the JSON resolver API from a single origin via content negotiation.
 
-This repository is a **Decentralized Identity Foundation (DIF)** project. ThisDID was built and
-donated to DIF by [GoPlausible](https://goplausible.com), which continues to maintain it.
+This repository is a **[Decentralized Identity Foundation (DIF)](https://identity.foundation/)**
+project. ThisDID was built and donated to DIF by [GoPlausible](https://goplausible.com), which
+continues to maintain it.
 
-> v2 is a ground-up rewrite. The previous CRA/MUI app (wallet connect, DID-URL shortener, credit,
-> WebAuthn) has been removed; this repository is now a resolver/router with a TypeScript DID Resolver
-> core, edge API, health probe, analytics, MCP endpoint, and React UI.
+### Standards and specifications
+
+ThisDID's resolution behavior, result shape, and interoperability model are based on these
+authoritative specifications and projects:
+
+- **[Decentralized Identifiers (DIDs) v1.0](https://www.w3.org/TR/did-core/)** — the latest
+  published W3C Recommendation for DID syntax, DID URLs, the DID document data model, verification
+  relationships, services, and JSON/JSON-LD representations. The sections on
+  [representations](https://www.w3.org/TR/did-core/#representations) and
+  [resolution](https://www.w3.org/TR/did-core/#resolution) are directly relevant to ThisDID. The
+  [DID Core v1.1 editor's draft](https://w3c.github.io/did/) tracks ongoing work toward the next
+  version and is not yet a W3C Recommendation.
+- **[DID Resolution v0.3](https://www.w3.org/TR/did-resolution/)** — the latest published W3C
+  Working Draft defining DID resolution and DID URL dereferencing algorithms, resolution options,
+  resolution metadata, DID document metadata, error handling, result structures, and HTTP(S)
+  bindings.
+- **[DID Resolution Extensions](https://www.w3.org/TR/did-extensions-resolution/)** — the W3C
+  registry for extension parameters and metadata used by DID resolution implementations.
+- **[Decentralized Identifier Extensions](https://www.w3.org/TR/did-extensions/)** — the W3C index
+  for DID document properties, resolution extensions, and DID methods.
+- **[DID Specification Registries](https://www.w3.org/TR/did-spec-registries/)** — the W3C registry
+  of known DID ecosystem properties, values, parameters, representations, and DID methods.
+- **[DIF Universal Resolver](https://github.com/decentralized-identity/universal-resolver)** — the
+  DIF resolver architecture and driver ecosystem behind the interoperable
+  `GET /1.0/identifiers/{did}` interface implemented by ThisDID.
+- **[DIF `did-resolver`](https://github.com/decentralized-identity/did-resolver)** — the TypeScript
+  resolver interface and core implementation embedded in this repository as a maintained
+  submodule.
 
 ---
 
@@ -33,7 +60,7 @@ donated to DIF by [GoPlausible](https://goplausible.com), which continues to mai
 │                                                                              │
 │   resolve()  ──►  routing registry (src/resolvers/registry.ts)               │
 │                     per-method ordered chain of:                             │
-│                     ├─ local       → vendored did-resolver core + drivers    │
+│                     ├─ TypeScript DID Resolver → vendored core + drivers     │
 │                     ├─ goplausible → goplausible.xyz (upstream, open)        │
 │                     ├─ godiddy     → api.godiddy.com (upstream, API key)     │
 │                     └─ archon      → resolver.archon.technology (upstream)   │
@@ -61,8 +88,8 @@ donated to DIF by [GoPlausible](https://goplausible.com), which continues to mai
 Every DID method is resolved through an **ordered fallback chain** defined in
 [`src/resolvers/registry.ts`](src/resolvers/registry.ts). Each step is one of:
 
-- **`local`** — resolved in-Worker (ThisDID itself) by a bundled driver on the vendored
-  `did-resolver` core. `did:web` ships today; more pure-JS drivers register in
+- **TypeScript DID Resolver** — resolved by a bundled driver on the vendored `did-resolver` core.
+  `did:web` ships today; more pure-JS drivers register in
   [`src/resolvers/local.ts`](src/resolvers/local.ts).
 - **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
   (`goplausible.xyz/api/1.0/identifiers`), the Algorand-native resolver. Open, no key.
@@ -81,13 +108,13 @@ did:iden3:…                          any other method (did:web, did:indy, …)
 ────────────                         ──────────────────────────────────────
 
   ┌─────────┐  hit? ──► return        ┌─────────┐  hit? ──► return
-  │ Archon  │                         │ ThisDID │
-  └────┬────┘                         │ (local) │
+  │ Archon  │                         │  TS DID │
+  └────┬────┘                         │Resolver │
        │ miss / error                 └────┬────┘
        ▼                                   │ miss / error
   ┌─────────┐  hit? ──► return             ▼
-  │ ThisDID │                         ┌─────────┐  hit? ──► return
-  │ (local) │                         │ Godiddy │
+  │  TS DID │                         ┌─────────┐  hit? ──► return
+  │Resolver │                         │ Godiddy │
   └────┬────┘                         └────┬────┘
        │ miss / error                      │ miss / error
        ▼                                   ▼
@@ -99,13 +126,14 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method        | Chain (in order)                       |
-| ------------- | -------------------------------------- |
-| `algo`, `nfd` | **GoPlausible** → Godiddy → Archon     |
-| `iden3`       | **Archon** → ThisDID (local) → Godiddy |
-| _all others_  | **ThisDID (local)** → Godiddy → Archon |
+| Method        | Chain (in order)                               |
+| ------------- | ---------------------------------------------- |
+| `algo`, `nfd` | **GoPlausible** → Godiddy → Archon             |
+| `iden3`       | **Archon** → TypeScript DID Resolver → Godiddy |
+| _all others_  | **TypeScript DID Resolver** → Godiddy → Archon |
 
-Every response's `didResolutionMetadata` is extended with `route` (`local`/`upstream`),
+Every response's `didResolutionMetadata` is extended with `route` (`local` for the TypeScript DID
+Resolver, or `upstream` for a remote resolver),
 `resolver`, `network`, `durationMs`, `via` (the upstream base that answered), and `chain`
 (e.g. `local→godiddy→archon`) so clients — and the SPA route banner — can see exactly how a DID
 was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registry.
@@ -115,7 +143,7 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 The routing engine is fed by a **connected sub-worker** ([`probe/`](probe/)) that pings every
 route with **real canary DID resolutions** — not TCP checks — **once per minute**
 (cron `* * * * *`). One canary per authoritative route:
-`did:web` for the in-Worker driver, `did:key` via Godiddy, `did:algo` + `did:nfd` via
+`did:web` for the TypeScript DID Resolver driver, `did:key` via Godiddy, `did:algo` + `did:nfd` via
 GoPlausible, `did:iden3` via Archon — each bounded by the same 8s timeout as live traffic.
 
 Each round is recorded twice:
