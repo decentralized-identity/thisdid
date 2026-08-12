@@ -135,7 +135,7 @@ const NET_STATS = [
   { value: '42', label: 'Edge regions' },
   { value: '3', label: 'Failover providers' },
   { value: '256-bit', label: 'Signed metadata' },
-  { value: '100%', label: 'DIF conformance' },
+  { value: '100%', label: 'W3C Core conformance' },
 ]
 
 export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
@@ -144,7 +144,7 @@ export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
       <div className="net-grid" style={{ borderRadius: 24, border: '1px solid var(--border2)', overflow: 'hidden', background: 'linear-gradient(130deg,color-mix(in srgb,var(--accent) 14%,var(--surface)),color-mix(in srgb,var(--twist) 12%,var(--surface)))', padding: 44, display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 36, alignItems: 'center' }}>
         <div>
           <h2 style={{ ...h2, fontSize: 'clamp(26px,3vw,38px)', margin: '0 0 14px', lineHeight: 1.1 }}>Globally distributed. Always compliant.</h2>
-          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>ThisDID runs at the edge worldwide, returning fully W3C DID-Core and DIF-conformant resolution results with signed metadata — ready to plug into any verifiable-credential stack.</p>
+          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>ThisDID runs at the edge worldwide, returning fully W3C DID-Core conformant resolution results with signed metadata — ready to plug into any verifiable-credential stack.</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button onClick={onResolveCta} style={{ border: 0, cursor: 'pointer', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', color: '#fff', boxShadow: '0 10px 24px -10px var(--glow)' }}>Resolve a DID now</button>
             <a href="/docs" target="_blank" rel="noopener" style={{ textDecoration: 'none', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>Read the docs</a>

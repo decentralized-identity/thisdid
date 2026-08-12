@@ -16,7 +16,7 @@ export function LiveStats({ stats, loading = false }: { stats: LiveStatsData | n
   const cards: { v: string; l: string; s?: string; hasSub?: boolean }[] = [
     { v: t ? fmt(t.liveTotal) : '—', l: 'Total resolutions' },
     { v: t ? fmt(t.success) : '—', l: 'Success', s: t ? `${t.successRate}%` : undefined, hasSub: true },
-    { v: t ? fmt(t.errors) : '—', l: 'Failure' },
+    { v: t ? fmt(t.errors) : '—', l: 'Not found' },
     { v: t ? `${fmt(t.latencyTotalMs)} ms` : '—', l: 'Total latency' },
     { v: t ? `${fmt(t.latencyAvgMs)} ms` : '—', l: 'Avg latency' },
   ]
