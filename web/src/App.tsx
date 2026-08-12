@@ -20,6 +20,10 @@ const ERROR_COPY: Record<string, string> = {
   notFound: "No DID document was found for this identifier.",
   unsupportedDidMethod: "That DID method isn’t supported yet — try another.",
   representationNotSupported: "This DID could not be represented as JSON-LD.",
+  upstreamError: "An upstream resolver could not complete this resolution.",
+  internalError: "A resolver driver encountered an internal error.",
+  invalidDidDocument:
+    "A resolver returned a DID document for a different identifier, so ThisDID rejected it.",
 };
 
 export function App() {

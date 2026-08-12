@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { SwaggerUI } from "@hono/swagger-ui";
 import { resolveDid } from "./resolve";
 import { openApiSpec } from "./openapi/spec";
-import { FEATURED_METHODS, ALL_METHODS } from "./methods";
+import { FEATURED_METHODS, ALL_METHODS, LOCAL_DRIVER_METHODS } from "./methods";
 import {
   getStats,
   parseFilter,
@@ -252,7 +252,7 @@ app.get("/methods", (c) =>
     all: ALL_METHODS,
     semantics: {
       all: "Methods with an intentionally configured local or upstream route; successful resolution depends on the selected provider.",
-      local: FEATURED_METHODS.filter((m) => m.local).map((m) => m.id),
+      local: LOCAL_DRIVER_METHODS,
       routing: "health-aware ordered fallback",
     },
   }),
@@ -313,7 +313,7 @@ app.get("/status", async (c) => {
     providers: snap
       ? Object.fromEntries(
           Object.entries(snap.providers).map(([step, h]) => [
-            providerTag(step as Step),
+            step.startsWith("local:") ? step : providerTag(step as Step),
             h,
           ]),
         )

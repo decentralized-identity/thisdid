@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { planChain, resolveDid } from "./resolve";
 import type { Env } from "./types";
 import type { HealthSnapshot } from "./routing/health";
+import { fetchUpstream } from "./resolvers/upstream";
 
 const env = {
   GODIDDY_RESOLVER: "https://godiddy.test",
@@ -11,6 +12,32 @@ const env = {
 } as Env;
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("normalizes non-conformant upstream error objects", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json(
+        {
+          didResolutionMetadata: {
+            error: { type: "INTERNAL_ERROR", detail: "private diagnostic" },
+          },
+          didDocument: null,
+          didDocumentMetadata: {},
+        },
+        { status: 500 },
+      ),
+    ),
+  );
+  const result = await fetchUpstream("did:jwk:test", "https://resolver.test");
+  expect(result).toMatchObject({
+    ok: false,
+    failure: {
+      error: "internalError",
+      metadata: { error: "internalError" },
+    },
+  });
+});
 
 describe("resolveDid", () => {
   it("rejects malformed DIDs before routing", async () => {
@@ -126,7 +153,7 @@ describe("resolveDid", () => {
 
 it("moves down providers behind healthy fallbacks without deleting them", () => {
   const health: HealthSnapshot = {
-    v: 1,
+    v: 2,
     updatedTs: Date.now(),
     providers: {
       local: {

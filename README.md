@@ -5,7 +5,7 @@
 Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
 A smart **routing engine** matches every DID to the appropriate method driver: common methods are
-resolved by the embedded TypeScript DID Resolver, and the long tail is routed to redundant
+resolved by isolated TypeScript DID Resolver Workers, and the long tail is routed to redundant
 upstream Universal Resolvers with failover. A connected **probe sub-worker** health-checks every
 route with real canary DID resolutions every minute, feeding the engine live per-resolver health
 (surfaced at [`/status`](https://thisdid.com/status)). The same edge Worker serves the
@@ -53,12 +53,12 @@ current routing chain makes an explicit, independently testable claim of full DI
 conformance, so the table does not infer such a claim merely from accepting or returning a DID
 document that uses draft-compatible properties.
 
-| Resolver route                                                        | DID Core v1.0 | DID Core v1.1 draft | Basis for this classification                                                                                                                                                                                                                                                 |
-| --------------------------------------------------------------------- | ------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TypeScript DID Resolver**                                           | **Supported** | **Not claimed**     | The embedded DIF [`did-resolver`](https://github.com/decentralized-identity/did-resolver) models the v1 DID context, DID documents, resolution metadata, and the DID Core resolution result. Actual method behavior also depends on the registered method driver.             |
-| **[GoPlausible](https://goplausible.com)**                            | **Supported** | **Not claimed**     | Its public Universal Resolver uses the DIF-compatible [`/api/1.0/identifiers`](https://goplausible.xyz/api/1.0/identifiers) interface and returns DID Core v1 resolution results for the `did:algo` and `did:nfd` routes used here.                                           |
-| **[Godiddy](https://docs.godiddy.com/apis/universal-resolver/index)** | **Supported** | **Not claimed**     | Godiddy documents a DIF Universal Resolver implementation with DID resolution results and DID document representations; its examples use the DID v1 context. Its documentation does not declare DID Core v1.1 draft conformance.                                              |
-| **[Archon](https://archon.technology/specs)**                         | **Supported** | **Not claimed**     | Archon documents DID Core-conformant DID documents and metadata plus the Universal Resolver [`/1.0/identifiers/{did}`](https://resolver.archon.technology/1.0/identifiers/did:web:example.com) interface. Its documentation does not declare DID Core v1.1 draft conformance. |
+| Resolver route                                                        | DID Core v1.0 | DID Core v1.1 draft | Basis for this classification                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------- | ------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TypeScript DID Resolver**                                           | **Supported** | **Not claimed**     | The DIF [`did-resolver`](https://github.com/decentralized-identity/did-resolver) core used by each isolated driver Worker models the v1 DID context, DID documents, resolution metadata, and the DID Core resolution result. Actual method behavior also depends on its published method package. |
+| **[GoPlausible](https://goplausible.com)**                            | **Supported** | **Not claimed**     | Its public Universal Resolver uses the DIF-compatible [`/api/1.0/identifiers`](https://goplausible.xyz/api/1.0/identifiers) interface and returns DID Core v1 resolution results for the `did:algo` and `did:nfd` routes used here.                                                               |
+| **[Godiddy](https://docs.godiddy.com/apis/universal-resolver/index)** | **Supported** | **Not claimed**     | Godiddy documents a DIF Universal Resolver implementation with DID resolution results and DID document representations; its examples use the DID v1 context. Its documentation does not declare DID Core v1.1 draft conformance.                                                                  |
+| **[Archon](https://archon.technology/specs)**                         | **Supported** | **Not claimed**     | Archon documents DID Core-conformant DID documents and metadata plus the Universal Resolver [`/1.0/identifiers/{did}`](https://resolver.archon.technology/1.0/identifiers/did:web:example.com) interface. Its documentation does not declare DID Core v1.1 draft conformance.                     |
 
 “Not claimed” does not mean that a resolver must reject every document using a feature appearing
 in the v1.1 draft. It means that ThisDID has found no provider declaration or conformance evidence
@@ -82,7 +82,7 @@ statement and corresponding tests.
 │                                                                              │
 │   resolve()  ──►  routing registry (src/resolvers/registry.ts)               │
 │                     per-method ordered chain of:                             │
-│                     ├─ TypeScript DID Resolver → vendored core + drivers     │
+│                     ├─ TypeScript DID Resolver → private Service Bindings    │
 │                     ├─ goplausible → goplausible.xyz (upstream, open)        │
 │                     ├─ godiddy     → api.godiddy.com (upstream, API key)     │
 │                     └─ archon      → resolver.archon.technology (upstream)   │
@@ -90,9 +90,14 @@ statement and corresponding tests.
         ▲ static assets = web/dist (Vite + React + TS SPA, deployable as Pages)
         ▲ vendor/did-resolver = DIF did-resolver core (git submodule)
 
+        DRIVER_WEB   DRIVER_KEY   DRIVER_PKH   DRIVER_PEER   DRIVER_ETHR
+             │           │            │             │             │
+             ▼           ▼            ▼             ▼             ▼
+        five independently deployed private driver Workers (src/driver-workers/)
+
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
 │  cron `* * * * *`  →  one canary DID resolution round per route every minute │
-│  results → D1 `probes` log  +  KV `routing:health:v1` snapshot → GET /status │
+│  results → D1 `probes` log  +  KV `routing:health:v2` snapshot → GET /status │
 │  shares the main Worker's D1 + KV by id · never sits on the request path     │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -100,6 +105,7 @@ statement and corresponding tests.
 | Path                  | What it is                                                                                                               |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `src/`                | The Cloudflare Worker — the ThisDID Resolver API and SPA host.                                                           |
+| `src/driver-workers/` | Private Tier 1 Worker entrypoints; each directly consumes one published resolver package.                                |
 | `web/`                | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`.                                                  |
 | `vendor/did-resolver` | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**.                   |
 | `probe/`              | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
@@ -110,9 +116,10 @@ statement and corresponding tests.
 Every DID method is resolved through an **ordered fallback chain** defined in
 [`src/resolvers/registry.ts`](src/resolvers/registry.ts). Each step is one of:
 
-- **TypeScript DID Resolver** — resolved by a bundled driver on the vendored `did-resolver` core.
-  `did:web` ships today; more pure-JS drivers register in
-  [`src/resolvers/local.ts`](src/resolvers/local.ts).
+- **TypeScript DID Resolver** — resolved by an isolated method Worker through a private Cloudflare
+  Service Binding. The first wave supports `did:web`, `did:key`, `did:pkh`, `did:peer`, and
+  configured `did:ethr`; each Worker directly uses its published package with the vendored
+  `did-resolver` core. See [`src/driver-workers/`](src/driver-workers/README.md).
 - **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
   (`goplausible.xyz/api/1.0/identifiers`), the Algorand-native resolver. Open, no key.
 - **`godiddy`** — routed to the [Godiddy](https://godiddy.com) Universal Resolver
@@ -148,11 +155,12 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method        | Chain (in order)                               |
-| ------------- | ---------------------------------------------- |
-| `algo`, `nfd` | **GoPlausible** → Godiddy → Archon             |
-| `iden3`       | **Archon** → TypeScript DID Resolver → Godiddy |
-| _all others_  | **TypeScript DID Resolver** → Godiddy → Archon |
+| Method                              | Chain (in order)                               |
+| ----------------------------------- | ---------------------------------------------- |
+| `web`, `key`, `pkh`, `peer`, `ethr` | **TypeScript DID Resolver** → Godiddy → Archon |
+| `algo`, `nfd`                       | **GoPlausible** → Godiddy → Archon             |
+| `iden3`                             | **Archon** → TypeScript DID Resolver → Godiddy |
+| _all others_                        | **TypeScript DID Resolver** → Godiddy → Archon |
 
 Every response's `didResolutionMetadata` is extended with `route` (`local` for the TypeScript DID
 Resolver, or `upstream` for a remote resolver),
@@ -165,15 +173,18 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 The routing engine is fed by a **connected sub-worker** ([`probe/`](probe/)) that pings every
 route with **real canary DID resolutions** — not TCP checks — **once per minute**
 (cron `* * * * *`). One canary per authoritative route:
-`did:web` for the TypeScript DID Resolver driver, `did:key` via Godiddy, `did:algo` + `did:nfd` via
-GoPlausible, `did:iden3` via Archon — each bounded by the same 8s timeout as live traffic.
+method-specific canaries for the `web`, `key`, `pkh`, and `peer` TypeScript drivers; `did:key` via
+Godiddy; `did:algo` + `did:nfd` via GoPlausible; and `did:iden3` via Archon — each bounded by the
+same 8s timeout as live traffic. The network-backed ethr canary is enabled with
+`ETHR_CANARY_DID` only after approved RPC networks are configured.
 
 Each round is recorded twice:
 
 - **D1 `probes` table** ([`migrations/0002_probes.sql`](migrations/0002_probes.sql)) — the raw
   probe log (30-day retention, pruned hourly), kept **separate from `resolutions`** so probe
   traffic never pollutes user analytics.
-- **KV `routing:health:v1` snapshot** — per provider: `status` (`up`/`degraded`/`down`), EWMA
+- **KV `routing:health:v2` snapshot** — per upstream provider and isolated driver: `status`
+  (`up`/`degraded`/`down`), EWMA
   latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 3 min
   trips `down`).
 
@@ -201,6 +212,7 @@ git submodule update --init --recursive
 npm install            # installs the root Worker + web workspace
 npm run install:vendor # installs the independently locked did-resolver toolchain
 npm run build          # builds the vendored did-resolver lib + the SPA
+npm run drivers:check  # bundles all five isolated drivers without deploying
 npm run check          # Worker + web typechecks, all tests, and production builds
 ```
 
@@ -214,7 +226,9 @@ hoisted into the deployed application's dependency graph.
 ### Develop
 
 ```bash
-npm run dev            # Worker + resolver API + built SPA on http://localhost:8787
+npm run dev            # mother Worker + five bound driver Workers + Vite SPA
+npm run dev:worker     # mother Worker only (drivers must already be running)
+npm run dev:drivers    # five discoverable local driver processes on ports 8791–8795
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
 ```
 
@@ -224,13 +238,16 @@ For live SPA editing run both: `npm run dev` in one terminal, `npm run dev:web` 
 
 ```bash
 npm run build          # → vendor/did-resolver/lib + web/dist
-npm run deploy         # builds, then `wrangler deploy`
+npm run deploy:drivers # deploy five isolated driver Workers first
+npm run deploy         # deploy the mother Worker only
+npm run deploy:all     # deploy drivers, then probe, then mother Worker
 npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)
 npm run dev:probe      # probe worker locally; trigger: GET /__scheduled?cron=*+*+*+*+*
 ```
 
-The Worker serves `web/dist` through its `ASSETS` binding, so a single `wrangler deploy` ships both
-the API and the SPA. `web/` can also be deployed independently as a Cloudflare **Pages** project
+The mother Worker serves `web/dist` through its `ASSETS` binding, so its deployment ships both the
+API and SPA. Driver Workers are separate deployments and must exist before the mother Worker is
+first deployed with its Service Bindings. `web/` can also be deployed independently as a Cloudflare **Pages** project
 (point it at the Worker with `VITE_API_BASE`).
 
 ---
@@ -290,7 +307,7 @@ analytics page; the old `/dashboard` path 301-redirects) with a filterable **`/d
 
 The dashboard shows:
 
-- **Metrics** — total / success / failure, success rate, **total latency** and average latency.
+- **Metrics** — total / success / failure, success rate, provider count and average latency.
 - **Charts** — a requests-over-time **timeline**, a **routed-to pie**, a **by-method bar chart**, a
   **horizontal by-country bar chart**, a **latency-by-provider comparison** (avg / min / max), and a
   full-width **request-activity heatmap** (GitHub-style, daily over the last ~53 weeks).
@@ -346,6 +363,18 @@ cp .dev.vars.example .dev.vars
 
 Without a `GODIDDY_API_KEY`, the Godiddy step is skipped (401) and the chain falls through to the
 next resolver, so resolution still works for methods Archon or ThisDID can serve.
+
+The mother and probe Workers bind privately to the five services declared in their respective
+`services` arrays. Only the ethr driver currently requires method-specific configuration. Store
+its full Alchemy URLs as secrets on that Worker:
+
+```bash
+npx wrangler secret put EVM_RPC_MAINNET_URL --config src/driver-workers/ethr/wrangler.jsonc
+npx wrangler secret put EVM_RPC_SEPOLIA_URL --config src/driver-workers/ethr/wrangler.jsonc
+```
+
+See [`src/driver-workers/README.md`](src/driver-workers/README.md) for the schema, package versions,
+and driver deployment order.
 
 ---
 

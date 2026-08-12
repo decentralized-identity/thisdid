@@ -6,7 +6,7 @@
  *   - fires all canaries in parallel (same 8s bound as live traffic),
  *   - appends one row per canary to the D1 `probes` table (NOT `resolutions` —
  *     probe traffic must never pollute user-facing analytics),
- *   - folds per-provider EWMAs into the `routing:health:v1` KV snapshot that
+ *   - folds per-provider EWMAs into the `routing:health:v2` KV snapshot that
  *     the main resolver Worker reads.
  *
  * It is connected to the main Worker only through the shared D1 database and
@@ -16,6 +16,7 @@
 import { resolveLocal } from "../../src/resolvers/local";
 import { fetchUpstream } from "../../src/resolvers/upstream";
 import { providerTag, type Step } from "../../src/resolvers/registry";
+import type { DriverBindings } from "../../src/types";
 import {
   HEALTH_KEY,
   type HealthSnapshot,
@@ -23,12 +24,14 @@ import {
   type ProviderStatus,
 } from "../../src/routing/health";
 
-interface ProbeEnv {
+interface ProbeEnv extends DriverBindings {
   GODIDDY_RESOLVER: string;
   ARCHON_RESOLVER: string;
   GOPLAUSIBLE_RESOLVER: string;
   /** Same secret as the main Worker (set separately: `wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc`). */
   GODIDDY_API_KEY?: string;
+  /** Optional stable ethr DID; enable only after the ethr driver RPC networks are configured. */
+  ETHR_CANARY_DID?: string;
   DB?: D1Database;
   STATS_KV?: KVNamespace;
 }
@@ -36,6 +39,18 @@ interface ProbeEnv {
 /** One canary per route a provider is authoritative for (mirrors the SPA examples). */
 const CANARIES: { step: Step; did: string }[] = [
   { step: "local", did: "did:web:identity.foundation" },
+  {
+    step: "local",
+    did: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
+  },
+  {
+    step: "local",
+    did: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
+  },
+  {
+    step: "local",
+    did: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
+  },
   {
     step: "godiddy",
     did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
@@ -64,6 +79,7 @@ const DEGRADED_MS = 4000;
 
 interface ProbeResult {
   step: Step;
+  healthKey?: string;
   did: string;
   ok: boolean;
   ms: number;
@@ -94,7 +110,7 @@ async function probeOne(
   try {
     const attempt = (async () => {
       if (canary.step === "local") {
-        const r = await resolveLocal(canary.did);
+        const r = await resolveLocal(canary.did, env);
         return r.didDocument && !r.didResolutionMetadata.error ? r : null;
       }
       const token = canary.step === "godiddy" ? env.GODIDDY_API_KEY : undefined;
@@ -119,6 +135,10 @@ async function probeOne(
   }
   return {
     step: canary.step,
+    healthKey:
+      canary.step === "local"
+        ? `local:${canary.did.split(":")[1] ?? "unknown"}`
+        : canary.step,
     did: canary.did,
     ok,
     ms: Date.now() - started,
@@ -133,9 +153,9 @@ export function fold(
   now: number,
 ): HealthSnapshot {
   const providers: HealthSnapshot["providers"] = { ...(prev?.providers ?? {}) };
-  const steps = [...new Set(results.map((r) => r.step))];
+  const steps = [...new Set(results.map((r) => r.healthKey ?? r.step))];
   for (const step of steps) {
-    const rs = results.filter((r) => r.step === step);
+    const rs = results.filter((r) => (r.healthKey ?? r.step) === step);
     const oks = rs.filter((r) => r.ok);
     const roundOk = oks.length > 0;
     const p = providers[step];
@@ -179,7 +199,7 @@ export function fold(
     };
     providers[step] = health;
   }
-  return { v: 1, updatedTs: now, providers };
+  return { v: 2, updatedTs: now, providers };
 }
 
 let schemaReady = false;
@@ -216,7 +236,10 @@ async function ensureSchema(db: D1Database): Promise<void> {
 /** One probe round: fire all canaries, fold into the KV snapshot, log rows to D1. */
 async function runRound(env: ProbeEnv): Promise<void> {
   const now = Date.now();
-  const results = await Promise.all(CANARIES.map((c) => probeOne(c, env)));
+  const canaries = env.ETHR_CANARY_DID
+    ? [...CANARIES, { step: "local" as const, did: env.ETHR_CANARY_DID }]
+    : CANARIES;
+  const results = await Promise.all(canaries.map((c) => probeOne(c, env)));
 
   // Snapshot first — it is what routing decisions will read.
   if (env.STATS_KV) {

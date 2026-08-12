@@ -2,7 +2,7 @@
  * Routing registry — the heart of ThisDID's "smart routing".
  *
  * Each DID method maps to an ORDERED fallback chain of steps. A step is either:
- *   - `local`   → resolved in-Worker by a bundled did-resolver driver (ThisDID itself).
+ *   - `local`   → resolved by an isolated TypeScript driver Worker through a Service Binding.
  *   - `godiddy` → routed to the godiddy Universal Resolver.
  *   - `archon`  → routed to the archon Universal Resolver.
  *

@@ -13,7 +13,7 @@
     "not_found_handling": "single-page-application",
     // Run the Worker for every request so `/` can content-negotiate (SPA vs JSON)
     // and DID deep-links can resolve. Static assets are forwarded via env.ASSETS.
-    "run_worker_first": true
+    "run_worker_first": true,
   },
   "vars": {
     // Redundant upstream Universal Resolver bases (DID appended as `/{did}`), used as
@@ -23,8 +23,16 @@
     "ARCHON_RESOLVER": "https://resolver.archon.technology/1.0/identifiers",
     // GoPlausible Universal Resolver (DID appended as `/{did}`) — tried first for did:algo / did:nfd.
     "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
-    "RESOLVER_LABEL": "thisdid-edge"
+    "RESOLVER_LABEL": "thisdid-edge",
   },
+  // Private Tier 1 TypeScript resolver Workers. Deploy these services before the mother Worker.
+  "services": [
+    { "binding": "DRIVER_WEB", "service": "thisdid-driver-web" },
+    { "binding": "DRIVER_KEY", "service": "thisdid-driver-key" },
+    { "binding": "DRIVER_PKH", "service": "thisdid-driver-pkh" },
+    { "binding": "DRIVER_PEER", "service": "thisdid-driver-peer" },
+    { "binding": "DRIVER_ETHR", "service": "thisdid-driver-ethr" },
+  ],
   // Analytics: D1 = authoritative per-resolution event log; KV = live counter + dashboard cache.
   // Create them and paste the ids below:
   //   wrangler d1 create thisdid-analytics
@@ -36,20 +44,20 @@
       "binding": "DB",
       "database_name": "thisdid-analytics",
       "database_id": "509d9b5e-5fd1-4271-bb2b-5dfe73715770",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "STATS_KV",
-      "id": "9fdb1c1e68ed4f0d87bfea42438b8917"
-    }
+      "id": "9fdb1c1e68ed4f0d87bfea42438b8917",
+    },
   ],
   "ratelimits": [
     {
       "name": "RESOLUTION_RATE_LIMITER",
       "namespace_id": "1001",
-      "simple": { "limit": 600, "period": 60 }
-    }
-  ]
+      "simple": { "limit": 600, "period": 60 },
+    },
+  ],
 }

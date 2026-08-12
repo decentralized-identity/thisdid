@@ -239,7 +239,13 @@ export async function resolveDid(
   ) {
     throw new Error("Invalid resolution response");
   }
-  const err = resolution.didResolutionMetadata?.error;
+  const rawError: unknown = resolution.didResolutionMetadata?.error;
+  const err =
+    typeof rawError === "string"
+      ? rawError
+      : rawError && typeof rawError === "object"
+        ? "upstreamError"
+        : undefined;
   if (err || !resolution.didDocument) {
     return { ok: false, did, error: err ?? "notFound" };
   }

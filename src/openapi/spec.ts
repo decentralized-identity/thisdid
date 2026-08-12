@@ -94,7 +94,7 @@ export function openApiSpec(origin: string) {
           operationId: "listMethods",
           summary: "List configured DID method routes",
           description:
-            "Returns locally bundled methods and methods intentionally routed to upstream providers. A routed method is not a guarantee that an upstream currently resolves every DID.",
+            "Returns methods served by isolated TypeScript driver Workers and methods intentionally routed to upstream providers. A configured route is not a guarantee that every DID is resolvable.",
           responses: {
             "200": {
               description: "Supported methods.",

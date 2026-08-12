@@ -81,6 +81,22 @@ export function renderDashboard(): string {
   .cal-d{fill:var(--faint);font-size:9px;font-family:'IBM Plex Mono';dominant-baseline:middle}
   .cal-legend{display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:10px;font-size:11px;color:var(--faint)}
   .cal-cell{width:11px;height:11px;border-radius:2px;display:inline-block}
+  .provider-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .provider-card{padding:16px;border:1px solid var(--border);border-radius:13px;background:var(--surface2)}
+  .provider-head{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .provider-name{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .provider-state{margin-left:auto;font:700 10.5px 'IBM Plex Mono';text-transform:uppercase;letter-spacing:.06em}
+  .provider-dot{width:8px;height:8px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 3px color-mix(in srgb,var(--faint) 15%,transparent)}
+  .provider-card.up .provider-dot{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 15%,transparent)}
+  .provider-card.up .provider-state{color:var(--good)}
+  .provider-card.degraded .provider-dot{background:#f0b968;box-shadow:0 0 0 3px rgba(240,185,104,.15)}
+  .provider-card.degraded .provider-state{color:#f0b968}
+  .provider-card.down .provider-dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 15%,transparent)}
+  .provider-card.down .provider-state{color:var(--bad)}
+  .provider-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .provider-metric{font:600 12px 'IBM Plex Mono';color:var(--text)}
+  .provider-metric span{display:block;font:500 10px Inter,sans-serif;color:var(--faint);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+  .provider-probe{margin-top:11px;color:var(--faint);font-size:11px}
   .pie-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
   .legend{display:flex;flex-direction:column;gap:7px;font-size:12.5px}
   .legend .lg{display:flex;align-items:center;gap:7px;color:var(--dim)}.legend b{color:var(--text)}
@@ -153,6 +169,9 @@ export function renderDashboard(): string {
   <h2>Request activity</h2>
   <div class="panel"><div id="calendar" class="cal-wrap"></div></div>
 
+  <h2>Provider status</h2>
+  <div class="panel"><div id="provider-status" class="provider-grid"></div></div>
+
   <h2>Leaderboards</h2>
   <div class="panel">
     <div class="tabs" id="tabs">
@@ -171,12 +190,12 @@ export function renderDashboard(): string {
     <div style="text-align:center;margin-top:14px"><button id="older" class="older">Load older</button></div>
   </div>
 
-  <div class="foot">Auto-refreshes every 10s · Decentralized Identity Foundation (DIF) Universal DID Resolver. · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
+  <div class="foot">Live data · updates every 10s · Decentralized Identity Foundation (DIF) Universal DID Resolver. · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
 </div>
 <script>
 (function(){
   var state = { range:'day', country:'', method:'', tab:'method', cursor:null, paged:false };
-  var last = null;
+  var last = null, lastHealth = null;
   var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968', NOT_FOUND:'#8b8375' };
   var PAL = ['#d97757','#e0724c','#cf7ea0','#b587f0','#8f8bf0','#5fd0e0','#57b96a','#f0b968','#d38f36','#a78bfa'];
   function pcolor(k){ return PC[k] || '#8b8375'; }
@@ -277,6 +296,26 @@ export function renderDashboard(): string {
     return '<svg viewBox="0 0 '+svgW+' '+svgH+'" width="'+svgW+'" height="'+svgH+'">'+months+dows+rects+'</svg>'+legend;
   }
 
+  function providerStatus(d){
+    var providers=(d&&d.providers)||{};
+    var local=Object.keys(providers).filter(function(k){return k.indexOf('local:')===0&&providers[k];}).map(function(k){return providers[k];});
+    function avg(rows,key){ var vals=rows.map(function(r){return r[key];}).filter(function(v){return v!=null;}); return vals.length?vals.reduce(function(a,v){return a+v;},0)/vals.length:null; }
+    function aggregate(rows){
+      if(!rows.length)return null;
+      var status=rows.some(function(r){return r.status==='down';})?'down':rows.some(function(r){return r.status==='degraded';})?'degraded':rows.every(function(r){return r.status==='up';})?'up':'unknown';
+      return {status:status,ewmaMs:avg(rows,'ewmaMs'),successRate:avg(rows,'successRate'),lastProbeTs:Math.max.apply(null,rows.map(function(r){return r.lastProbeTs||0;}))};
+    }
+    var tiles=[['ThisDID',aggregate(local)],['GoPlausible',providers.GoPlausible],['Godiddy',providers.godiddy],['Archon',providers.archon]];
+    return tiles.map(function(item){
+      var key=item[0],h=item[1],status=h&&h.status?h.status:'unknown';
+      var latency=h&&h.ewmaMs!=null?fmt(h.ewmaMs)+' ms':'—';
+      var success=h&&h.successRate!=null?Math.round(h.successRate*1000)/10+'%':'—';
+      var probe=h&&h.lastProbeTs?ago(h.lastProbeTs,Date.now())+' ago':'not probed';
+      return '<div class="provider-card '+esc(status)+'"><div class="provider-head"><span class="provider-dot"></span><span class="provider-name">'+esc(key)+'</span><span class="provider-state">'+esc(status)+'</span></div><div class="provider-metrics"><div class="provider-metric"><span>Latency</span>'+latency+'</div><div class="provider-metric"><span>Success</span>'+success+'</div></div><div class="provider-probe">Last probe · '+esc(probe)+'</div></div>';
+    }).join('');
+  }
+  function renderHealth(d){ lastHealth=d; q('provider-status').innerHTML=providerStatus(d); }
+
   function leaderboard(d){
     var map={method:d.byMethod,provider:d.byProvider,country:d.byCountry,resolver:d.byResolver};
     var rows=map[state.tab]||[];
@@ -349,6 +388,8 @@ export function renderDashboard(): string {
     q('country').innerHTML=skBars(6);
     q('latency').innerHTML=skBars(4);
     q('calendar').innerHTML=sk(130);
+    var ps=''; for(var j=0;j<4;j++)ps+='<div class="provider-card">'+sk(13,'75%')+sk(28,'100%','margin-top:16px')+'</div>';
+    q('provider-status').innerHTML=ps;
     q('lb').innerHTML=skTable(3,5);
     q('recent').innerHTML=skTable(7,6);
     q('older').style.display='none';
@@ -361,6 +402,10 @@ export function renderDashboard(): string {
       .then(function(d){ last=d; render(d); })
       .catch(function(){ if(last) render(last); })
       .then(function(){ q('bar').classList.remove('on'); });
+    fetch('/status',{headers:{accept:'application/json'}})
+      .then(function(r){return r.json();})
+      .then(renderHealth)
+      .catch(function(){ if(lastHealth)renderHealth(lastHealth); else q('provider-status').innerHTML='<div class="empty">Provider health is unavailable.</div>'; });
   }
 
   function refilter(){ state.paged=false; state.cursor=null; load(true); }

@@ -1,7 +1,16 @@
 import type { DIDResolutionResult } from "did-resolver";
+import type { DriverServiceBinding } from "./driver-workers/contract";
+
+export interface DriverBindings {
+  DRIVER_WEB?: DriverServiceBinding;
+  DRIVER_KEY?: DriverServiceBinding;
+  DRIVER_PKH?: DriverServiceBinding;
+  DRIVER_PEER?: DriverServiceBinding;
+  DRIVER_ETHR?: DriverServiceBinding;
+}
 
 /** Worker bindings (see wrangler.jsonc). */
-export interface Env {
+export interface Env extends DriverBindings {
   ASSETS: Fetcher;
   /** godiddy Universal Resolver base (path prefix, DID appended). */
   GODIDDY_RESOLVER: string;

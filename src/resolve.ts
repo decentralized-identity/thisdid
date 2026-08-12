@@ -59,7 +59,7 @@ async function runStep(
 ): Promise<Attempt> {
   try {
     if (step === "local") {
-      const r = await resolveLocal(did);
+      const r = await resolveLocal(did, env, signal);
       return r.didDocument && !r.didResolutionMetadata.error
         ? { step, result: r }
         : {
@@ -114,11 +114,14 @@ async function withTimeout(
 export function planChain(
   baseline: Step[],
   health: HealthSnapshot | null,
+  method?: string,
 ): Step[] {
   if (!health) return [...baseline];
+  const key = (step: Step) =>
+    step === "local" && method ? `local:${method}` : step;
   return [
-    ...baseline.filter((s) => health.providers[s]?.status !== "down"),
-    ...baseline.filter((s) => health.providers[s]?.status === "down"),
+    ...baseline.filter((s) => health.providers[key(s)]?.status !== "down"),
+    ...baseline.filter((s) => health.providers[key(s)]?.status === "down"),
   ];
 }
 
@@ -132,7 +135,7 @@ export async function resolveDid(
 
   const method = parsed.method;
   if (!isSupportedMethod(method)) return errorResult("unsupportedDidMethod");
-  const chain = planChain(chainFor(method), await getHealth(env));
+  const chain = planChain(chainFor(method), await getHealth(env), method);
   const chainLabel = chain.join("→");
   const started = Date.now();
 

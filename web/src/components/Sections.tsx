@@ -164,9 +164,9 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
         <div style={eyebrow("var(--twist)")}>Supported methods</div>
         <h2 style={h2}>One endpoint. Local and routed methods.</h2>
         <p style={lead}>
-          ThisDID resolves bundled methods locally and sends its configured
-          method catalog through redundant upstream providers. Availability is
-          reported live.
+          ThisDID resolves package-backed methods through isolated TypeScript
+          driver Workers and sends its configured method catalog through
+          redundant upstream providers. Availability is reported live.
         </p>
       </div>
       <div

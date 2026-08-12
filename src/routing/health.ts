@@ -6,9 +6,7 @@
  * ever reads it. Reading is fail-open: any error or staleness yields `null`,
  * which callers must treat as "no health data" — never as "everything down".
  */
-import type { Step } from "../resolvers/registry";
-
-export const HEALTH_KEY = "routing:health:v1";
+export const HEALTH_KEY = "routing:health:v2";
 
 /** A snapshot older than this is treated as absent (probe worker down or not deployed). */
 export const HEALTH_STALE_MS = 10 * 60 * 1000;
@@ -28,9 +26,10 @@ export interface ProviderHealth {
 }
 
 export interface HealthSnapshot {
-  v: 1;
+  v: 2;
   updatedTs: number;
-  providers: Partial<Record<Step, ProviderHealth>>;
+  /** Upstream step keys plus method-specific driver keys such as `local:key`. */
+  providers: Record<string, ProviderHealth | undefined>;
 }
 
 /** Shared, non-request-scoped read-through cache (same pattern as the local Resolver singleton). */
@@ -51,7 +50,7 @@ export async function getHealth(env: {
     const raw = env.STATS_KV ? await env.STATS_KV.get(HEALTH_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw) as HealthSnapshot;
-      if (parsed?.v === 1 && now - parsed.updatedTs < HEALTH_STALE_MS)
+      if (parsed?.v === 2 && now - parsed.updatedTs < HEALTH_STALE_MS)
         snap = parsed;
     }
   } catch {

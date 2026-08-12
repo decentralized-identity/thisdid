@@ -34,7 +34,8 @@ export const FEATURED_METHODS: MethodMeta[] = [
     glyph: "K",
     desc: "Deterministic, offline cryptographic keys",
     network: "Local (offline)",
-    example: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+    example: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
+    local: true,
   },
   {
     id: "ethr",
@@ -42,13 +43,23 @@ export const FEATURED_METHODS: MethodMeta[] = [
     desc: "Ethereum on-chain registry identifiers",
     network: "Ethereum Mainnet",
     example: "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+    local: true,
   },
   {
     id: "pkh",
     glyph: "P",
     desc: "CAIP-10 blockchain account identifiers",
     network: "Multi-chain (CAIP-10)",
-    example: "did:pkh:eip155:1:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+    example: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
+    local: true,
+  },
+  {
+    id: "peer",
+    glyph: "R",
+    desc: "Deterministic peer-to-peer DIDComm identities",
+    network: "Local (offline)",
+    example: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
+    local: true,
   },
   {
     id: "algo",
@@ -74,18 +85,11 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example: "did:sol:4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
   },
   {
-    id: "jwk",
-    glyph: "J",
-    desc: "Single JSON Web Key, no ledger",
-    network: "Local (offline)",
-    example: "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0",
-  },
-  {
     id: "cheqd",
     glyph: "C",
     desc: "cheqd network identity ledger",
     network: "cheqd network",
-    example: "did:cheqd:mainnet:zF7rhDBfUt9d1gJPjx7s1JXfUY7oVWkY",
+    example: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
   },
   {
     id: "nfd",
@@ -170,6 +174,9 @@ export const ALL_METHODS: string[] = [
 
 /** Methods for which at least one configured route is intentionally offered. */
 export const SUPPORTED_METHODS = new Set(ALL_METHODS);
+
+/** Methods backed by independently deployed Tier 1 TypeScript driver Workers. */
+export const LOCAL_DRIVER_METHODS = ["web", "key", "pkh", "peer", "ethr"];
 
 /** True when ThisDID advertises a resolution route for the method. */
 export function isSupportedMethod(method: string): boolean {

@@ -19,6 +19,17 @@ export type UpstreamResult =
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
+/** Coerce non-conformant upstream error objects into DIF string error codes. */
+function normalizeUpstreamError(value: unknown): string | undefined {
+  if (typeof value === "string" && value) return value;
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const candidate = record.error ?? record.code ?? record.type;
+  if (typeof candidate !== "string" || !candidate) return "upstreamError";
+  if (candidate === "INTERNAL_ERROR") return "internalError";
+  return candidate;
+}
+
 /** Read at most the configured response limit, cancelling the stream when it exceeds it. */
 async function readBoundedBody(res: Response): Promise<Uint8Array | null> {
   if (!res.body) return new Uint8Array();
@@ -103,7 +114,10 @@ export async function fetchUpstream(
         ? (body as unknown as DIDResolutionResult["didDocument"])
         : null);
 
-    const error = body.didResolutionMetadata?.error;
+    const error = normalizeUpstreamError(body.didResolutionMetadata?.error);
+    const resolutionMetadata = body.didResolutionMetadata
+      ? { ...body.didResolutionMetadata, ...(error ? { error } : {}) }
+      : undefined;
     const expectedId = parse(did)?.did;
     if (
       didDocument &&
@@ -122,7 +136,7 @@ export async function fetchUpstream(
         failure: {
           error: error ?? (res.status === 404 ? "notFound" : "upstreamError"),
           status: res.status,
-          metadata: body.didResolutionMetadata,
+          metadata: resolutionMetadata,
           documentMetadata: body.didDocumentMetadata,
         },
       };
@@ -133,7 +147,7 @@ export async function fetchUpstream(
       result: {
         didResolutionMetadata: {
           contentType: "application/did+ld+json",
-          ...body.didResolutionMetadata,
+          ...resolutionMetadata,
         },
         didDocument,
         didDocumentMetadata: body.didDocumentMetadata ?? {},

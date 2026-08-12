@@ -1,0 +1,3 @@
+# Full RPC URLs including provider credentials. Copy to .dev.vars for local development.
+EVM_RPC_MAINNET_URL=https://eth-mainnet.g.alchemy.com/v2/replace-me
+EVM_RPC_SEPOLIA_URL=https://eth-sepolia.g.alchemy.com/v2/replace-me

@@ -11,8 +11,16 @@
     // Same upstream Universal Resolver bases as the main Worker (wrangler.jsonc).
     "GODIDDY_RESOLVER": "https://api.godiddy.com/1.0.0/universal-resolver/identifiers",
     "ARCHON_RESOLVER": "https://resolver.archon.technology/1.0/identifiers",
-    "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers"
+    "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
+    // Add ETHR_CANARY_DID only after the ethr driver has approved RPC configuration.
   },
+  "services": [
+    { "binding": "DRIVER_WEB", "service": "thisdid-driver-web" },
+    { "binding": "DRIVER_KEY", "service": "thisdid-driver-key" },
+    { "binding": "DRIVER_PKH", "service": "thisdid-driver-pkh" },
+    { "binding": "DRIVER_PEER", "service": "thisdid-driver-peer" },
+    { "binding": "DRIVER_ETHR", "service": "thisdid-driver-ethr" },
+  ],
   // Connected to the main resolver Worker through its D1 database + KV
   // namespace (same ids as ../wrangler.jsonc): probes are appended to D1,
   // the folded health snapshot is written to KV for the resolver to read.
@@ -21,13 +29,13 @@
       "binding": "DB",
       "database_name": "thisdid-analytics",
       "database_id": "509d9b5e-5fd1-4271-bb2b-5dfe73715770",
-      "migrations_dir": "../migrations"
-    }
+      "migrations_dir": "../migrations",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "STATS_KV",
-      "id": "9fdb1c1e68ed4f0d87bfea42438b8917"
-    }
-  ]
+      "id": "9fdb1c1e68ed4f0d87bfea42438b8917",
+    },
+  ],
 }

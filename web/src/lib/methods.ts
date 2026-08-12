@@ -20,7 +20,7 @@ export const FEATURED_METHODS: MethodMeta[] = [
     name: "did:key",
     glyph: "K",
     desc: "Deterministic, offline cryptographic keys",
-    example: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+    example: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
   },
   {
     id: "ethr",
@@ -34,7 +34,14 @@ export const FEATURED_METHODS: MethodMeta[] = [
     name: "did:pkh",
     glyph: "P",
     desc: "CAIP-10 blockchain account identifiers",
-    example: "did:pkh:eip155:1:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+    example: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
+  },
+  {
+    id: "peer",
+    name: "did:peer",
+    glyph: "R",
+    desc: "Deterministic peer-to-peer DIDComm identities",
+    example: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
   },
   {
     id: "algo",
@@ -60,18 +67,11 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example: "did:sol:4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
   },
   {
-    id: "jwk",
-    name: "did:jwk",
-    glyph: "J",
-    desc: "Single JSON Web Key, no ledger",
-    example: "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0",
-  },
-  {
     id: "cheqd",
     name: "did:cheqd",
     glyph: "C",
     desc: "cheqd network identity ledger",
-    example: "did:cheqd:mainnet:zF7rhDBfUt9d1gJPjx7s1JXfUY7oVWkY",
+    example: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
   },
   {
     id: "nfd",
@@ -156,7 +156,10 @@ export const ALL_METHODS: string[] = [
 /** Example DID for a bare method id (chip clicks). */
 const OVERRIDES: Record<string, string> = {
   web: "did:web:identity.foundation",
-  key: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+  key: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
+  pkh: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
+  peer: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
+  cheqd: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
   algo: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
   ens: "did:ens:vitalik.eth",
   hedera: "did:hedera:mainnet:0.0.29613327",
