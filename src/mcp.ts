@@ -97,7 +97,7 @@ export async function handleMcp(
     response = ok(req.id, {
       protocolVersion: "2025-06-18",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "ThisDID", version: "2.0.0" },
+      serverInfo: { name: "ThisDID", version: "2.0.1" },
     });
   } else if (req.method === "ping") response = ok(req.id, {});
   else if (req.method === "tools/list") response = ok(req.id, { tools: TOOLS });

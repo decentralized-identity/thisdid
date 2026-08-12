@@ -6,7 +6,7 @@ export function openApiSpec(origin: string) {
     openapi: "3.1.0",
     info: {
       title: "ThisDID DIF Universal DID Resolver API",
-      version: "2.0.0",
+      version: "2.0.1",
       description:
         "ThisDID is a W3C DID Core-conformant DIF Universal DID Resolver. It implements the DIF " +
         "Universal Resolver HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method " +

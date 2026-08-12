@@ -1,6 +1,6 @@
 {
   "name": "@thisdid/web",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,6 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
-    "typescript": "7.0.2",
     "vite": "8.2.1"
   }
 }

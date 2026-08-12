@@ -171,7 +171,7 @@ export function renderDashboard(): string {
     <div style="text-align:center;margin-top:14px"><button id="older" class="older">Load older</button></div>
   </div>
 
-  <div class="foot">Auto-refreshes every 10s · D1 event log + KV cache · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
+  <div class="foot">Auto-refreshes every 10s · Decentralized Identity Foundation (DIF) Universal DID Resolver. · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
 </div>
 <script>
 (function(){
@@ -308,7 +308,7 @@ export function renderDashboard(): string {
 
   function render(d){
     q('setup').style.display=d.configured?'none':'block';
-    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('Success',fmt(d.totals.success),d.totals.successRate+'%')+card('Failure',fmt(d.totals.errors))+card('Total latency',fmt(d.totals.latencyTotalMs)+' ms')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
+    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('Success',fmt(d.totals.success),d.totals.successRate+'%')+card('Failure',fmt(d.totals.errors))+card('Providers','4')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
     q('timeline').innerHTML=timeline(d.timeline);
     q('pie').innerHTML=pie(d.byProvider);
     q('methods').innerHTML=vbars(d.byMethod);
