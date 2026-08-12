@@ -374,5 +374,5 @@ export function renderDashboard(): string {
   setInterval(function(){ load(false); },10000);
 })();
 </script>
-</body></html>`
+</body></html>`;
 }

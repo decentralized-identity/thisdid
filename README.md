@@ -1,17 +1,21 @@
 # ThisDID
 
-**ThisDID.com** is W3C DID-Core conformant, DIF Universal ** DID Resolver ** — one endpoint that resolves any
-Decentralized Identifier and returns a unified, DID-Core & DIF-conformant resolution result.
+**ThisDID.com** is a W3C DID Core-conformant DIF Universal DID Resolver: one endpoint that resolves
+any Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
-A smart **routing engine** matches every DID to the right method driver: common methods are
+A smart **routing engine** matches every DID to the appropriate method driver: common methods are
 resolved in-Worker by bundled drivers, and the long tail is routed to redundant upstream
 Universal Resolvers with failover. A connected **probe sub-worker** health-checks every route
 with real canary DID resolutions every minute, feeding the engine live per-resolver health
 (surfaced at [`/status`](https://thisdid.com/status)). The same edge Worker serves the
 marketing/landing SPA and the JSON resolver API from a single origin via content negotiation.
 
+This repository is a **Decentralized Identity Foundation (DIF)** project. ThisDID was built and
+donated to DIF by [GoPlausible](https://goplausible.com), which continues to maintain it.
+
 > v2 is a ground-up rewrite. The previous CRA/MUI app (wallet connect, DID-URL shortener, credit,
-> WebAuthn) has been removed; this repo is now resolver-router with TS DID Resolver embedded API and UI.
+> WebAuthn) has been removed; this repository is now a resolver/router with a TypeScript DID Resolver
+> core, edge API, health probe, analytics, MCP endpoint, and React UI.
 
 ---
 
@@ -44,13 +48,13 @@ marketing/landing SPA and the JSON resolver API from a single origin via content
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Path | What it is |
-|---|---|
-| `src/` | The Cloudflare Worker — the ThisDID Resolver API and SPA host. |
-| `web/` | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`. |
-| `vendor/did-resolver` | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**. |
-| `probe/` | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
-| `wrangler.jsonc` | Worker + static-assets config. |
+| Path                  | What it is                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `src/`                | The Cloudflare Worker — the ThisDID Resolver API and SPA host.                                                           |
+| `web/`                | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`.                                                  |
+| `vendor/did-resolver` | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**.                   |
+| `probe/`              | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
+| `wrangler.jsonc`      | Worker + static-assets config.                                                                                           |
 
 ### Smart routing
 
@@ -75,7 +79,7 @@ otherwise the next step is attempted (or the last error is returned if all fail)
 ```
 did:iden3:…                          any other method (did:web, did:indy, …)
 ────────────                         ──────────────────────────────────────
-                                   
+
   ┌─────────┐  hit? ──► return        ┌─────────┐  hit? ──► return
   │ Archon  │                         │ ThisDID │
   └────┬────┘                         │ (local) │
@@ -95,11 +99,11 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method | Chain (in order) |
-|---|---|
-| `algo`, `nfd` | **GoPlausible** → Godiddy → Archon |
-| `iden3` | **Archon** → ThisDID (local) → Godiddy |
-| *all others* | **ThisDID (local)** → Godiddy → Archon |
+| Method        | Chain (in order)                       |
+| ------------- | -------------------------------------- |
+| `algo`, `nfd` | **GoPlausible** → Godiddy → Archon     |
+| `iden3`       | **Archon** → ThisDID (local) → Godiddy |
+| _all others_  | **ThisDID (local)** → Godiddy → Archon |
 
 Every response's `didResolutionMetadata` is extended with `route` (`local`/`upstream`),
 `resolver`, `network`, `durationMs`, `via` (the upstream base that answered), and `chain`
@@ -137,18 +141,25 @@ resolution path.
 
 ## Getting started
 
-Requires **Node ≥ 20** and a recursive clone:
+Requires **Node ≥ 22.12**, npm 11, and a recursive clone:
 
 ```bash
 git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
 # Existing clone:
 git submodule update --init --recursive
 
-npm install            # installs all workspaces (root Worker, web/, vendor/)
+npm install            # installs the root Worker + web workspace
+npm run install:vendor # installs the independently locked did-resolver toolchain
 npm run build          # builds the vendored did-resolver lib + the SPA
+npm run check          # Worker + web typechecks, all tests, and production builds
 ```
 
 > Installs are gated through [Socket](https://socket.dev): use `socket npm install`.
+
+The committed `package-lock.json` pins the Worker and web workspace graph. The vendored
+`did-resolver` submodule is linked as a local runtime dependency and keeps its release/build
+toolchain isolated in its own pnpm lockfile. This prevents library publishing tools from being
+hoisted into the deployed application's dependency graph.
 
 ### Develop
 
@@ -178,26 +189,30 @@ the API and the SPA. `web/` can also be deployed independently as a Cloudflare *
 
 Base: `https://thisdid.com`
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/1.0/identifiers/{did}` | Resolve a DID (DIF Universal Resolver HTTP binding). |
-| `GET` | `/{did}` (Accept: json) | Resolve via a root deep link. |
-| `GET` | `/methods` | Supported method metadata + full driver list. |
-| `GET` | `/health` | Liveness probe. |
-| `GET` | `/status` | Per-resolver route health (probe snapshot + 24h aggregates). |
-| `GET` | `/openapi.json` | OpenAPI 3.1 spec. |
-| `GET` | `/docs` | Swagger UI. |
-| `POST` | `/mcp` | Model Context Protocol endpoint (agentic access). |
-| `GET` | `/analytics` | Resolution analytics page (HTML; JSON with `Accept: application/json`). `/dashboard` 301-redirects here. |
-| `GET` | `/data` | Analytics aggregates (JSON). |
-| `GET` | `/recent` | Live resolution feed, cursor-paginated (`?before=&limit=`). |
+| Method | Path                     | Description                                                                                              |
+| ------ | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/1.0/identifiers/{did}` | Resolve a DID (DIF Universal Resolver HTTP binding).                                                     |
+| `GET`  | `/{did}` (Accept: json)  | Resolve via a root deep link.                                                                            |
+| `GET`  | `/methods`               | Configured method routes and featured method metadata.                                                   |
+| `GET`  | `/health`                | Liveness probe.                                                                                          |
+| `GET`  | `/status`                | Per-resolver route health (probe snapshot + 24h aggregates).                                             |
+| `GET`  | `/openapi.json`          | OpenAPI 3.1 spec.                                                                                        |
+| `GET`  | `/docs`                  | Swagger UI.                                                                                              |
+| `POST` | `/mcp`                   | Model Context Protocol endpoint (agentic access).                                                        |
+| `GET`  | `/analytics`             | Resolution analytics page (HTML; JSON with `Accept: application/json`). `/dashboard` 301-redirects here. |
+| `GET`  | `/data`                  | Analytics aggregates (JSON).                                                                             |
+| `GET`  | `/recent`                | Live resolution feed, cursor-paginated (`?before=&limit=`).                                              |
 
 ```bash
 curl -H 'Accept: application/json' https://thisdid.com/1.0/identifiers/did:web:identity.foundation
 ```
 
 Errors follow the DIF binding: `invalidDid` → 400, `notFound` → 404, `unsupportedDidMethod` → 501,
-`representationNotSupported` → 406.
+`representationNotSupported` → 406. Resolution and MCP routes can also return 429 when the
+Cloudflare edge rate limiter is configured.
+
+`POST /mcp` requires `Content-Type: application/json` and accepts request bodies up to 64 KiB.
+JSON-RPC batch requests are intentionally unsupported; notifications return HTTP 202 with no body.
 
 ### MCP (agentic access)
 
@@ -205,12 +220,12 @@ Errors follow the DIF binding: `invalidDid` → 400, `notFound` → 404, `unsupp
 resolver to AI agents / MCP clients as callable tools — point any MCP-compatible agent at
 `https://thisdid.com/mcp`:
 
-| Tool | Description | Args |
-|---|---|---|
-| `resolve_did` | Resolve a W3C DID to its DID document with routing & resolution metadata. | `did` |
-| `list_did_methods` | List supported DID methods (featured + full driver list). | — |
-| `describe_routing` | Return the ordered fallback chain (ThisDID / godiddy / archon) for a method. | `method` |
-| `get_resolver_health` | Report resolver service status. | — |
+| Tool                  | Description                                                                  | Args     |
+| --------------------- | ---------------------------------------------------------------------------- | -------- |
+| `resolve_did`         | Resolve a W3C DID to its DID document with routing & resolution metadata.    | `did`    |
+| `list_did_methods`    | List configured DID method routes and featured methods.                      | —        |
+| `describe_routing`    | Return the ordered fallback chain (ThisDID / godiddy / archon) for a method. | `method` |
+| `get_resolver_health` | Report resolver service status.                                              | —        |
 
 ### Analytics (`/analytics`)
 
@@ -258,12 +273,12 @@ Until `DB` is bound the dashboard renders a setup notice; resolution keeps worki
 
 Public config lives in `wrangler.jsonc` → `vars`:
 
-| Var | Purpose |
-|---|---|
+| Var                    | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------- |
 | `GOPLAUSIBLE_RESOLVER` | GoPlausible Universal Resolver base (DID appended as `/{did}`). |
-| `GODIDDY_RESOLVER` | Godiddy Universal Resolver base (DID appended as `/{did}`). |
-| `ARCHON_RESOLVER` | Archon Universal Resolver base (DID appended as `/{did}`). |
-| `RESOLVER_LABEL` | Service label reported by `/health`. |
+| `GODIDDY_RESOLVER`     | Godiddy Universal Resolver base (DID appended as `/{did}`).     |
+| `ARCHON_RESOLVER`      | Archon Universal Resolver base (DID appended as `/{did}`).      |
+| `RESOLVER_LABEL`       | Service label reported by `/health`.                            |
 
 The probe sub-worker keeps its own copy of the three resolver-base vars in
 [`probe/wrangler.jsonc`](probe/wrangler.jsonc) (same values).

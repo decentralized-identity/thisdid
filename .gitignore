@@ -29,4 +29,5 @@ npm-debug.log*
 # editor / OS
 .DS_Store
 .vscode/settings.json
-package-lock.json
+.pnpm-store
+.pnpm-store/*

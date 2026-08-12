@@ -4,12 +4,16 @@
   "private": true,
   "description": "ThisDID.com — DIF Universal W3C DID Resolver.",
   "type": "module",
+  "packageManager": "npm@11.18.0",
+  "engines": {
+    "node": ">=22.12"
+  },
   "workspaces": [
-    "vendor/did-resolver",
     "web"
   ],
   "scripts": {
-    "build:vendor": "npm run build -w did-resolver",
+    "install:vendor": "cd vendor/did-resolver && pnpm install --frozen-lockfile",
+    "build:vendor": "cd vendor/did-resolver && pnpm run build",
     "build:web": "npm run build -w @thisdid/web",
     "build": "npm run build:vendor && npm run build:web",
     "dev": "npm run build:web && concurrently -k -n worker,web -c blue,magenta \"npm:dev:worker\" \"npm:dev:web\"",
@@ -19,19 +23,31 @@
     "dev:probe": "wrangler dev --config probe/wrangler.jsonc --test-scheduled",
     "deploy:probe": "wrangler deploy --config probe/wrangler.jsonc",
     "typecheck": "tsc --noEmit",
+    "typecheck:web": "npm run typecheck -w @thisdid/web",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src probe/src web/src",
+    "format": "prettier --write \"{src,probe/src,web/src}/**/*.{ts,tsx}\" \"*.{json,md,mjs,ts}\" \"web/*.{json,ts}\"",
+    "format:check": "prettier --check \"{src,probe/src,web/src}/**/*.{ts,tsx}\" \"*.{json,md,mjs,ts}\" \"web/*.{json,ts}\"",
+    "check": "npm run typecheck && npm run typecheck:web && npm run lint && npm run format:check && npm test && npm run build",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",
-    "did-resolver": "*",
+    "did-resolver": "file:vendor/did-resolver",
     "hono": "4.13.1",
     "web-did-resolver": "2.0.32"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260812.1",
+    "@eslint/js": "10.0.1",
     "concurrently": "10.0.4",
-    "typescript": "7.0.2",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
     "vitest": "4.1.10",
     "wrangler": "4.121.0"
   }
