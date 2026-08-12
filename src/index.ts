@@ -8,6 +8,7 @@ import { getStats, parseFilter, recentPage, recordResolution } from './analytics
 import { getHealth } from './routing/health'
 import { providerTag, type Step } from './resolvers/registry'
 import { renderDashboard } from './dashboard'
+import { handleMcp } from './mcp'
 import type { Context } from 'hono'
 import type { Env, ThisDidResolution } from './types'
 
@@ -17,6 +18,14 @@ app.use('/1.0/*', cors())
 app.use('/methods', cors())
 app.use('/health', cors())
 app.use('/openapi.json', cors())
+
+// Baseline security headers for API and static responses alike.
+app.use('*', async (c, next) => {
+  await next()
+  c.header('X-Content-Type-Options', 'nosniff')
+  c.header('Referrer-Policy', 'no-referrer')
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+})
 
 /** Map a DID resolution error to the closest HTTP status (per DIF binding). */
 function statusFor(result: ThisDidResolution): number {
@@ -98,14 +107,49 @@ async function resolveAndTrack(c: Context<{ Bindings: Env }>, did: string): Prom
   return result
 }
 
+async function limited(c: Context<{ Bindings: Env }>): Promise<Response | null> {
+  if (!c.env.RESOLUTION_RATE_LIMITER) return null
+  const auth = c.req.header('authorization')
+  const key = auth ? `auth:${auth.slice(0, 128)}` : 'anonymous'
+  const { success } = await c.env.RESOLUTION_RATE_LIMITER.limit({ key })
+  return success ? null : c.json({ didResolutionMetadata: { error: 'rateLimitExceeded' }, didDocument: null, didDocumentMetadata: {} }, 429)
+}
+
 // ── DIF Universal Resolver HTTP binding ────────────────────────────────────
 app.get('/1.0/identifiers/:did{.+}', async (c) => {
-  const result = await resolveAndTrack(c, safeDecode(c.req.param('did')))
+  const blocked = await limited(c)
+  if (blocked) return blocked
+  const did = safeDecode(c.req.param('did'))
+  if (did.length > 4096) return c.json({ didResolutionMetadata: { error: 'invalidDid' }, didDocument: null, didDocumentMetadata: {} }, 400)
+  const result = await resolveAndTrack(c, did)
   return resolutionResponse(result)
 })
 
+// ── MCP Streamable HTTP (stateless JSON-RPC) ───────────────────────────────
+app.use('/mcp', cors())
+app.post('/mcp', async (c) => {
+  const blocked = await limited(c)
+  if (blocked) return blocked
+  const length = Number(c.req.header('content-length') ?? 0)
+  if (length > 64 * 1024) return c.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Request too large' } }, 413)
+  let request: unknown
+  try { request = await c.req.json() } catch { return c.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }, 400) }
+  if (Array.isArray(request)) return c.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Batch requests are not supported' } }, 400)
+  const response = await handleMcp(request as Parameters<typeof handleMcp>[0], c.env)
+  return response ? c.json(response) : c.body(null, 202)
+})
+app.get('/mcp', (c) => c.json({ error: 'methodNotAllowed', message: 'Use POST with MCP JSON-RPC.' }, 405, { Allow: 'POST' }))
+
 // ── Discovery / docs ───────────────────────────────────────────────────────
-app.get('/methods', (c) => c.json({ featured: FEATURED_METHODS, all: ALL_METHODS }))
+app.get('/methods', (c) => c.json({
+  featured: FEATURED_METHODS,
+  all: ALL_METHODS,
+  semantics: {
+    all: 'Methods with an intentionally configured local or upstream route; successful resolution depends on the selected provider.',
+    local: FEATURED_METHODS.filter((m) => m.local).map((m) => m.id),
+    routing: 'health-aware ordered fallback',
+  },
+}))
 app.get('/health', (c) => c.json({ status: 'ok', service: c.env.RESOLVER_LABEL }))
 app.get('/openapi.json', (c) => c.json(openApiSpec(new URL(c.req.url).origin)))
 app.get('/docs', (c) =>

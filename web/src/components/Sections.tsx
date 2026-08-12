@@ -11,9 +11,9 @@ const TW = '#b587f0'
 
 const STEPS: { num: string; title: string; body: string; icon: ReactNode; accent: boolean }[] = [
   { num: '01', title: 'Parse & classify', body: 'The DID is parsed and matched against the method registry to identify its resolution strategy.', icon: <Icon.Brackets size={20} />, accent: true },
-  { num: '02', title: 'Rules engine', body: 'A policy engine weighs latency, trust and freshness to select the right conformant method driver.', icon: <Icon.Gear size={20} />, accent: false },
-  { num: '03', title: 'Dispatch to driver', body: 'The request is dispatched to its matching driver — many run in parallel for speed.', icon: <Icon.Nodes size={20} />, accent: true },
-  { num: '04', title: 'Sign & return', body: 'A unified, W3C-conformant document is returned with signed resolution metadata.', icon: <Icon.Shield size={20} />, accent: false },
+  { num: '02', title: 'Rules engine', body: 'A policy engine uses method preference and live route health to order the fallback chain.', icon: <Icon.Gear size={20} />, accent: false },
+  { num: '03', title: 'Dispatch to driver', body: 'The request is dispatched through the ordered chain until a driver returns a usable document.', icon: <Icon.Nodes size={20} />, accent: true },
+  { num: '04', title: 'Normalize & return', body: 'The DID resolution result is returned with transparent route and attempt metadata.', icon: <Icon.Shield size={20} />, accent: false },
 ]
 
 export function HowItWorks() {
@@ -44,8 +44,8 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
     <section id="methods" style={{ maxWidth: 1240, margin: '0 auto', padding: '56px 26px 20px' }}>
       <div style={{ maxWidth: 640, marginBottom: 28 }}>
         <div style={eyebrow('var(--twist)')}>Supported methods</div>
-        <h2 style={h2}>One endpoint. Every DID method.</h2>
-        <p style={lead}>ThisDID dispatches each identifier to a conformant method driver — a growing fleet of 70+ resolvers behind a single API.</p>
+        <h2 style={h2}>One endpoint. Local and routed methods.</h2>
+        <p style={lead}>ThisDID resolves bundled methods locally and sends its configured method catalog through redundant upstream providers. Availability is reported live.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 14 }}>
         {graded.map((m) => (
@@ -59,7 +59,7 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
         ))}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '30px 0 16px' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--faint)', whiteSpace: 'nowrap' }}>All supported methods</span>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--faint)', whiteSpace: 'nowrap' }}>Configured method routes</span>
         <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -134,8 +134,8 @@ export function ResolverProviders() {
 const NET_STATS = [
   { value: '42', label: 'Edge regions' },
   { value: '3', label: 'Failover providers' },
-  { value: '256-bit', label: 'Signed metadata' },
-  { value: '100%', label: 'W3C Core conformance' },
+  { value: 'Live', label: 'Route health probes' },
+  { value: 'DIF', label: 'Resolution result shape' },
 ]
 
 export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
@@ -144,7 +144,7 @@ export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
       <div className="net-grid" style={{ borderRadius: 24, border: '1px solid var(--border2)', overflow: 'hidden', background: 'linear-gradient(130deg,color-mix(in srgb,var(--accent) 14%,var(--surface)),color-mix(in srgb,var(--twist) 12%,var(--surface)))', padding: 44, display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 36, alignItems: 'center' }}>
         <div>
           <h2 style={{ ...h2, fontSize: 'clamp(26px,3vw,38px)', margin: '0 0 14px', lineHeight: 1.1 }}>Globally distributed. Always compliant.</h2>
-          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>ThisDID runs at the edge worldwide, returning fully W3C DID-Core conformant resolution results with signed metadata — ready to plug into any verifiable-credential stack.</p>
+          <p style={{ ...lead, margin: '0 0 24px', maxWidth: 520 }}>ThisDID runs at the edge worldwide and returns DID resolution results with explicit routing, timing and failure metadata.</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button onClick={onResolveCta} style={{ border: 0, cursor: 'pointer', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'linear-gradient(135deg,var(--accent),var(--accent-bright))', color: '#fff', boxShadow: '0 10px 24px -10px var(--glow)' }}>Resolve a DID now</button>
             <a href="/docs" target="_blank" rel="noopener" style={{ textDecoration: 'none', fontWeight: 700, fontSize: 14.5, padding: '12px 22px', borderRadius: 12, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>Read the docs</a>

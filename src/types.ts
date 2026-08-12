@@ -16,6 +16,8 @@ export interface Env {
   DB?: D1Database
   /** KV namespace — live counter + read-through dashboard cache (optional until provisioned). */
   STATS_KV?: KVNamespace
+  /** Cloudflare edge rate limiter. Optional so tests and local development remain simple. */
+  RESOLUTION_RATE_LIMITER?: { limit(input: { key: string }): Promise<{ success: boolean }> }
 }
 
 /** Extra fields ThisDID adds to `didResolutionMetadata` so the UI can render the route banner. */
@@ -34,6 +36,10 @@ export interface ThisDidRouteMeta {
   via?: string
   /** The ordered fallback chain that was attempted, e.g. "local→godiddy→archon". */
   chain?: string
+  /** Steps actually attempted, including health-based planning. */
+  attempted?: string[]
+  /** Sanitized per-step failure information retained when no route succeeds. */
+  attempts?: Array<{ step: string; error: string; status?: number }>
 }
 
 export type ThisDidResolution = DIDResolutionResult & {

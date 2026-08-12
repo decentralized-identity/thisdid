@@ -81,7 +81,8 @@ async function probeOne(canary: { step: Step; did: string }, env: ProbeEnv): Pro
         return r.didDocument && !r.didResolutionMetadata.error ? r : null
       }
       const token = canary.step === 'godiddy' ? env.GODIDDY_API_KEY : undefined
-      return fetchUpstream(canary.did, upstreamBase(canary.step, env), token)
+      const r = await fetchUpstream(canary.did, upstreamBase(canary.step, env), token)
+      return r.ok ? r.result : null
     })()
     const hit = await Promise.race([
       attempt,
@@ -97,7 +98,7 @@ async function probeOne(canary: { step: Step; did: string }, env: ProbeEnv): Pro
 }
 
 /** Fold one round of results into the previous snapshot (EWMAs + breaker). */
-function fold(prev: HealthSnapshot | null, results: ProbeResult[], now: number): HealthSnapshot {
+export function fold(prev: HealthSnapshot | null, results: ProbeResult[], now: number): HealthSnapshot {
   const providers: HealthSnapshot['providers'] = { ...(prev?.providers ?? {}) }
   const steps = [...new Set(results.map((r) => r.step))]
   for (const step of steps) {

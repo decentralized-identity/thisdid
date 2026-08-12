@@ -33,7 +33,7 @@ export const FEATURED_METHODS: MethodMeta[] = [
   { id: 'nfd', glyph: 'N', desc: 'Algorand NFDomains name identity', network: 'Algorand NFDomains', example: 'did:nfd:thisdid.algo' },
 ]
 
-/** Full driver list (rendered as the "All supported methods" chip cloud). */
+/** Methods with intentionally configured local or upstream routes. */
 export const ALL_METHODS: string[] = [
   'btcr', 'indy', 'v1', 'stack', 'web', 'ethr', 'ens', 'peer', 'eosio', 'jolo', 'hcr', 'elem',
   'github', 'ccp', 'ont', 'kilt', 'factom', 'io', 'bba', 'schema', 'ion', 'ace', 'gatc', 'icon',
@@ -42,6 +42,14 @@ export const ALL_METHODS: string[] = [
   'ev', 'iid', 'evan', 'bid', 'pdc', 'tys', 'plc', 'evrc', 'keri', 'webs', 'prism', 'iden3',
   'cndid', 'tgrid', 'empe', 'hedera', 'nfd', 'bluchain', 'webplus', 'algo', 'pkh',
 ]
+
+/** Methods for which at least one configured route is intentionally offered. */
+export const SUPPORTED_METHODS = new Set(ALL_METHODS)
+
+/** True when ThisDID advertises a resolution route for the method. */
+export function isSupportedMethod(method: string): boolean {
+  return SUPPORTED_METHODS.has(method.toLowerCase())
+}
 
 const NETWORKS: Record<string, string> = Object.fromEntries(
   FEATURED_METHODS.map((m) => [m.id, m.network]),

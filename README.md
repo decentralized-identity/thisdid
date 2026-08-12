@@ -48,7 +48,7 @@ marketing/landing SPA and the JSON resolver API from a single origin via content
 |---|---|
 | `src/` | The Cloudflare Worker — the ThisDID Resolver API and SPA host. |
 | `web/` | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`. |
-| `vendor/did-resolver` | Vendored DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, as a **git submodule**. |
+| `vendor/did-resolver` | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**. |
 | `probe/` | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`). |
 | `wrangler.jsonc` | Worker + static-assets config. |
 
@@ -128,19 +128,21 @@ main Worker only through the shared D1 + KV namespaces — it never sits on the 
 if it stops, resolution is completely unaffected and `/status` simply reports
 `configured: false`.
 
-This health data is the input to the engine's **rules-based chain planner** (next phase): pinned
-preferences (e.g. `iden3`→Archon) plus a circuit breaker and latency/reliability scoring that
-reorder each method's chain live, always failing open to the static baseline above.
+This health data feeds the engine's **rules-based chain planner**: pinned method preferences remain
+the baseline, while providers tripped `down` by the probe circuit breaker move behind healthy
+routes. Down routes remain as fail-open fallbacks so stale or incorrect health never removes a
+resolution path.
 
 ---
 
 ## Getting started
 
-Requires **Node ≥ 20** and the repo cloned **with submodules**:
+Requires **Node ≥ 20** and a recursive clone:
 
 ```bash
 git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
-# already cloned? →  git submodule update --init --recursive
+# Existing clone:
+git submodule update --init --recursive
 
 npm install            # installs all workspaces (root Worker, web/, vendor/)
 npm run build          # builds the vendored did-resolver lib + the SPA

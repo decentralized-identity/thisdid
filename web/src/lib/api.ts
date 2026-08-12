@@ -148,7 +148,7 @@ function buildView(did: string, resolution: DIDResolutionResult, doc: DIDDocumen
     { label: 'Verification methods', value: String(vms.length) },
     { label: 'Key relationships', value: String(relList.length) },
     { label: 'Service endpoints', value: String(svc.length) },
-    { label: 'Conformance', value: 'W3C ✓', good: true },
+    { label: 'Resolution format', value: 'DID Core shape', good: true },
   ]
 
   return {

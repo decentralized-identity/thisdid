@@ -19,6 +19,7 @@
     "dev:probe": "wrangler dev --config probe/wrangler.jsonc --test-scheduled",
     "deploy:probe": "wrangler deploy --config probe/wrangler.jsonc",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "typescript": "^5.7.2",
     "wrangler": "^4.40.0",
     "@cloudflare/workers-types": "^4.20241218.0",
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "vitest": "^4.1.9"
   }
 }

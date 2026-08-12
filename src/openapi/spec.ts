@@ -58,8 +58,8 @@ export function openApiSpec(origin: string) {
         get: {
           tags: ['Discovery'],
           operationId: 'listMethods',
-          summary: 'List supported DID methods',
-          description: 'Returns featured method metadata and the full supported-method list.',
+          summary: 'List configured DID method routes',
+          description: 'Returns locally bundled methods and methods intentionally routed to upstream providers. A routed method is not a guarantee that an upstream currently resolves every DID.',
           responses: {
             '200': {
               description: 'Supported methods.',
@@ -157,7 +157,7 @@ export function openApiSpec(origin: string) {
             '- `list_did_methods` — list supported DID methods (featured + full driver list).\n' +
             '- `describe_routing` — return the ordered fallback chain (ThisDID / godiddy / archon) for a method. Args: `method`.\n' +
             '- `get_resolver_health` — report resolver service status.\n\n' +
-            'Transport: JSON-RPC 2.0 over HTTP (MCP Streamable HTTP); `GET /mcp` opens the SSE stream.',
+            'Transport: stateless JSON-RPC 2.0 over MCP Streamable HTTP. Use `POST /mcp`; server-to-client SSE sessions are not required by this server.',
           requestBody: {
             required: true,
             content: {
@@ -168,7 +168,7 @@ export function openApiSpec(origin: string) {
             },
           },
           responses: {
-            '200': { description: 'JSON-RPC 2.0 MCP response (or an SSE stream of them).' },
+            '200': { description: 'JSON-RPC 2.0 MCP response.' },
           },
         },
       },

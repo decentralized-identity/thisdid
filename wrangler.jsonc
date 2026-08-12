@@ -44,5 +44,12 @@
       "binding": "STATS_KV",
       "id": "9fdb1c1e68ed4f0d87bfea42438b8917"
     }
+  ],
+  "ratelimits": [
+    {
+      "name": "RESOLUTION_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 600, "period": 60 }
+    }
   ]
 }
