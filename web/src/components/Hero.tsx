@@ -367,7 +367,12 @@ export function Hero({
           boxShadow: "var(--shadow)",
         }}
       >
-        <RoutingCanvas dark={dark} labels={labels} total={total} />
+        <RoutingCanvas
+          dark={dark}
+          labels={labels}
+          total={total}
+          countryMode={visibleMode === "countries"}
+        />
         {hasGeo && (
           <div
             style={{

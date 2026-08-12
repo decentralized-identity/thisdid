@@ -108,6 +108,9 @@ export function renderDashboard(): string {
   th{text-align:left;color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:0 10px 10px;border-bottom:1px solid var(--border)}
   td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle}
   .mono{font-family:'IBM Plex Mono'}.num{text-align:right;white-space:nowrap}.dim{color:var(--dim)}.rank{color:var(--faint);width:36px}
+  .lb-key{position:relative;min-width:180px;overflow:hidden}
+  .lb-bar{position:absolute;z-index:0;left:0;top:5px;bottom:5px;border-radius:7px;opacity:.18;min-width:3px}
+  .lb-label{position:relative;z-index:1;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
   .did{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent-bright)}
   .pill{font-size:11.5px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);padding:3px 9px;border-radius:6px}
   .ok{color:var(--good);font-weight:700}.err{color:var(--bad);font-weight:600;font-family:'IBM Plex Mono';font-size:12px}
@@ -153,6 +156,9 @@ export function renderDashboard(): string {
 
   <div class="stats" id="kpis"></div>
 
+  <h2>Provider status</h2>
+  <div class="panel"><div id="provider-status" class="provider-grid"></div></div>
+
   <h2>Requests over time</h2>
   <div class="panel"><div id="timeline"></div></div>
 
@@ -168,9 +174,6 @@ export function renderDashboard(): string {
 
   <h2>Request activity</h2>
   <div class="panel"><div id="calendar" class="cal-wrap"></div></div>
-
-  <h2>Provider status</h2>
-  <div class="panel"><div id="provider-status" class="provider-grid"></div></div>
 
   <h2>Leaderboards</h2>
   <div class="panel">
@@ -190,7 +193,7 @@ export function renderDashboard(): string {
     <div style="text-align:center;margin-top:14px"><button id="older" class="older">Load older</button></div>
   </div>
 
-  <div class="foot">Live data · updates every 10s · Decentralized Identity Foundation (DIF) Universal DID Resolver. · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
+  <div class="foot">Live data and analytics· A <a href="https://identity.foundation/working-groups/identifiers-discovery.html" target="_blank" rel="noopener noreferrer">DIF Identifiers &amp; Discovery Working Group</a> project advancing the <a href="https://github.com/decentralized-identity/universal-resolver" target="_blank" rel="noopener noreferrer">Universal Resolver</a> and interoperable <a href="https://identity.foundation/working-groups/did-methods.html" target="_blank" rel="noopener noreferrer">DID methods</a> · <a href="https://identity.foundation/working-groups/" target="_blank" rel="noopener noreferrer">DIF Working Groups</a> · <a href="/data">JSON API</a> · <a href="/docs">API docs</a></div>
 </div>
 <script>
 (function(){
@@ -263,8 +266,9 @@ export function renderDashboard(): string {
 
   function latbars(rows){
     if(!rows.length) return '<div class="empty">No successful resolutions in range.</div>';
-    var max=Math.max.apply(null,rows.map(function(r){return r.avgMs;}).concat([1]));
-    return rows.map(function(r){ var pct=Math.round(r.avgMs/max*100); return '<div class="bar-row"><span class="bar-label" style="color:'+pcolor(r.key)+'">'+esc(r.key)+'</span><span class="bar-track"><span class="bar-fill" style="width:'+pct+'%;background:'+pcolor(r.key)+'"></span></span><span class="bar-count">'+fmt(r.avgMs)+' ms</span></div><div class="lat-sub">min '+fmt(r.minMs)+' · max '+fmt(r.maxMs)+' · n='+fmt(r.count)+'</div>'; }).join('');
+    var ordered=rows.slice().sort(function(a,b){ return a.avgMs-b.avgMs || String(a.key).localeCompare(String(b.key)); });
+    var max=Math.max.apply(null,ordered.map(function(r){return r.avgMs;}).concat([1]));
+    return ordered.map(function(r){ var pct=Math.round(r.avgMs/max*100); return '<div class="bar-row"><span class="bar-label" style="color:'+pcolor(r.key)+'">'+esc(r.key)+'</span><span class="bar-track"><span class="bar-fill" style="width:'+pct+'%;background:'+pcolor(r.key)+'"></span></span><span class="bar-count">'+fmt(r.avgMs)+' ms</span></div><div class="lat-sub">min '+fmt(r.minMs)+' · max '+fmt(r.maxMs)+' · n='+fmt(r.count)+'</div>'; }).join('');
   }
 
   function calendar(cal){
@@ -320,7 +324,14 @@ export function renderDashboard(): string {
     var map={method:d.byMethod,provider:d.byProvider,country:d.byCountry,resolver:d.byResolver};
     var rows=map[state.tab]||[];
     if(!rows.length) return '<tr><td colspan="3" class="empty">No data yet.</td></tr>';
-    return rows.map(function(r,i){ return '<tr><td class="rank">'+(i+1)+'</td><td>'+esc(r.key)+'</td><td class="num">'+fmt(r.count)+'</td></tr>'; }).join('');
+    var max=Math.max.apply(null,rows.map(function(r){return r.count;}).concat([1]));
+    function color(r,i){
+      if(state.tab==='provider')return pcolor(r.key);
+      if(state.tab==='method')return mcolor(i);
+      if(state.tab==='country')return '#b587f0';
+      return '#d97757';
+    }
+    return rows.map(function(r,i){ var pct=Math.max(1,Math.round(r.count/max*100)),col=color(r,i); return '<tr><td class="rank">'+(i+1)+'</td><td class="lb-key" title="'+esc(r.key)+' · '+fmt(r.count)+' requests"><span class="lb-bar" aria-hidden="true" style="width:'+pct+'%;background:'+col+'"></span><span class="lb-label">'+esc(r.key)+'</span></td><td class="num mono">'+fmt(r.count)+'</td></tr>'; }).join('');
   }
 
   function recentRows(rows,now){

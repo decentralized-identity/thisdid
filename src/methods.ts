@@ -75,14 +75,14 @@ export const FEATURED_METHODS: MethodMeta[] = [
     desc: "Polygon zk-identity state proofs",
     network: "Polygon (Iden3)",
     example:
-      "did:iden3:polygon:main:2qCU58EJgrELNZCDkSU23dQHZsBgAFWLNpNezo1g6b",
+      "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
   },
   {
     id: "sol",
     glyph: "S",
     desc: "Solana on-chain identifiers",
     network: "Solana",
-    example: "did:sol:4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
   },
   {
     id: "cheqd",
@@ -96,7 +96,7 @@ export const FEATURED_METHODS: MethodMeta[] = [
     glyph: "N",
     desc: "Algorand NFDomains name identity",
     network: "Algorand NFDomains",
-    example: "did:nfd:thisdid.algo",
+    example: "did:nfd:nfdomains.algo",
   },
 ];
 

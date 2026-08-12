@@ -77,14 +77,187 @@ export function HowItWorks() {
       id="how"
       style={{ maxWidth: 1240, margin: "0 auto", padding: "66px 26px 20px" }}
     >
-      <div style={{ maxWidth: 640, marginBottom: 34 }}>
+      <div style={{ maxWidth: 760, marginBottom: 34 }}>
         <div style={eyebrow("var(--accent)")}>How ThisDID resolves</div>
-        <h2 style={h2}>DID resolver and routing engine.</h2>
+        <h2 style={h2}>Two resolver flavors. One intelligent edge.</h2>
         <p style={lead}>
-          Every request hits a rules engine that picks the fastest, most
-          trustworthy driver for that method — then normalizes the response into
-          one conformant document.
+          The DIF ecosystem offers a container-based Universal Resolver and an
+          embeddable TypeScript DID Resolver. ThisDID combines both: fast
+          methods resolve close to the request in isolated TypeScript Workers,
+          while its smart routing engine distributes the broader method catalog
+          across compatible Universal Resolver deployments with health-aware
+          failover.
         </p>
+      </div>
+      <div
+        className="resolver-flavors"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 72px 1fr",
+          gap: 16,
+          alignItems: "stretch",
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            padding: 24,
+            borderRadius: 20,
+            border:
+              "1px solid color-mix(in srgb,var(--accent) 32%,var(--border))",
+            background:
+              "linear-gradient(145deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),var(--surface))",
+          }}
+        >
+          <div style={eyebrow("var(--accent)")}>Flavor 01 · embedded</div>
+          <div
+            style={{
+              fontFamily: "'Space Grotesk'",
+              fontWeight: 700,
+              fontSize: 21,
+            }}
+          >
+            TypeScript DID Resolver
+          </div>
+          <p style={{ ...lead, fontSize: 14, marginTop: 10 }}>
+            DIF&apos;s lightweight{" "}
+            <a
+              href="https://github.com/decentralized-identity/did-resolver"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--accent)", fontWeight: 700 }}
+            >
+              did-resolver
+            </a>{" "}
+            library is embedded directly with compatible TypeScript method
+            packages. ThisDID runs each package in its own private driver
+            Worker, keeping startup, dependencies, RPC configuration, and
+            failures isolated while providing a low-latency path at the edge.
+          </p>
+          <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
+            {[
+              "Embedded library + method package",
+              "Private Service Binding",
+              "Fast local/offline or direct-RPC resolution",
+            ].map((item) => (
+              <div key={item} style={{ fontSize: 12.5, color: "var(--dim)" }}>
+                <span style={{ color: "var(--accent)", marginRight: 8 }}>
+                  ●
+                </span>
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="flavor-join"
+          aria-hidden="true"
+          style={{
+            display: "grid",
+            placeItems: "center",
+            color: "var(--faint)",
+            fontFamily: "'IBM Plex Mono'",
+            fontSize: 20,
+          }}
+        >
+          ⇄
+        </div>
+
+        <div
+          style={{
+            padding: 24,
+            borderRadius: 20,
+            border:
+              "1px solid color-mix(in srgb,var(--twist) 34%,var(--border))",
+            background:
+              "linear-gradient(145deg,color-mix(in srgb,var(--twist) 11%,var(--surface)),var(--surface))",
+          }}
+        >
+          <div style={eyebrow("var(--twist)")}>Flavor 02 · distributed</div>
+          <div
+            style={{
+              fontFamily: "'Space Grotesk'",
+              fontWeight: 700,
+              fontSize: 21,
+            }}
+          >
+            Container-based Universal Resolver
+          </div>
+          <p style={{ ...lead, fontSize: 14, marginTop: 10 }}>
+            The DIF{" "}
+            <a
+              href="https://github.com/decentralized-identity/universal-resolver"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--twist)", fontWeight: 700 }}
+            >
+              Universal Resolver
+            </a>{" "}
+            provides a driver-based framework commonly deployed as containers,
+            allowing many independently implemented DID methods to share one
+            interoperable HTTP interface. ThisDID supports these deployments as
+            distributed upstream resolution capacity instead of bundling every
+            container and driver into its edge Worker.
+          </p>
+          <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
+            {[
+              "Containerized method-driver ecosystem",
+              "DIF Universal Resolver HTTP binding",
+              "Broad method coverage across providers",
+            ].map((item) => (
+              <div key={item} style={{ fontSize: 12.5, color: "var(--dim)" }}>
+                <span style={{ color: "var(--twist)", marginRight: 8 }}>●</span>
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: "20px 24px",
+          borderRadius: 18,
+          border: "1px solid var(--border)",
+          background: "var(--surface2)",
+          marginBottom: 26,
+        }}
+      >
+        <div
+          className="resolution-flow"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "auto 1fr auto 1fr auto",
+            alignItems: "center",
+            gap: 14,
+            textAlign: "center",
+          }}
+        >
+          <strong>DID request</strong>
+          <span style={{ color: "var(--faint)" }}>──►</span>
+          <strong style={{ color: "var(--accent)" }}>
+            health-aware smart routing
+          </strong>
+          <span style={{ color: "var(--faint)" }}>──►</span>
+          <strong>DIF resolution result</strong>
+        </div>
+        <div
+          style={{
+            marginTop: 12,
+            textAlign: "center",
+            fontSize: 13,
+            color: "var(--dim)",
+          }}
+        >
+          TypeScript driver first where configured · distributed resolver chain
+          for broader coverage · timeouts, document validation, failover, route
+          metadata, and normalization applied centrally
+        </div>
+      </div>
+
+      <div style={{ ...eyebrow("var(--faint)"), marginBottom: 14 }}>
+        Resolution lifecycle
       </div>
       <div
         className="steps-grid"
@@ -258,40 +431,41 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
         <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {ALL_METHODS.map((id) => (
-          <button
-            key={id}
-            onClick={() => onResolve(exampleFor(id))}
-            style={{
-              fontFamily: "'IBM Plex Mono'",
-              fontSize: 12.5,
-              fontWeight: 500,
-              color: "var(--dim)",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              padding: "7px 12px",
-              borderRadius: 9,
-              cursor: "pointer",
-            }}
-          >
-            did:{id}
-          </button>
-        ))}
+        {ALL_METHODS.map((id) => {
+          const example = exampleFor(id);
+          return (
+            <button
+              key={id}
+              disabled={!example}
+              title={
+                example
+                  ? `Resolve ${example}`
+                  : "No verified example DID available"
+              }
+              onClick={() => example && onResolve(example)}
+              style={{
+                fontFamily: "'IBM Plex Mono'",
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: "var(--dim)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                padding: "7px 12px",
+                borderRadius: 9,
+                cursor: example ? "pointer" : "not-allowed",
+                opacity: example ? 1 : 0.55,
+              }}
+            >
+              did:{id}
+            </button>
+          );
+        })}
       </div>
     </section>
   );
 }
 
 const PROVIDERS = [
-  {
-    name: "GoPlausible",
-    by: "GoPlausible",
-    glyph: "G",
-    color: "var(--twist)",
-    desc: "Algorand-native resolver worker. ThisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.",
-    resolver: "goplausible.com",
-    href: "https://goplausible.com",
-  },
   {
     name: "Godiddy",
     by: "Danube Tech",
@@ -309,6 +483,15 @@ const PROVIDERS = [
     desc: "Universal Resolver running the iden3 & did:cid drivers. ThisDID routes iden3 here first, and uses it as a final fallback elsewhere.",
     resolver: "resolver.archon.technology",
     href: "https://archon.technology",
+  },
+  {
+    name: "GoPlausible",
+    by: "GoPlausible",
+    glyph: "G",
+    color: "var(--twist)",
+    desc: "Algorand-native resolver worker. ThisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.",
+    resolver: "goplausible.com",
+    href: "https://goplausible.com",
   },
 ];
 
@@ -544,87 +727,89 @@ export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
 
 export function Footer() {
   return (
-    <footer
-      style={{
-        maxWidth: 1240,
-        margin: "40px auto 0",
-        padding: "40px 26px 48px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 20,
-        flexWrap: "wrap",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            background: "#f4efe6",
-            borderRadius: 8,
-            padding: "4px 7px",
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
-          <img
-            src="/DIF_logo.png"
-            alt="DIF"
-            style={{ height: 18, width: "auto", display: "block" }}
-          />
+    <footer className="site-footer">
+      <div className="footer-brand">
+        <span className="footer-logo">
+          <img src="/DIF_logo.png" alt="DIF" />
         </span>
-        <span
-          style={{
-            fontFamily: "'Space Grotesk'",
-            fontWeight: 700,
-            fontSize: 15,
-          }}
-        >
-          this<span style={{ color: "var(--accent)" }}>DID</span>
-        </span>
-        <span style={{ fontSize: 13, color: "var(--faint)", marginLeft: 6 }}>
-          Universal DID Resolver
-        </span>
+        <div>
+          <div className="footer-wordmark">
+            this<span> DID</span>
+          </div>
+          <div className="footer-subtitle">Universal DID Resolver</div>
+        </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          flexWrap: "wrap",
-          fontSize: 13,
-          color: "var(--faint)",
-        }}
-      >
+
+      <div className="footer-project">
+        <div className="footer-kicker">A DIF community project</div>
+        <div className="footer-statement">
+          Advancing decentralized identifier resolution through the{" "}
+          <a
+            href="https://identity.foundation/working-groups/identifiers-discovery.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Identifiers &amp; Discovery Working Group
+          </a>
+          , the{" "}
+          <a
+            href="https://github.com/decentralized-identity/universal-resolver"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Universal Resolver
+          </a>{" "}
+          and interoperable{" "}
+          <a
+            href="https://identity.foundation/working-groups/did-methods.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DID methods
+          </a>
+          .
+        </div>
+      </div>
+
+      <nav className="footer-links" aria-label="Footer navigation">
+        <a href="/analytics">Analytics</a>
+        <a href="/docs">API docs</a>
         <a
-          href="https://goplausible.com"
+          href="https://identity.foundation/working-groups/"
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            color: "var(--dim)",
-            textDecoration: "none",
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-          }}
         >
-          Built, donated &amp; maintained by GoPlausible
-          <Icon.ExternalArrow size={12} />
+          DIF Working Groups
         </a>
         <a
-          href="/analytics"
-          style={{
-            color: "var(--dim)",
-            textDecoration: "none",
-            fontWeight: 600,
-          }}
+          href="https://identity.foundation/join/"
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          Analytics
+          Join DIF
         </a>
-        <span>
-          © 2026 ThisDID · DIF-owned, W3C DID Core-conformant Universal DID
-          Resolver
+      </nav>
+
+      <div className="footer-bottom">
+        <span>© 2026 DIF:ThisDID</span>
+        <span className="footer-credit">
+          Built and maintained by{" "}
+          <a
+            href="https://goplausible.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GoPlausible
+          </a>{" "}
+          under the{" "}
+          <a
+            href="https://identity.foundation/working-groups/identifiers-discovery.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DIF Identifiers &amp; Discovery Working Group
+          </a>
+          .
         </span>
       </div>
     </footer>

@@ -57,14 +57,14 @@ export const FEATURED_METHODS: MethodMeta[] = [
     glyph: "3",
     desc: "Polygon zk-identity state proofs",
     example:
-      "did:iden3:polygon:main:2qCU58EJgrELNZCDkSU23dQHZsBgAFWLNpNezo1g6b",
+      "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
   },
   {
     id: "sol",
     name: "did:sol",
     glyph: "S",
     desc: "Solana on-chain identifiers",
-    example: "did:sol:4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
   },
   {
     id: "cheqd",
@@ -78,7 +78,7 @@ export const FEATURED_METHODS: MethodMeta[] = [
     name: "did:nfd",
     glyph: "N",
     desc: "Algorand NFDomains name identity",
-    example: "did:nfd:thisdid.algo",
+    example: "did:nfd:nfdomains.algo",
   },
 ];
 
@@ -153,21 +153,49 @@ export const ALL_METHODS: string[] = [
   "pkh",
 ];
 
-/** Example DID for a bare method id (chip clicks). */
+/**
+ * Method-specific test identifiers used by chip clicks.
+ *
+ * Every value below has been resolution-checked through ThisDID's public API.
+ * Most routed-method values originate in the current DIF Universal Resolver
+ * test identifier catalog. Methods without a currently resolving test
+ * identifier intentionally have no entry and render as disabled chips.
+ */
 const OVERRIDES: Record<string, string> = {
+  indy: "did:indy:sovrin:WRfXPg8dantKVubE3HX8pw",
+  v1: "did:v1:test:nym:z6Mkmpe2DyE4NsDiAb58d75hpi1BjqbH6wYMschUkjWDEEuR",
   web: "did:web:identity.foundation",
-  key: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
-  pkh: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
-  peer: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
-  cheqd: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
-  algo: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
-  ens: "did:ens:vitalik.eth",
-  hedera: "did:hedera:mainnet:0.0.29613327",
   ethr: "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+  ens: "did:ens:vitalik.eth",
+  peer: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
+  eosio: "did:eosio:eos:eoscanadacom",
+  ccp: "did:ccp:ceNobbK6Me9F5zwyE3MKY88QZLw",
+  io: "did:io:0x476c81C27036D05cB5ebfe30ae58C23351a61C4A",
+  bba: "did:bba:t:45e6df15dc0a7d91dcccd24fda3b52c3983a214fb0eed0938321c11ec99403cf",
+  schema: "did:schema:evan-ipfs:json-schema:Qma2beXKwZeiUXcaRaQKwbBV1TqyiJnsMTYExUTdQue43J",
+  gatc: "did:gatc:2xtSori9UQZdTqzxrkp7zqKM4Kj5B4C7",
+  sol: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+  ebsi: "did:ebsi:zjUnExsyyweQ9p4cy3nvrVc",
+  meta: "did:meta:0000000000000000000000000000000000000000000000000000000000005e65",
+  key: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
+  oyd: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+  everscale: "did:everscale:47325e80e3cef5922d3a3583ae5c405ded7bda781cb069f2bc932a6c3d6ec62e",
+  cheqd: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
+  dyne: "did:dyne:demo:FFqGYxShyDGAHd4QyLY1KFCSGBb1mBP9sZebEyBM7JPi",
+  kscirc: "did:kscirc:k2f2PhnVHabRenKbaKfLMyuxRU94S1HfAwsR2dMHxTqVeEzmPxsd",
+  plc: "did:plc:yk4dd2qkboz2yv6tpubpc6co",
+  evrc: "did:evrc:issuer:polygon:62eeb90e-eee4-4d31-8927-1075e82b2a74",
+  webs: "did:webs:peacekeeper.github.io:did-webs-iiw37-tutorial:EKYGGh-FtAphGmSZbsuBs_t4qpsjYJ2ZqvMKluq9OxmP",
+  iden3: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+  empe: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
+  hedera: "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
+  nfd: "did:nfd:nfdomains.algo",
+  algo: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+  pkh: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
 };
 
-export function exampleFor(methodId: string): string {
-  return OVERRIDES[methodId] ?? `did:${methodId}:example`;
+export function exampleFor(methodId: string): string | undefined {
+  return OVERRIDES[methodId];
 }
 
 /** Blend two hex colors — grades method glyphs across the coral→violet spectrum. */

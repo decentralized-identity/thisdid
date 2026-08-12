@@ -117,6 +117,14 @@ export const Brackets = ({ size = 15, stroke = 2 }: IconProps) => (
     <path d="m8 6-5 6 5 6M16 6l5 6-5 6" />
   </svg>
 );
+export const QrCode = ({ size = 16, stroke = 2 }: IconProps) => (
+  <svg {...base(size, stroke)}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3h-3zM18 18h3v3h-3zM18 14h3M14 19v2" />
+  </svg>
+);
 export const Person = ({ size = 17, stroke = 2 }: IconProps) => (
   <svg {...base(size, stroke)}>
     <circle cx="12" cy="8" r="4" />

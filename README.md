@@ -70,6 +70,57 @@ statement and corresponding tests.
 
 ## Architecture
 
+### Two DIF resolver flavors, combined by ThisDID
+
+The DIF resolver ecosystem provides two complementary implementation models. They solve different
+deployment problems, and ThisDID deliberately uses both:
+
+| Resolver flavor                        | DIF project                                                                          | How it runs                                                                                                                             | Strength                                                                              | How ThisDID uses it                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Container-based Universal Resolver** | [`universal-resolver`](https://github.com/decentralized-identity/universal-resolver) | A driver-based framework commonly deployed with method drivers in separate containers behind the DIF Universal Resolver HTTP interface. | Broad, language-independent DID method coverage and independently maintained drivers. | ThisDID distributes requests across compatible public Universal Resolver implementations through its smart routing and failover engine. |
+| **TypeScript DID Resolver**            | [`did-resolver`](https://github.com/decentralized-identity/did-resolver)             | An embeddable TypeScript resolver core combined directly with compatible JavaScript/TypeScript method packages.                         | Small, application-native integration with no container hop for compatible drivers.   | ThisDID embeds the core in isolated private driver Workers for fast, low-latency edge resolution.                                       |
+
+These are complementary rather than competing resolver designs. The TypeScript path gives ThisDID
+a fast embedded resolver for package-backed methods; the container-based ecosystem supplies broad
+method coverage through distributed resolver implementations without forcing the mother Worker to
+bundle or run every method driver.
+
+```text
+                                  ┌────────────────────────────────────┐
+                                  │          ThisDID edge API          │
+ DID request ──► parse method ──► │ health-aware smart routing engine  │
+                                  └──────────────┬─────────────────────┘
+                                                 │
+                         ┌───────────────────────┴───────────────────────┐
+                         │                                               │
+                         ▼                                               ▼
+      ┌─────────────────────────────────────┐       ┌────────────────────────────────────┐
+      │ Embedded TypeScript DID Resolver    │       │ Distributed Universal Resolvers    │
+      │                                     │       │                                    │
+      │ DIF did-resolver core               │       │ DIF container/driver architecture  │
+      │   + selected method package         │       │   across compatible deployments    │
+      │   + isolated private Worker         │       │   and independently run providers  │
+      │   + private Service Binding         │       │   through the standard HTTP binding│
+      └──────────────────┬──────────────────┘       └─────────────────┬──────────────────┘
+                         │ first where configured                      │ ordered fallback
+                         └───────────────────────┬──────────────────────┘
+                                                 ▼
+                                  ┌────────────────────────────────────┐
+                                  │ Validate requested/document IDs    │
+                                  │ Normalize metadata and errors      │
+                                  │ Record route attempts and latency  │
+                                  └──────────────┬─────────────────────┘
+                                                 ▼
+                                      DIF DID Resolution Result
+```
+
+For every request, the routing registry constructs a method-specific ordered chain. A configured
+TypeScript driver normally provides the shortest path. If that driver is unavailable, times out,
+or returns no usable DID document, ThisDID can continue through healthy compatible Universal
+Resolver deployments. Methods without a TypeScript package can begin directly on the distributed
+path. The same validation, timeout policy, result normalization, analytics, and transparent route
+metadata apply regardless of which resolver flavor succeeds.
+
 ```
 ┌────────────────────────── thisdid.com (one origin) ──────────────────────────┐
 │  Cloudflare Worker  (root: src/, wrangler.jsonc)                              │
@@ -414,6 +465,36 @@ npx wrangler secret put EVM_RPC_SEPOLIA_URL --config src/driver-workers/ethr/wra
 
 See [`src/driver-workers/README.md`](src/driver-workers/README.md) for the schema, package versions,
 and driver deployment order.
+
+---
+
+## DIF community and contributions
+
+ThisDID advances the work of the **[DIF Identifiers & Discovery Working
+Group](https://identity.foundation/working-groups/identifiers-discovery.html)**, whose scope includes
+the creation, resolution, and discovery of decentralized identifiers and names. The Working
+Group's active projects include the **[Universal
+Resolver](https://github.com/decentralized-identity/universal-resolver)** and its driver-based DID
+resolution ecosystem. ThisDID also complements the **[DIF DID Methods Working
+Group](https://identity.foundation/working-groups/did-methods.html)** and its work toward
+collaborative, interoperable DID method standardization.
+
+We warmly encourage implementers, DID method maintainers, researchers, and users to get involved:
+
+- **[Join DIF](https://identity.foundation/join/)** and participate in the Identifiers & Discovery
+  or DID Methods Working Group to begin effective, ongoing technical contributions.
+- Contribute resolver drivers, interoperability tests, specifications, documentation, operational
+  experience, or code through the **[Universal Resolver
+  repository](https://github.com/decentralized-identity/universal-resolver)** and **[ThisDID
+  repository](https://github.com/decentralized-identity/thisdid)**.
+- Share comments, implementation experience, questions, and constructive opinions through
+  **[ThisDID issues](https://github.com/decentralized-identity/thisdid/issues)** or the participation
+  channels listed on the **[Identifiers & Discovery Working Group
+  page](https://identity.foundation/working-groups/identifiers-discovery.html)**. Early feedback is
+  valuable and can become the starting point for an effective contribution.
+
+Explore **[all DIF Working Groups](https://identity.foundation/working-groups/)** to find related
+standards and open-source work where your experience can help.
 
 ---
 

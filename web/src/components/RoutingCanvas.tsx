@@ -55,22 +55,26 @@ export function RoutingCanvas({
   motion = true,
   labels,
   total,
+  countryMode = false,
 }: {
   dark: boolean;
   motion?: boolean;
   labels?: string[];
   total?: string;
+  countryMode?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const darkRef = useRef(dark);
   const labelsRef = useRef(labels);
   const totalRef = useRef(total);
+  const countryModeRef = useRef(countryMode);
 
   useEffect(() => {
     darkRef.current = dark;
     labelsRef.current = labels;
     totalRef.current = total;
-  }, [dark, labels, total]);
+    countryModeRef.current = countryMode;
+  }, [countryMode, dark, labels, total]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -119,6 +123,13 @@ export function RoutingCanvas({
     ro.observe(canvas);
 
     const resColors = (pal: Palette) => [pal.twist, pal.teal, pal.amber];
+    const countryFlag = (code: string) => {
+      const normalized = code.trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(normalized)) return "🌐";
+      return String.fromCodePoint(
+        ...Array.from(normalized).map((char) => 127397 + char.charCodeAt(0)),
+      );
+    };
     const spawn = () => {
       if (!motion) return;
       const mi = Math.floor(Math.random() * methods.length);
@@ -133,22 +144,37 @@ export function RoutingCanvas({
         sp: 0.85 + Math.random() * 0.5,
       });
     };
+    const leftBusX = () => W * 0.36;
+    const rightBusX = () => W * 0.64;
+    const leftCircuit = (p: { x: number; y: number }) => [
+      p,
+      { x: leftBusX(), y: p.y },
+      { x: leftBusX(), y: hub.y },
+      hub,
+    ];
+    const rightCircuit = (p: { x: number; y: number }) => [
+      hub,
+      { x: rightBusX(), y: hub.y },
+      { x: rightBusX(), y: p.y },
+      p,
+    ];
     const build = (pk: Packet) => {
       const m = mpos(pk.mi);
-      if (pk.direct)
-        return [
-          { p: m, k: "m" },
-          { p: hub, k: "h" },
-          { p: m, k: "m" },
-        ];
-      const r = rpos(pk.ri);
-      return [
-        { p: m, k: "m" },
-        { p: hub, k: "h" },
-        { p: r, k: "r" },
-        { p: hub, k: "h" },
-        { p: m, k: "m" },
-      ];
+      const left = leftCircuit(m);
+      const r = pk.direct ? undefined : rpos(pk.ri);
+      const right = r ? rightCircuit(r) : [];
+      const points = pk.direct
+        ? [...left, ...left.slice(0, -1).reverse()]
+        : [
+            ...left,
+            ...right.slice(1),
+            ...right.slice(0, -1).reverse(),
+            ...left.slice(0, -1).reverse(),
+          ];
+      return points.map((p) => ({
+        p,
+        k: p === hub ? "h" : p === m ? "m" : r && p === r ? "r" : "",
+      }));
     };
     const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
       Math.hypot(a.x - b.x, a.y - b.y);
@@ -172,20 +198,62 @@ export function RoutingCanvas({
 
       ctx.lineWidth = 1;
       ctx.strokeStyle = pal.line;
+
+      // Shared vertical buses keep every branch aligned like a designed PCB.
+      const methodPoints = methods.map((_, i) => mpos(i));
+      const resolverPoints = resolvers.map((_, i) => rpos(i));
+      ctx.beginPath();
+      ctx.moveTo(leftBusX(), methodPoints[0].y);
+      ctx.lineTo(leftBusX(), methodPoints[methodPoints.length - 1].y);
+      ctx.moveTo(leftBusX(), hub.y);
+      ctx.lineTo(hub.x, hub.y);
+      ctx.moveTo(hub.x, hub.y);
+      ctx.lineTo(rightBusX(), hub.y);
+      ctx.moveTo(rightBusX(), resolverPoints[0].y);
+      ctx.lineTo(rightBusX(), resolverPoints[resolverPoints.length - 1].y);
+      ctx.stroke();
+
       methods.forEach((_, i) => {
         const p = mpos(i);
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
-        ctx.lineTo(hub.x, hub.y);
+        ctx.lineTo(leftBusX(), p.y);
         ctx.stroke();
+        ctx.fillStyle = pal.line;
+        ctx.fillRect(leftBusX() - 1.7 * S, p.y - 1.7 * S, 3.4 * S, 3.4 * S);
       });
       resolvers.forEach((_, i) => {
         const p = rpos(i);
         ctx.beginPath();
-        ctx.moveTo(hub.x, hub.y);
+        ctx.moveTo(rightBusX(), p.y);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
+        ctx.fillStyle = pal.line;
+        ctx.fillRect(rightBusX() - 1.7 * S, p.y - 1.7 * S, 3.4 * S, 3.4 * S);
       });
+
+      // Larger central junctions visually terminate both aligned buses.
+      ctx.fillStyle = pal.ring;
+      [leftBusX(), rightBusX()].forEach((x) => {
+        ctx.beginPath();
+        ctx.arc(x, hub.y, 2.4 * S, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Short radial contacts make the central router read like a circuit hub.
+      ctx.save();
+      ctx.translate(hub.x, hub.y);
+      ctx.strokeStyle = pal.ring;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI * i) / 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 29 * S, Math.sin(angle) * 29 * S);
+        ctx.lineTo(Math.cos(angle) * 38 * S, Math.sin(angle) * 38 * S);
+        ctx.stroke();
+      }
+      ctx.restore();
 
       const t = now / 1000;
       ctx.save();
@@ -247,10 +315,20 @@ export function RoutingCanvas({
           ctx.restore();
           m.pulse = Math.max(0, m.pulse - dt * 2);
         }
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5.5 * S, 0, Math.PI * 2);
-        ctx.fill();
+        if (countryModeRef.current) {
+          ctx.font = `${(16 * S).toFixed(1)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+          ctx.textAlign = "center";
+          ctx.fillText(
+            countryFlag(labelsRef.current?.[i] ?? ""),
+            p.x,
+            p.y + 0.5 * S,
+          );
+        } else {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5.5 * S, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.fillStyle = pal.text;
         ctx.font = `600 ${(10 * S).toFixed(1)}px "IBM Plex Mono", monospace`;
         ctx.textAlign = "left";

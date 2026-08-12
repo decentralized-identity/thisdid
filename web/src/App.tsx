@@ -35,7 +35,7 @@ export function App() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ResolveOk | null>(null);
-  const [tab, setTab] = useState<"overview" | "json">("overview");
+  const [tab, setTab] = useState<"overview" | "json" | "qr">("overview");
   const [scan, setScan] = useState(false);
   const [stats, setStats] = useState<LiveStatsData | null>(null);
   const [statsPending, setStatsPending] = useState(true);

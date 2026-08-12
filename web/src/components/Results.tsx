@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import QRCode from "qrcode";
 import type { ResultView } from "../lib/api";
 import * as Icon from "../icons";
 
@@ -70,8 +71,8 @@ function HighlightedJson({ json }: { json: string }): ReactNode {
 
 interface Props {
   view: ResultView;
-  tab: "overview" | "json";
-  setTab: (t: "overview" | "json") => void;
+  tab: "overview" | "json" | "qr";
+  setTab: (t: "overview" | "json" | "qr") => void;
   copy: (text: string) => void;
   copied: boolean;
 }
@@ -192,6 +193,23 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
           >
             <Icon.Brackets /> JSON
           </button>
+          <button
+            onClick={() => setTab("qr")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              border: 0,
+              cursor: "pointer",
+              padding: "9px 16px",
+              borderRadius: 9,
+              fontWeight: 700,
+              fontSize: 13.5,
+              ...seg(tab === "qr"),
+            }}
+          >
+            <Icon.QrCode /> QR Code
+          </button>
         </div>
         <div
           style={{
@@ -234,8 +252,10 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
 
       {tab === "overview" ? (
         <Overview view={view} copy={copy} />
-      ) : (
+      ) : tab === "json" ? (
         <JsonPanel view={view} />
+      ) : (
+        <QrPanel did={view.did} method={view.method} />
       )}
     </section>
   );
@@ -433,27 +453,11 @@ function Overview({
                 background: "var(--surface2)",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  marginBottom: 12,
-                }}
-              >
+              <div style={{ marginBottom: 12 }}>
                 <span
                   style={{
-                    fontFamily: "'IBM Plex Mono'",
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    color: "var(--accent-bright)",
-                  }}
-                >
-                  {vm.frag}
-                </span>
-                <span
-                  style={{
-                    marginLeft: "auto",
+                    display: "inline-block",
+                    maxWidth: "100%",
                     fontSize: 10.5,
                     fontWeight: 700,
                     letterSpacing: ".03em",
@@ -462,10 +466,23 @@ function Overview({
                       "color-mix(in srgb,var(--twist) 15%,transparent)",
                     padding: "3px 8px",
                     borderRadius: 6,
+                    overflowWrap: "anywhere",
                   }}
                 >
                   {vm.type}
                 </span>
+                <div
+                  style={{
+                    fontFamily: "'IBM Plex Mono'",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: "var(--accent-bright)",
+                    marginTop: 9,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {vm.frag}
+                </div>
               </div>
               <div style={{ ...eyebrow, marginBottom: 5 }}>{vm.keyLabel}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -736,6 +753,215 @@ function Empty({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+function QrPanel({ did, method }: { did: string; method: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    void QRCode.toCanvas(canvas, did, {
+      width: 720,
+      margin: 3,
+      errorCorrectionLevel: "H",
+      color: { dark: "#17130f", light: "#ffffff" },
+    })
+      .then(() => {
+        // qrcode overwrites the canvas's inline style size with the 720px
+        // render resolution; re-assert the responsive display size.
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+      })
+      .catch(() => setMessage("Unable to generate this QR code."));
+  }, [did]);
+
+  const pngBlob = () =>
+    new Promise<Blob>((resolve, reject) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return reject(new Error("QR code is not ready"));
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("PNG unavailable"))),
+        "image/png",
+      );
+    });
+
+  const copyImage = async () => {
+    try {
+      const blob = await pngBlob();
+      if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined")
+        throw new Error("Image clipboard is unavailable");
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      setMessage("QR image copied!");
+    } catch {
+      setMessage(
+        "Image copy is not supported by this browser. Download the PNG instead.",
+      );
+    }
+  };
+
+  const downloadImage = async () => {
+    try {
+      const blob = await pngBlob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `thisdid-${method}-qr.png`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage("QR image downloaded.");
+    } catch {
+      setMessage("Unable to download this QR code.");
+    }
+  };
+
+  const action = {
+    minHeight: 42,
+    padding: "0 17px",
+    borderRadius: 11,
+    border: "1px solid var(--border2)",
+    background: "var(--surface)",
+    color: "var(--text)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    cursor: "pointer",
+    fontWeight: 700,
+    fontSize: 13,
+  } as const;
+
+  return (
+    <div
+      style={{
+        borderRadius: 22,
+        border: "1px solid var(--border)",
+        background:
+          "radial-gradient(circle at 50% 20%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 48%),linear-gradient(145deg,var(--surface),color-mix(in srgb,var(--twist) 8%,var(--surface)))",
+        boxShadow: "var(--shadow)",
+        padding: "clamp(24px,5vw,54px)",
+        textAlign: "center",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <div
+          style={{ ...eyebrow, color: "var(--accent)", letterSpacing: ".12em" }}
+        >
+          Portable decentralized identifier
+        </div>
+        <h3
+          style={{
+            margin: "9px 0 8px",
+            fontFamily: "'Space Grotesk'",
+            fontSize: "clamp(24px,3vw,34px)",
+            letterSpacing: "-.025em",
+          }}
+        >
+          Scan this DID QRCode.
+        </h3>
+        <p
+          style={{
+            margin: "0 auto 25px",
+            color: "var(--dim)",
+            lineHeight: 1.65,
+          }}
+        >
+          This QR code contains the DID itself. Use the <strong>Scan QR</strong>{" "}
+          scanner on ThisDID to read it, load the identifier, and resolve its
+          current DID document.
+        </p>
+
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 340,
+            margin: "0 auto",
+            padding: 11,
+            borderRadius: 20,
+            background: "#fff",
+            border: "1px solid rgba(255,255,255,.8)",
+            boxSizing: "border-box",
+            boxShadow:
+              "0 24px 60px -28px rgba(0,0,0,.65),0 0 0 6px color-mix(in srgb,var(--accent) 9%,transparent)",
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            aria-label={`QR code containing ${did}`}
+            style={{
+              display: "block",
+              width: "100%",
+              height: "auto",
+              borderRadius: 10,
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            margin: "22px auto 0",
+            maxWidth: 620,
+            padding: "11px 14px",
+            borderRadius: 11,
+            background: "color-mix(in srgb,var(--surface2) 82%,transparent)",
+            border: "1px solid var(--border)",
+            color: "var(--dim)",
+            fontFamily: "'IBM Plex Mono'",
+            fontSize: 11.5,
+            lineHeight: 1.5,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {did}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 18,
+          }}
+        >
+          <button onClick={() => void copyImage()} style={action}>
+            <Icon.Copy /> Copy image
+          </button>
+          <button
+            onClick={() => void downloadImage()}
+            style={{
+              ...action,
+              color: "#fff",
+              borderColor: "transparent",
+              background:
+                "linear-gradient(135deg,var(--accent),var(--accent-bright))",
+            }}
+          >
+            <Icon.Download /> Download PNG
+          </button>
+        </div>
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            minHeight: 20,
+            marginTop: 12,
+            color: "var(--faint)",
+            fontSize: 12.5,
+          }}
+        >
+          {message}
+        </div>
+        <div style={{ color: "var(--faint)", fontSize: 11.5 }}>
+          Generated locally in your browser · no third-party QR service
+        </div>
+      </div>
     </div>
   );
 }

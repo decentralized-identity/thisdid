@@ -77,9 +77,23 @@ const REL_DEFS: { key: keyof DIDDocument; accent: boolean }[] = [
   { key: "capabilityDelegation", accent: false },
 ];
 
-const refId = (x: string | VerificationMethod): string =>
-  typeof x === "string" ? x : x.id;
-const frag = (id: string): string => "#" + (id.split("#")[1] ?? id);
+const asArray = <T>(value: T | T[] | null | undefined): T[] =>
+  value == null ? [] : Array.isArray(value) ? value : [value];
+
+const refId = (x: unknown): string => {
+  if (typeof x === "string") return x;
+  if (!x || typeof x !== "object") return "";
+  const record = x as Record<string, unknown>;
+  if (typeof record.id === "string") return record.id;
+  const publicKey = asArray(record.publicKey).find(
+    (value): value is string => typeof value === "string",
+  );
+  return publicKey ?? "";
+};
+const frag = (id: unknown): string => {
+  const value = typeof id === "string" ? id : "";
+  return value ? "#" + (value.split("#")[1] ?? value) : "—";
+};
 
 function truncate(s: string, head = 22, tail = 14): string {
   if (!s) return s;
@@ -119,7 +133,7 @@ export function validateDid(input: string): string | null {
   return null;
 }
 
-function buildView(
+export function buildView(
   did: string,
   resolution: DIDResolutionResult,
   doc: DIDDocument,
@@ -127,18 +141,38 @@ function buildView(
   const method = did.split(":")[1]?.toLowerCase() ?? "";
   const meta = resolution.didResolutionMetadata;
   const dm = resolution.didDocumentMetadata ?? {};
-  const vms = doc.verificationMethod ?? [];
+  const rawDoc = doc as DIDDocument & Record<string, unknown>;
+  const vms = asArray(
+    doc.verificationMethod ??
+      (rawDoc.publicKey as
+        VerificationMethod | VerificationMethod[] | undefined),
+  );
+
+  const relationshipRefs = (key: keyof DIDDocument): string[] =>
+    asArray(doc[key] as unknown).flatMap((entry) => {
+      if (typeof entry === "string") return [entry];
+      if (!entry || typeof entry !== "object") return [];
+      const record = entry as Record<string, unknown>;
+      const refs = [refId(record)];
+      for (const field of ["publicKey", "verificationMethod"]) {
+        refs.push(
+          ...asArray(record[field]).filter(
+            (value): value is string => typeof value === "string",
+          ),
+        );
+      }
+      return [...new Set(refs.filter(Boolean))];
+    });
 
   const usesFor = (id: string): string[] =>
-    REL_DEFS.filter((r) =>
-      ((doc[r.key] as (string | VerificationMethod)[]) ?? []).some(
-        (x) => refId(x) === id,
-      ),
-    ).map((r) => r.key as string);
+    REL_DEFS.filter((r) => relationshipRefs(r.key).includes(id)).map(
+      (r) => r.key as string,
+    );
 
   const vmList: VmCard[] = vms.map((vm) => {
     let keyValue = "";
     let keyLabel = "Public key";
+    const legacyVm = vm as VerificationMethod & Record<string, unknown>;
     if (vm.publicKeyMultibase) {
       keyValue = vm.publicKeyMultibase;
       keyLabel = "publicKeyMultibase";
@@ -149,32 +183,39 @@ function buildView(
     } else if (vm.blockchainAccountId) {
       keyValue = vm.blockchainAccountId;
       keyLabel = "blockchainAccountId";
+    } else if (typeof legacyVm.publicKeyHex === "string") {
+      keyValue = legacyVm.publicKeyHex;
+      keyLabel = "publicKeyHex";
+    } else if (typeof legacyVm.publicKey === "string") {
+      keyValue = legacyVm.publicKey;
+      keyLabel = "publicKey";
     }
     return {
       frag: frag(vm.id),
-      type: vm.type,
+      type: typeof vm.type === "string" ? vm.type : "VerificationMethod",
       keyLabel,
       keyValue,
       uses: usesFor(vm.id),
     };
   });
 
-  const relList: RelRow[] = REL_DEFS.filter(
-    (r) => (doc[r.key] as unknown[])?.length,
-  ).map((r) => ({
-    name: r.key as string,
-    accent: r.accent,
-    refs: (doc[r.key] as (string | VerificationMethod)[])
-      .map((x) => frag(refId(x)))
-      .join(", "),
-  }));
+  const relList: RelRow[] = REL_DEFS.map((r) => ({
+    definition: r,
+    refs: relationshipRefs(r.key),
+  }))
+    .filter(({ refs }) => refs.length > 0)
+    .map(({ definition: r, refs }) => ({
+      name: r.key as string,
+      accent: r.accent,
+      refs: refs.map(frag).join(", "),
+    }));
 
-  const svc = doc.service ?? [];
-  const svcList: SvcRow[] = svc.map((s) => {
+  const svc = asArray(doc.service);
+  const svcList: SvcRow[] = svc.map((s, index) => {
     const endpoint = endpointStr(s.serviceEndpoint);
     return {
-      frag: frag(s.id),
-      type: Array.isArray(s.type) ? s.type.join(", ") : s.type,
+      frag: s.id ? frag(s.id) : `#service-${index + 1}`,
+      type: Array.isArray(s.type) ? s.type.join(", ") : (s.type ?? "Service"),
       endpoint,
       href: safeExternalUrl(endpoint),
     };
