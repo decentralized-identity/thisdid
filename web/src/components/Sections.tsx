@@ -505,7 +505,7 @@ export function ResolverProviders() {
         <div style={eyebrow("var(--res-b)")}>Resolver providers</div>
         <h2 style={h2}>Redundant routes, trusted partners.</h2>
         <p style={lead}>
-          When ThisDID can’t resolve a method in-Worker, it routes to these
+          When ThisDID can’t resolve a method via Typescript edge resolver, it routes to these
           conformant Universal Resolvers — in a method-specific order, with
           automatic fallback.
         </p>

@@ -125,7 +125,7 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15.5 }}>
             Routed to the {view.resolver}
-            {view.route === "local" ? " (in-Worker)" : ""}
+            {view.route === "local" ? " (Typescript edge)" : ""}
           </div>
           <div style={{ fontSize: 13.5, color: "var(--dim)", marginTop: 3 }}>
             The rules engine matched {view.methodTag} to its conformant driver

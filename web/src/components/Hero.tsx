@@ -20,6 +20,10 @@ const EXAMPLES = [
     did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
   },
   {
+    short: "did:ethr",
+    did: "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+  },
+  {
     short: "did:algo",
     did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
   },

@@ -6,6 +6,7 @@ import peerWorker from "./peer";
 import pkhWorker from "./pkh";
 import webWorker from "./web";
 import type { DriverResponseV1 } from "./contract";
+import { createDriverWorker } from "./runtime";
 
 async function resolve(
   worker: { fetch(request: Request, env: never): Promise<Response> },
@@ -23,6 +24,30 @@ async function resolve(
 }
 
 describe("Tier 1 driver Workers", () => {
+  it("can create a fresh resolver for each stateless Worker request", async () => {
+    let registries = 0;
+    const worker = createDriverWorker({
+      method: "test",
+      packageName: "test-driver",
+      packageVersion: "1.0.0",
+      cacheResolver: false,
+      registry: () => {
+        registries++;
+        return {
+          test: async (did: string) => ({
+            didResolutionMetadata: {},
+            didDocument: { id: did },
+            didDocumentMetadata: {},
+          }),
+        };
+      },
+    });
+
+    await resolve(worker, "did:test:first");
+    await resolve(worker, "did:test:second");
+    expect(registries).toBe(2);
+  });
+
   it("resolves an Ed25519 did:key vector offline", async () => {
     const did = "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8";
     const body = await resolve(keyWorker, did);

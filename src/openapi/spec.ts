@@ -10,7 +10,7 @@ export function openApiSpec(origin: string) {
       description:
         "ThisDID is a W3C DID Core-conformant DIF Universal DID Resolver. It implements the DIF " +
         "Universal Resolver HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method " +
-        "is resolved through an ordered fallback chain of ThisDID in-Worker drivers plus the " +
+        "is resolved through an ordered fallback chain of ThisDID Typescript edge drivers plus the " +
         "Godiddy, GoPlausible, and Archon Universal Resolvers. ThisDID was built and donated to DIF " +
         "by GoPlausible, which continues to maintain it. Additional resolver integrations are welcome.",
       license: { name: "Apache-2.0" },

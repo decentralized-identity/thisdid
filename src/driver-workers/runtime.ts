@@ -16,6 +16,12 @@ type DriverDefinition<Env> = {
   method: string;
   packageName: string;
   packageVersion: string;
+  /**
+   * Reuse the Resolver between requests. Disable for packages whose provider
+   * retains request-scoped I/O state, which Cloudflare Workers cannot safely
+   * carry into a later stateless invocation.
+   */
+  cacheResolver?: boolean;
   registry(env: Env): ResolverRegistry;
 };
 
@@ -52,7 +58,11 @@ export function createDriverWorker<Env>(definition: DriverDefinition<Env>) {
   let cachedResolver: Resolver | undefined;
 
   function resolver(env: Env): Resolver {
-    if (!cachedResolver || cachedEnv !== env) {
+    if (
+      definition.cacheResolver === false ||
+      !cachedResolver ||
+      cachedEnv !== env
+    ) {
       cachedResolver = new Resolver(definition.registry(env));
       cachedEnv = env;
     }
