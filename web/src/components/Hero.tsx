@@ -33,11 +33,11 @@ const EXAMPLES = [
     did: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
   },
 ];
-const STATS = [
-  { value: "70+", label: "DID methods" },
-  { value: "<200ms", label: "Median resolve" },
-  { value: "99.98%", label: "Global uptime" },
-];
+// const STATS = [
+//   { value: "70+", label: "DID methods" },
+//   { value: "3+", label: "Verified Providers" },
+//   { value: "99.98%", label: "Global uptime" },
+// ];
 
 interface Props {
   query: string;
@@ -329,7 +329,7 @@ export function Hero({
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 28, marginTop: 30 }}>
+        {/* <div style={{ display: "flex", gap: 28, marginTop: 30 }}>
           {STATS.map((s) => (
             <div key={s.label}>
               <div
@@ -354,7 +354,7 @@ export function Hero({
               </div>
             </div>
           ))}
-        </div>
+        </div> */}
       </div>
 
       <div

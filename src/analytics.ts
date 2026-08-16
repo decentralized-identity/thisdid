@@ -397,7 +397,11 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     await db.batch<Record<string, number | string | null>>([
       db
         .prepare(
-          `SELECT COUNT(*) total, SUM(success) ok, SUM(duration_ms) lat, AVG(duration_ms) avg_ms FROM resolutions ${w.sql}`,
+          `SELECT COUNT(*) total,
+                  SUM(success) ok,
+                  SUM(CASE WHEN success = 1 THEN duration_ms ELSE 0 END) lat,
+                  AVG(CASE WHEN success = 1 THEN duration_ms END) avg_ms
+             FROM resolutions ${w.sql}`,
         )
         .bind(...w.binds),
       db
