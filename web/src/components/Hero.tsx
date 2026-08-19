@@ -439,12 +439,12 @@ export function Hero({
           }}
         >
           <Legend c="var(--accent)" label="Answered by ThisDID" />
+          <Legend c="var(--res-b)" label="Godiddy" href="https://godiddy.com" />
           <Legend
             c="var(--twist)"
             label="GoPlausible"
             href="https://goplausible.com"
           />
-          <Legend c="var(--res-b)" label="Godiddy" href="https://godiddy.com" />
           <Legend
             c="var(--res-c)"
             label="Archon"

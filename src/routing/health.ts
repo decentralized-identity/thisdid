@@ -36,6 +36,11 @@ export interface HealthSnapshot {
 let cache: { snap: HealthSnapshot | null; fetchedTs: number } | null = null;
 const CACHE_MS = 15_000;
 
+/** Test-only: clear the per-isolate snapshot cache. */
+export function resetHealthCache(): void {
+  cache = null;
+}
+
 /**
  * Read the probe worker's health snapshot. Cached per isolate for 15s so the
  * steady-state per-request cost is zero KV reads. Never throws.

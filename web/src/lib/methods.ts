@@ -5,6 +5,8 @@ export interface MethodMeta {
   glyph: string;
   desc: string;
   example: string;
+  /** new driver under probation: results are double-checked against an upstream */
+  probation?: boolean;
 }
 
 export const FEATURED_METHODS: MethodMeta[] = [
@@ -44,46 +46,76 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
   },
   {
-    id: "algo",
-    name: "did:algo",
-    glyph: "A",
-    desc: "Algorand on-chain identifiers",
+    id: "webvh",
+    name: "did:webvh",
+    glyph: "V",
+    probation: true,
+    desc: "Domain-hosted with a verifiable key history",
     example:
-      "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+      "did:webvh:Qmb3KLhAKJ9wZx1gTPzcPfCxviRkiEJ4RGdHNviaedGu3i:opsecid.github.io",
   },
   {
-    id: "iden3",
-    name: "did:iden3",
-    glyph: "3",
-    desc: "Polygon zk-identity state proofs",
-    example:
-      "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+    id: "plc",
+    name: "did:plc",
+    glyph: "L",
+    probation: true,
+    desc: "AT Protocol / Bluesky ledger identities",
+    example: "did:plc:z72i7hdynmk6r22z27h6tvur",
   },
   {
-    id: "sol",
-    name: "did:sol",
-    glyph: "S",
-    desc: "Solana on-chain identifiers",
-    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+    id: "ebsi",
+    name: "did:ebsi",
+    glyph: "B",
+    probation: true,
+    desc: "EU EBSI legal-entity identifiers",
+    example: "did:ebsi:zjUnExsyyweQ9p4cy3nvrVc",
+  },
+  {
+    id: "near",
+    name: "did:near",
+    glyph: "N",
+    probation: true,
+    desc: "NEAR accounts, named and implicit",
+    example: "did:near:registrar.near",
+  },
+  {
+    id: "jwk",
+    name: "did:jwk",
+    glyph: "J",
+    probation: true,
+    desc: "Single JSON Web Key, deterministic and offline",
+    example:
+      "did:jwk:eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFjYklRaXVNczNpOF91c3pFakoydHBUdFJNNEVVM3l6OTFQSDZDZEgyVjAiLCJ5IjoiX0tjeUxqOXZXTXB0bm1LdG00NkdxRHo4d2Y3NEk1TEtncmwyR3pIM25TRSJ9",
   },
   {
     id: "cheqd",
     name: "did:cheqd",
     glyph: "C",
+    probation: true,
     desc: "cheqd network identity ledger",
     example: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
   },
   {
-    id: "nfd",
-    name: "did:nfd",
-    glyph: "N",
-    desc: "Algorand NFDomains name identity",
-    example: "did:nfd:nfdomains.algo",
+    id: "dns",
+    name: "did:dns",
+    glyph: "D",
+    probation: true,
+    desc: "Domain keys published as DNS URI records",
+    example: "did:dns:danubetech.com",
+  },
+  {
+    id: "ens",
+    name: "did:ens",
+    glyph: "S",
+    probation: true,
+    desc: "Ethereum Name Service identities",
+    example: "did:ens:vitalik.eth",
   },
 ];
 
 export const ALL_METHODS: string[] = [
   "btcr",
+  "btcr2",
   "indy",
   "v1",
   "stack",
@@ -97,6 +129,7 @@ export const ALL_METHODS: string[] = [
   "elem",
   "github",
   "ccp",
+  "cid",
   "ont",
   "kilt",
   "factom",
@@ -111,6 +144,7 @@ export const ALL_METHODS: string[] = [
   "unisot",
   "sol",
   "lit",
+  "ling",
   "ebsi",
   "emtrust",
   "meta",
@@ -121,6 +155,7 @@ export const ALL_METHODS: string[] = [
   "moncon",
   "dock",
   "mydata",
+  "near",
   "dns",
   "everscale",
   "ala",
@@ -140,6 +175,7 @@ export const ALL_METHODS: string[] = [
   "evrc",
   "keri",
   "webs",
+  "webvh",
   "prism",
   "iden3",
   "cndid",
@@ -154,7 +190,8 @@ export const ALL_METHODS: string[] = [
 ];
 
 /**
- * Method-specific test identifiers used by chip clicks.
+ * Method-specific test identifiers used by chip clicks (upstream-routed
+ * methods only — locally driven methods render as featured tiles instead).
  *
  * Every value below has been resolution-checked through ThisDID's public API.
  * Most routed-method values originate in the current DIF Universal Resolver
@@ -163,35 +200,32 @@ export const ALL_METHODS: string[] = [
  */
 const OVERRIDES: Record<string, string> = {
   indy: "did:indy:sovrin:WRfXPg8dantKVubE3HX8pw",
+  btcr2:
+    "did:btcr2:k1qypcylxwhf8sykn2dztm6z8lxm43kwkyzf07qmp9jafv3zfntmpwtks9hmnrw",
+  ion: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
   v1: "did:v1:test:nym:z6Mkmpe2DyE4NsDiAb58d75hpi1BjqbH6wYMschUkjWDEEuR",
-  web: "did:web:identity.foundation",
-  ethr: "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a",
-  ens: "did:ens:vitalik.eth",
-  peer: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
   eosio: "did:eosio:eos:eoscanadacom",
   ccp: "did:ccp:ceNobbK6Me9F5zwyE3MKY88QZLw",
   io: "did:io:0x476c81C27036D05cB5ebfe30ae58C23351a61C4A",
   bba: "did:bba:t:45e6df15dc0a7d91dcccd24fda3b52c3983a214fb0eed0938321c11ec99403cf",
-  schema: "did:schema:evan-ipfs:json-schema:Qma2beXKwZeiUXcaRaQKwbBV1TqyiJnsMTYExUTdQue43J",
+  schema:
+    "did:schema:evan-ipfs:json-schema:Qma2beXKwZeiUXcaRaQKwbBV1TqyiJnsMTYExUTdQue43J",
   gatc: "did:gatc:2xtSori9UQZdTqzxrkp7zqKM4Kj5B4C7",
   sol: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
-  ebsi: "did:ebsi:zjUnExsyyweQ9p4cy3nvrVc",
   meta: "did:meta:0000000000000000000000000000000000000000000000000000000000005e65",
-  key: "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8",
   oyd: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
-  everscale: "did:everscale:47325e80e3cef5922d3a3583ae5c405ded7bda781cb069f2bc932a6c3d6ec62e",
-  cheqd: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
+  everscale:
+    "did:everscale:47325e80e3cef5922d3a3583ae5c405ded7bda781cb069f2bc932a6c3d6ec62e",
   dyne: "did:dyne:demo:FFqGYxShyDGAHd4QyLY1KFCSGBb1mBP9sZebEyBM7JPi",
   kscirc: "did:kscirc:k2f2PhnVHabRenKbaKfLMyuxRU94S1HfAwsR2dMHxTqVeEzmPxsd",
-  plc: "did:plc:yk4dd2qkboz2yv6tpubpc6co",
   evrc: "did:evrc:issuer:polygon:62eeb90e-eee4-4d31-8927-1075e82b2a74",
   webs: "did:webs:peacekeeper.github.io:did-webs-iiw37-tutorial:EKYGGh-FtAphGmSZbsuBs_t4qpsjYJ2ZqvMKluq9OxmP",
   iden3: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
   empe: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
-  hedera: "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
+  hedera:
+    "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
   nfd: "did:nfd:nfdomains.algo",
   algo: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
-  pkh: "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
 };
 
 export function exampleFor(methodId: string): string | undefined {

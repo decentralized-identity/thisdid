@@ -45,6 +45,11 @@ export interface DIDResolutionResult {
     network?: string;
     durationMs?: number;
     via?: string;
+    verification?: {
+      status: "match" | "mismatch" | "unverified";
+      provider?: string;
+      reason?: string;
+    };
     [k: string]: unknown;
   };
   didDocumentMetadata: {

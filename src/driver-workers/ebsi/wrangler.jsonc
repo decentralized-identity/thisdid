@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-driver-ebsi",
+  "main": "index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    // EBSI DID registry (pilot environment). Legal-entity DIDs resolve here.
+    "EBSI_DID_REGISTRY": "https://api-pilot.ebsi.eu/did-registry/v5/identifiers",
+  },
+}

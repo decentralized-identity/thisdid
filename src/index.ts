@@ -8,6 +8,7 @@ import {
   getStats,
   parseFilter,
   recentPage,
+  recordMismatch,
   recordResolution,
 } from "./analytics";
 import { getHealth } from "./routing/health";
@@ -42,9 +43,14 @@ function statusFor(result: ThisDidResolution): number {
     case "notFound":
       return 404;
     case "unsupportedDidMethod":
+    case "methodNotSupported":
       return 501;
     case "representationNotSupported":
       return 406;
+    case "rateLimited":
+      // Every routed provider was throttling us — an upstream-quota problem,
+      // not a client-rate problem, so 503 rather than 429.
+      return 503;
     default:
       return 500;
   }
@@ -102,6 +108,8 @@ function track(
         chain: m.chain ?? null,
         country: (cf?.country as string) ?? null,
         colo: (cf?.colo as string) ?? null,
+        verification: m.verification?.status ?? null,
+        verifiedBy: m.verification?.provider ?? null,
         ts: Date.now(),
       }),
     );
@@ -117,7 +125,16 @@ async function resolveAndTrack(
 ): Promise<ThisDidResolution> {
   let result: ThisDidResolution;
   try {
-    result = await resolveDid(did, c.env);
+    result = await resolveDid(did, c.env, {
+      // Probation disagreements are logged with both documents as evidence.
+      onMismatch: (record) => {
+        try {
+          c.executionCtx.waitUntil(recordMismatch(c.env, record));
+        } catch {
+          // evidence logging must never break resolution
+        }
+      },
+    });
   } catch {
     result = {
       didResolutionMetadata: { error: "notFound" },

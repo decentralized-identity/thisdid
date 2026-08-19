@@ -368,20 +368,49 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
           >
             <span
               style={{
-                width: 38,
-                height: 38,
-                borderRadius: 11,
-                display: "grid",
-                placeItems: "center",
-                fontFamily: "'Space Grotesk'",
-                fontWeight: 700,
-                fontSize: 16,
-                color: m.color,
-                background: `color-mix(in srgb, ${m.color} 16%, var(--surface2))`,
-                border: `1px solid color-mix(in srgb, ${m.color} 28%, transparent)`,
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 8,
               }}
             >
-              {m.glyph}
+              <span
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  display: "grid",
+                  placeItems: "center",
+                  fontFamily: "'Space Grotesk'",
+                  fontWeight: 700,
+                  fontSize: 16,
+                  color: m.color,
+                  background: `color-mix(in srgb, ${m.color} 16%, var(--surface2))`,
+                  border: `1px solid color-mix(in srgb, ${m.color} 28%, transparent)`,
+                }}
+              >
+                {m.glyph}
+              </span>
+              {m.probation && (
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    letterSpacing: ".06em",
+                    textTransform: "uppercase",
+                    color: "var(--res-c)",
+                    background:
+                      "color-mix(in srgb, var(--res-c) 12%, transparent)",
+                    border:
+                      "1px solid color-mix(in srgb, var(--res-c) 45%, transparent)",
+                    padding: "2px 7px",
+                    borderRadius: 999,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  New · under test
+                </span>
+              )}
             </span>
             <div>
               <div
@@ -431,7 +460,9 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
         <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {ALL_METHODS.map((id) => {
+        {ALL_METHODS.filter(
+          (id) => !FEATURED_METHODS.some((m) => m.id === id),
+        ).map((id) => {
           const example = exampleFor(id);
           return (
             <button
@@ -505,9 +536,9 @@ export function ResolverProviders() {
         <div style={eyebrow("var(--res-b)")}>Resolver providers</div>
         <h2 style={h2}>Redundant routes, trusted partners.</h2>
         <p style={lead}>
-          When ThisDID can’t resolve a method via Typescript edge resolver, it routes to these
-          conformant Universal Resolvers — in a method-specific order, with
-          automatic fallback.
+          When ThisDID can’t resolve a method via Typescript edge resolver, it
+          routes to these conformant Universal Resolvers — in a method-specific
+          order, with automatic fallback.
         </p>
       </div>
       <div

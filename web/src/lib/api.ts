@@ -32,6 +32,11 @@ export interface ResultView {
   network: string;
   duration: string;
   route: "local" | "upstream";
+  /** Probation double-check outcome, when the method is under verification. */
+  verification?: {
+    status: "match" | "mismatch" | "unverified";
+    provider?: string;
+  };
   controllerShort: string;
   created: string;
   updated: string;
@@ -241,6 +246,7 @@ export function buildView(
     network: meta.network ?? "Method-specific ledger",
     duration: (meta.durationMs ?? 0) + " ms",
     route: meta.route ?? "upstream",
+    ...(meta.verification ? { verification: meta.verification } : {}),
     controllerShort: truncate(controller ?? "—"),
     created: dm.created ?? "—",
     updated: dm.updated ?? "—",

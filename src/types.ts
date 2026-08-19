@@ -7,6 +7,14 @@ export interface DriverBindings {
   DRIVER_PKH?: DriverServiceBinding;
   DRIVER_PEER?: DriverServiceBinding;
   DRIVER_ETHR?: DriverServiceBinding;
+  DRIVER_WEBVH?: DriverServiceBinding;
+  DRIVER_PLC?: DriverServiceBinding;
+  DRIVER_EBSI?: DriverServiceBinding;
+  DRIVER_NEAR?: DriverServiceBinding;
+  DRIVER_JWK?: DriverServiceBinding;
+  DRIVER_CHEQD?: DriverServiceBinding;
+  DRIVER_DNS?: DriverServiceBinding;
+  DRIVER_ENS?: DriverServiceBinding;
 }
 
 /** Worker bindings (see wrangler.jsonc). */
@@ -51,6 +59,12 @@ export interface ThisDidRouteMeta {
   attempted?: string[];
   /** Sanitized per-step failure information retained when no route succeeds. */
   attempts?: Array<{ step: string; error: string; status?: number }>;
+  /** Probation double-check outcome for new local drivers (see src/resolvers/verify.ts). */
+  verification?: {
+    status: "match" | "mismatch" | "unverified";
+    provider?: string;
+    reason?: string;
+  };
 }
 
 export type ThisDidResolution = DIDResolutionResult & {

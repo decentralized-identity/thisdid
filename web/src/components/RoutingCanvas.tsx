@@ -87,8 +87,8 @@ export function RoutingCanvas({
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const methods = Array.from({ length: 7 }, () => ({ pulse: 0 }));
     const resolvers = [
-      { label: "GoPlausible", pulse: 0 },
       { label: "Godiddy", pulse: 0 },
+      { label: "GoPlausible", pulse: 0 },
       { label: "Archon", pulse: 0 },
     ];
     let hubPulse = 0;
@@ -122,7 +122,10 @@ export function RoutingCanvas({
     const ro = new ResizeObserver(layout);
     ro.observe(canvas);
 
-    const resColors = (pal: Palette) => [pal.twist, pal.teal, pal.amber];
+    // Positional, matching `resolvers` order: Godiddy teal, GoPlausible
+    // violet, Archon amber — the same identities the Hero legend pins to
+    // --res-b / --twist / --res-c.
+    const resColors = (pal: Palette) => [pal.teal, pal.twist, pal.amber];
     const countryFlag = (code: string) => {
       const normalized = code.trim().toUpperCase();
       if (!/^[A-Z]{2}$/.test(normalized)) return "🌐";

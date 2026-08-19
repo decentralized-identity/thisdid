@@ -33,6 +33,22 @@ function bindingFor(
       return env.DRIVER_PEER;
     case "ethr":
       return env.DRIVER_ETHR;
+    case "webvh":
+      return env.DRIVER_WEBVH;
+    case "plc":
+      return env.DRIVER_PLC;
+    case "ebsi":
+      return env.DRIVER_EBSI;
+    case "near":
+      return env.DRIVER_NEAR;
+    case "jwk":
+      return env.DRIVER_JWK;
+    case "cheqd":
+      return env.DRIVER_CHEQD;
+    case "dns":
+      return env.DRIVER_DNS;
+    case "ens":
+      return env.DRIVER_ENS;
     default:
       return undefined;
   }

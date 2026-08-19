@@ -10,9 +10,16 @@
   "vars": {
     // Same upstream Universal Resolver bases as the main Worker (wrangler.jsonc).
     "GODIDDY_RESOLVER": "https://api.godiddy.com/1.0.0/universal-resolver/identifiers",
+    // Godiddy availability is probed here — the unmetered ingress health
+    // endpoint — never via a canary resolution: the public resolver API is
+    // quota-throttled, and a throttled canary misread as an outage.
+    "GODIDDY_HEALTH": "https://api.godiddy.com/health",
     "ARCHON_RESOLVER": "https://resolver.archon.technology/1.0/identifiers",
     "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
+    "ENS_CANARY_DID": "did:ens:vitalik.eth",
     // Add ETHR_CANARY_DID only after the ethr driver has approved RPC configuration.
+    // Add "ENS_CANARY_DID": "did:ens:vitalik.eth" here once the ens driver's
+    // EVM_RPC_MAINNET_URL secret is configured and edge resolution is confirmed.
   },
   "services": [
     { "binding": "DRIVER_WEB", "service": "thisdid-driver-web" },
@@ -20,6 +27,14 @@
     { "binding": "DRIVER_PKH", "service": "thisdid-driver-pkh" },
     { "binding": "DRIVER_PEER", "service": "thisdid-driver-peer" },
     { "binding": "DRIVER_ETHR", "service": "thisdid-driver-ethr" },
+    { "binding": "DRIVER_WEBVH", "service": "thisdid-driver-webvh" },
+    { "binding": "DRIVER_PLC", "service": "thisdid-driver-plc" },
+    { "binding": "DRIVER_EBSI", "service": "thisdid-driver-ebsi" },
+    { "binding": "DRIVER_NEAR", "service": "thisdid-driver-near" },
+    { "binding": "DRIVER_JWK", "service": "thisdid-driver-jwk" },
+    { "binding": "DRIVER_CHEQD", "service": "thisdid-driver-cheqd" },
+    { "binding": "DRIVER_DNS", "service": "thisdid-driver-dns" },
+    { "binding": "DRIVER_ENS", "service": "thisdid-driver-ens" },
   ],
   // Connected to the main resolver Worker through its D1 database + KV
   // namespace (same ids as ../wrangler.jsonc): probes are appended to D1,

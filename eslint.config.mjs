@@ -20,6 +20,7 @@ export default tseslint.config(
       "vendor/**",
       "web/dist/**",
       "worker-configuration.d.ts",
+      "**/.wrangler/**",
     ],
   },
   js.configs.recommended,

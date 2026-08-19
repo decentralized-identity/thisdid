@@ -1,0 +1,43 @@
+{
+  "name": "@thisdid/plc-did-resolver",
+  "version": "1.0.0",
+  "description": "DIF did-resolver driver for did:plc — a standard getResolver() wrapper around Bluesky's @atproto/identity.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@atproto/identity": "0.5.9"
+  },
+  "devDependencies": {
+    "did-resolver": "^4.1.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "did-resolver": ">=4.1.0"
+  }
+}

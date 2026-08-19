@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import app from "./index";
 import type { Env } from "./types";
 
@@ -27,6 +27,41 @@ describe("HTTP binding", () => {
         .didResolutionMetadata.error,
     ).toBe("unsupportedDidMethod");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("maps a passed-through upstream METHOD_NOT_SUPPORTED to HTTP 501", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            didDocument: null,
+            didResolutionMetadata: {
+              error: { type: "METHOD_NOT_SUPPORTED" },
+            },
+            didDocumentMetadata: {},
+          },
+          { status: 501 },
+        ),
+      ),
+    );
+    const upstreamEnv = {
+      ...env,
+      GODIDDY_RESOLVER: "https://godiddy.test",
+      ARCHON_RESOLVER: "https://archon.test",
+    };
+    const res = await app.request(
+      "/1.0/identifiers/did%3Acheqd%3Amainnet%3APs1ysXP2Ae6GBfxNhNQNKN",
+      {},
+      upstreamEnv,
+      ctx,
+    );
+    expect(res.status).toBe(501);
+    expect(
+      ((await res.json()) as { didResolutionMetadata: { error: string } })
+        .didResolutionMetadata.error,
+    ).toBe("methodNotSupported");
+    vi.unstubAllGlobals();
   });
 
   it("serves MCP over POST and rejects GET", async () => {

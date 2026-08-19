@@ -40,7 +40,7 @@ export function openApiSpec(origin: string) {
           description:
             "Resolves a Decentralized Identifier and returns a W3C DID Resolution Result. " +
             "The `didResolutionMetadata` is extended with ThisDID routing fields " +
-            "(`route`, `resolver`, `network`, `durationMs`, `via`).",
+            "(`route`, `resolver`, `network`, `durationMs`, `via`, and `verification` for methods under probation double-checking).",
           parameters: [
             {
               name: "did",
@@ -84,6 +84,10 @@ export function openApiSpec(origin: string) {
             "501": {
               description:
                 "Unsupported DID method (`error: unsupportedDidMethod`).",
+            },
+            "503": {
+              description:
+                "Every routed provider was rate-limiting the resolver (`error: rateLimited`) — an upstream quota condition, not a client one; retry later.",
             },
           },
         },
@@ -132,7 +136,9 @@ export function openApiSpec(origin: string) {
           summary: "Per-resolver route health",
           description:
             "Live health of every resolver route (ThisDID local, GoPlausible, godiddy, archon), fed by " +
-            "the thisdid-probe sub-worker: canary DID resolutions every minute. Returns the current " +
+            "the thisdid-probe sub-worker: canary DID resolutions every minute (godiddy is probed via " +
+            "its unmetered health endpoint instead — its public resolver API is quota-throttled, and a " +
+            "throttled canary would misread as an outage). Returns the current " +
             "snapshot (status, EWMA latency, rolling success rate, consecutive failures) plus 24h " +
             "aggregates. `configured: false` until the probe worker has reported.",
           responses: {
@@ -295,6 +301,19 @@ export function openApiSpec(origin: string) {
                 contentType: { type: "string" },
                 error: { type: "string" },
                 route: { type: "string", enum: ["local", "upstream"] },
+                verification: {
+                  type: "object",
+                  description:
+                    "Probation double-check outcome for new edge drivers: the edge result was compared against a redundant upstream.",
+                  properties: {
+                    status: {
+                      type: "string",
+                      enum: ["match", "mismatch", "unverified"],
+                    },
+                    provider: { type: "string" },
+                    reason: { type: "string" },
+                  },
+                },
                 resolver: { type: "string" },
                 network: { type: "string" },
                 durationMs: { type: "number" },

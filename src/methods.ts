@@ -17,6 +17,8 @@ export interface MethodMeta {
   example?: string;
   /** whether ThisDID resolves it with a local driver (vs. routed upstream) */
   local?: boolean;
+  /** new driver under probation: edge results are double-checked against an upstream */
+  probation?: boolean;
 }
 
 /** Featured methods (rendered as large cards on the landing page). */
@@ -62,47 +64,85 @@ export const FEATURED_METHODS: MethodMeta[] = [
     local: true,
   },
   {
-    id: "algo",
-    glyph: "A",
-    desc: "Algorand on-chain identifiers",
-    network: "Algorand MainNet",
+    id: "webvh",
+    glyph: "V",
+    probation: true,
+    desc: "Domain-hosted with a verifiable key history",
+    network: "HTTPS · did.jsonl history",
     example:
-      "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+      "did:webvh:Qmb3KLhAKJ9wZx1gTPzcPfCxviRkiEJ4RGdHNviaedGu3i:opsecid.github.io",
+    local: true,
   },
   {
-    id: "iden3",
-    glyph: "3",
-    desc: "Polygon zk-identity state proofs",
-    network: "Polygon (Iden3)",
-    example:
-      "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+    id: "plc",
+    glyph: "L",
+    probation: true,
+    desc: "AT Protocol / Bluesky ledger identities",
+    network: "AT Protocol · plc.directory",
+    example: "did:plc:z72i7hdynmk6r22z27h6tvur",
+    local: true,
   },
   {
-    id: "sol",
-    glyph: "S",
-    desc: "Solana on-chain identifiers",
-    network: "Solana",
-    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+    id: "ebsi",
+    glyph: "B",
+    probation: true,
+    desc: "EU EBSI legal-entity identifiers",
+    network: "EBSI (EU pilot)",
+    example: "did:ebsi:zjUnExsyyweQ9p4cy3nvrVc",
+    local: true,
+  },
+  {
+    id: "near",
+    glyph: "N",
+    probation: true,
+    desc: "NEAR accounts, named and implicit",
+    network: "NEAR Protocol",
+    example: "did:near:registrar.near",
+    local: true,
+  },
+  {
+    id: "jwk",
+    glyph: "J",
+    probation: true,
+    desc: "Single JSON Web Key, deterministic and offline",
+    network: "Local (offline)",
+    example:
+      "did:jwk:eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFjYklRaXVNczNpOF91c3pFakoydHBUdFJNNEVVM3l6OTFQSDZDZEgyVjAiLCJ5IjoiX0tjeUxqOXZXTXB0bm1LdG00NkdxRHo4d2Y3NEk1TEtncmwyR3pIM25TRSJ9",
+    local: true,
   },
   {
     id: "cheqd",
     glyph: "C",
+    probation: true,
     desc: "cheqd network identity ledger",
     network: "cheqd network",
     example: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN",
+    local: true,
   },
   {
-    id: "nfd",
-    glyph: "N",
-    desc: "Algorand NFDomains name identity",
-    network: "Algorand NFDomains",
-    example: "did:nfd:nfdomains.algo",
+    id: "dns",
+    glyph: "D",
+    probation: true,
+    desc: "Domain keys published as DNS URI records",
+    network: "DNS · DoH",
+    example: "did:dns:danubetech.com",
+    local: true,
+  },
+  {
+    id: "ens",
+    glyph: "S",
+    probation: true,
+    desc: "Ethereum Name Service identities",
+    network: "Ethereum · ENS",
+    example: "did:ens:vitalik.eth",
+    local: true,
   },
 ];
 
 /** Methods with intentionally configured local or upstream routes. */
 export const ALL_METHODS: string[] = [
   "btcr",
+  "btcr2",
   "indy",
   "v1",
   "stack",
@@ -116,6 +156,7 @@ export const ALL_METHODS: string[] = [
   "elem",
   "github",
   "ccp",
+  "cid",
   "ont",
   "kilt",
   "factom",
@@ -130,6 +171,7 @@ export const ALL_METHODS: string[] = [
   "unisot",
   "sol",
   "lit",
+  "ling",
   "ebsi",
   "emtrust",
   "meta",
@@ -140,6 +182,7 @@ export const ALL_METHODS: string[] = [
   "moncon",
   "dock",
   "mydata",
+  "near",
   "dns",
   "everscale",
   "ala",
@@ -159,6 +202,7 @@ export const ALL_METHODS: string[] = [
   "evrc",
   "keri",
   "webs",
+  "webvh",
   "prism",
   "iden3",
   "cndid",
@@ -176,16 +220,55 @@ export const ALL_METHODS: string[] = [
 export const SUPPORTED_METHODS = new Set(ALL_METHODS);
 
 /** Methods backed by independently deployed Tier 1 TypeScript driver Workers. */
-export const LOCAL_DRIVER_METHODS = ["web", "key", "pkh", "peer", "ethr"];
+export const LOCAL_DRIVER_METHODS = [
+  "web",
+  "key",
+  "pkh",
+  "peer",
+  "ethr",
+  "webvh",
+  "plc",
+  "ebsi",
+  "near",
+  "jwk",
+  "cheqd",
+  "dns",
+  "ens",
+];
+
+/**
+ * New local drivers under probation: every edge resolution is double-checked
+ * against a redundant upstream until the method's match-rate earns graduation
+ * (see src/resolvers/verify.ts). Keep in sync with the `probation` tile flags.
+ */
+export const PROBATION_METHODS: Set<string> = new Set([
+  "webvh",
+  "plc",
+  "ebsi",
+  "near",
+  "jwk",
+  "cheqd",
+  "dns",
+  "ens",
+]);
 
 /** True when ThisDID advertises a resolution route for the method. */
 export function isSupportedMethod(method: string): boolean {
   return SUPPORTED_METHODS.has(method.toLowerCase());
 }
 
-const NETWORKS: Record<string, string> = Object.fromEntries(
-  FEATURED_METHODS.map((m) => [m.id, m.network]),
-);
+/** Network labels for prominent upstream-routed methods without a featured tile. */
+const UPSTREAM_NETWORKS: Record<string, string> = {
+  algo: "Algorand MainNet",
+  nfd: "Algorand NFDomains",
+  iden3: "Polygon (Iden3)",
+  sol: "Solana",
+};
+
+const NETWORKS: Record<string, string> = {
+  ...UPSTREAM_NETWORKS,
+  ...Object.fromEntries(FEATURED_METHODS.map((m) => [m.id, m.network])),
+};
 
 /** Best-effort human network label for a method (used in the route banner). */
 export function networkFor(method: string): string {

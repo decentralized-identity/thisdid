@@ -9,6 +9,13 @@
  *   - folds per-provider EWMAs into the `routing:health:v2` KV snapshot that
  *     the main resolver Worker reads.
  *
+ * Godiddy is the exception to the canary-resolution pattern: its public
+ * resolver API is quota-throttled, so a canary DID both burned quota shared
+ * with live traffic and read a 429 as an outage — Godiddy showed "down" while
+ * serving fine. Its availability is probed against the always-on, unmetered
+ * ingress health endpoint (GODIDDY_HEALTH) instead, and a 429 from any
+ * upstream anywhere counts as "up but throttled", never as a failure.
+ *
  * It is connected to the main Worker only through the shared D1 database and
  * STATS_KV namespace (same ids in wrangler.jsonc). It never sits on the request
  * path — if this Worker breaks, resolution and the UI are unaffected.
@@ -28,10 +35,16 @@ interface ProbeEnv extends DriverBindings {
   GODIDDY_RESOLVER: string;
   ARCHON_RESOLVER: string;
   GOPLAUSIBLE_RESOLVER: string;
-  /** Same secret as the main Worker (set separately: `wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc`). */
+  /** Godiddy's unmetered ingress health endpoint (probed instead of the quota-throttled resolver API). */
+  GODIDDY_HEALTH?: string;
+  /** Same secret as the main Worker (set separately: `wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc`).
+   * Sent on the health check too, so probe traffic is authenticated to
+   * Godiddy exactly like live resolution traffic. */
   GODIDDY_API_KEY?: string;
   /** Optional stable ethr DID; enable only after the ethr driver RPC networks are configured. */
   ETHR_CANARY_DID?: string;
+  /** Optional stable ens DID; enable only after the ens driver RPC secret is configured. */
+  ENS_CANARY_DID?: string;
   DB?: D1Database;
   STATS_KV?: KVNamespace;
 }
@@ -51,10 +64,38 @@ const CANARIES: { step: Step; did: string }[] = [
     step: "local",
     did: "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V",
   },
+  // bsky.app's account DID — a stable, long-lived entry in the public PLC directory.
+  { step: "local", did: "did:plc:z72i7hdynmk6r22z27h6tvur" },
+  // First registered legal-entity DID on the EBSI pilot registry (stable since registration).
+  { step: "local", did: "did:ebsi:zZeKyEJfUTGwajhNyNX928z" },
+  // NEAR implicit account (the identifier IS the ed25519 key) — deterministic, offline.
   {
-    step: "godiddy",
-    did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+    step: "local",
+    did: "did:near:98793cd91a3f870fb126f66285808c7e094afcfc4eda8a970f6648cdf0dbd6de",
   },
+  // NEAR protocol account (permanent) — exercises the live mainnet RPC path.
+  { step: "local", did: "did:near:registrar.near" },
+  // did:jwk P-256 spec vector — deterministic, offline (deploy/bundle check).
+  {
+    step: "local",
+    did: "did:jwk:eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFjYklRaXVNczNpOF91c3pFakoydHBUdFJNNEVVM3l6OTFQSDZDZEgyVjAiLCJ5IjoiX0tjeUxqOXZXTXB0bm1LdG00NkdxRHo4d2Y3NEk1TEtncmwyR3pIM25TRSJ9",
+  },
+  // did:webvh from the DIF Universal Resolver test catalog — verifiable
+  // history hosted on GitHub Pages; resolution-verified through the driver.
+  {
+    step: "local",
+    did: "did:webvh:Qmb3KLhAKJ9wZx1gTPzcPfCxviRkiEJ4RGdHNviaedGu3i:opsecid.github.io",
+  },
+  // cheqd's flagship mainnet DID, resolved via the official cheqd resolver.
+  { step: "local", did: "did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN" },
+  // did:dns spec example — sequential _keyN._did URI records, live DNS.
+  { step: "local", did: "did:dns:danubetech.com" },
+  // The network-backed ens canary is enabled with ENS_CANARY_DID once the ens
+  // driver's RPC secret is configured (same pattern as ETHR_CANARY_DID).
+  // Godiddy: NOT a canary resolution — its public resolver API is
+  // quota-throttled, so probing it burned quota and misread 429s as
+  // downtime. probeOne routes this entry to the unmetered health endpoint.
+  { step: "godiddy", did: "health:godiddy" },
   {
     step: "goplausible",
     did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
@@ -69,6 +110,7 @@ const CANARIES: { step: Step; did: string }[] = [
 /** Same wall-clock bound as a live routing step (STEP_TIMEOUT_MS in src/resolve.ts). */
 const PROBE_TIMEOUT_MS = 8000;
 const RETENTION_MS = 30 * 24 * 3600 * 1000;
+const DEFAULT_GODIDDY_HEALTH = "https://api.godiddy.com/health";
 
 // Health-fold tuning: latency EWMA reacts in ~3 rounds, success rate in ~7;
 // 3 all-canary-failed rounds (~3 min) trips "down"; EWMA above 4s reads "degraded".
@@ -99,8 +141,14 @@ function upstreamBase(step: Step, env: ProbeEnv): string {
   }
 }
 
-/** Resolve one canary; ok means a usable DID document came back within the bound. */
-async function probeOne(
+/**
+ * Probe one canary; ok means the provider answered within the bound — a
+ * usable DID document for resolution canaries, a healthy response for the
+ * Godiddy health check. A 429 anywhere is "up but throttled": the provider is
+ * alive and only our quota is exhausted, so it counts as ok and is logged
+ * with error "rateLimited" for visibility.
+ */
+export async function probeOne(
   canary: { step: Step; did: string },
   env: ProbeEnv,
 ): Promise<ProbeResult> {
@@ -108,18 +156,31 @@ async function probeOne(
   let error: string | null = null;
   let ok = false;
   try {
-    const attempt = (async () => {
+    const attempt = (async (): Promise<"ok" | "rateLimited" | null> => {
       if (canary.step === "local") {
         const r = await resolveLocal(canary.did, env);
-        return r.didDocument && !r.didResolutionMetadata.error ? r : null;
+        return r.didDocument && !r.didResolutionMetadata.error ? "ok" : null;
       }
-      const token = canary.step === "godiddy" ? env.GODIDDY_API_KEY : undefined;
-      const r = await fetchUpstream(
-        canary.did,
-        upstreamBase(canary.step, env),
-        token,
-      );
-      return r.ok ? r.result : null;
+      if (canary.step === "godiddy") {
+        // Availability check against the unmetered ingress health endpoint —
+        // never the quota-throttled resolver API (see the header). The API
+        // key rides along when configured so the probe is authenticated the
+        // same way live resolution traffic is.
+        const res = await fetch(env.GODIDDY_HEALTH || DEFAULT_GODIDDY_HEALTH, {
+          headers: {
+            accept: "text/plain",
+            ...(env.GODIDDY_API_KEY
+              ? { authorization: `Bearer ${env.GODIDDY_API_KEY}` }
+              : {}),
+          },
+        });
+        await res.text().catch(() => ""); // drain the tiny body
+        if (res.status === 429) return "rateLimited";
+        return res.ok ? "ok" : null;
+      }
+      const r = await fetchUpstream(canary.did, upstreamBase(canary.step, env));
+      if (r.ok) return "ok";
+      return r.failure.error === "rateLimited" ? "rateLimited" : null;
     })();
     const hit = await Promise.race([
       attempt,
@@ -129,7 +190,10 @@ async function probeOne(
     ]);
     if (hit === "timeout") error = "timeout";
     else if (!hit) error = "miss";
-    else ok = true;
+    else {
+      ok = true;
+      if (hit === "rateLimited") error = "rateLimited";
+    }
   } catch {
     error = "error";
   }
@@ -236,9 +300,15 @@ async function ensureSchema(db: D1Database): Promise<void> {
 /** One probe round: fire all canaries, fold into the KV snapshot, log rows to D1. */
 async function runRound(env: ProbeEnv): Promise<void> {
   const now = Date.now();
-  const canaries = env.ETHR_CANARY_DID
-    ? [...CANARIES, { step: "local" as const, did: env.ETHR_CANARY_DID }]
-    : CANARIES;
+  const canaries = [
+    ...CANARIES,
+    ...(env.ETHR_CANARY_DID
+      ? [{ step: "local" as const, did: env.ETHR_CANARY_DID }]
+      : []),
+    ...(env.ENS_CANARY_DID
+      ? [{ step: "local" as const, did: env.ENS_CANARY_DID }]
+      : []),
+  ];
   const results = await Promise.all(canaries.map((c) => probeOne(c, env)));
 
   // Snapshot first — it is what routing decisions will read.

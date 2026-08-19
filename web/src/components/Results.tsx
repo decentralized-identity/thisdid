@@ -131,6 +131,67 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
             The rules engine matched {view.methodTag} to its conformant driver
             and normalized the response into one unified document.
           </div>
+          {view.verification?.status === "match" && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                marginTop: 9,
+                padding: "5px 12px",
+                borderRadius: 999,
+                fontWeight: 800,
+                fontSize: 12.5,
+                color: "#57b96a",
+                background: "color-mix(in srgb, #57b96a 13%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, #57b96a 40%, transparent)",
+              }}
+            >
+              <Icon.Shield size={14} />
+              <Icon.Check size={13} stroke={3} />
+              Double-checked by{" "}
+              {(view.verification.provider ?? "upstream").replace(/^./, (c) =>
+                c.toUpperCase(),
+              )}
+            </div>
+          )}
+          {view.verification?.status === "mismatch" && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                marginTop: 9,
+                padding: "5px 12px",
+                borderRadius: 999,
+                fontWeight: 700,
+                fontSize: 12.5,
+                color: "var(--res-c)",
+                background: "color-mix(in srgb, var(--res-c) 12%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, var(--res-c) 40%, transparent)",
+              }}
+            >
+              Served from{" "}
+              {(view.verification.provider ?? "upstream").replace(/^./, (c) =>
+                c.toUpperCase(),
+              )}{" "}
+              — edge verification mismatch
+            </div>
+          )}
+          {view.verification?.status === "unverified" && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "var(--faint)",
+                fontWeight: 600,
+              }}
+            >
+              Unverified — the double-check upstream was unavailable.
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 22, flex: "none" }}>
           <Stat label="Method" value={view.methodTag} mono />
@@ -578,7 +639,7 @@ function Overview({
                 key={r.name}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
                   gap: 12,
                   padding: "11px 13px",
@@ -587,12 +648,14 @@ function Overview({
                   border: "1px solid var(--border)",
                 }}
               >
+                {/* The label never shrinks; the (unbounded) fragment list
+                    wraps beside it instead of painting over it. */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 9,
-                    minWidth: 0,
+                    flex: "none",
                   }}
                 >
                   <span
@@ -612,8 +675,12 @@ function Overview({
                   style={{
                     fontFamily: "'IBM Plex Mono'",
                     fontSize: 12,
+                    lineHeight: 1.55,
                     color: "var(--dim)",
-                    flex: "none",
+                    minWidth: 0,
+                    textAlign: "right",
+                    overflowWrap: "anywhere",
+                    paddingTop: 2,
                   }}
                 >
                   {r.refs}

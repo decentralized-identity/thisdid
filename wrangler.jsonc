@@ -32,6 +32,14 @@
     { "binding": "DRIVER_PKH", "service": "thisdid-driver-pkh" },
     { "binding": "DRIVER_PEER", "service": "thisdid-driver-peer" },
     { "binding": "DRIVER_ETHR", "service": "thisdid-driver-ethr" },
+    { "binding": "DRIVER_WEBVH", "service": "thisdid-driver-webvh" },
+    { "binding": "DRIVER_PLC", "service": "thisdid-driver-plc" },
+    { "binding": "DRIVER_EBSI", "service": "thisdid-driver-ebsi" },
+    { "binding": "DRIVER_NEAR", "service": "thisdid-driver-near" },
+    { "binding": "DRIVER_JWK", "service": "thisdid-driver-jwk" },
+    { "binding": "DRIVER_CHEQD", "service": "thisdid-driver-cheqd" },
+    { "binding": "DRIVER_DNS", "service": "thisdid-driver-dns" },
+    { "binding": "DRIVER_ENS", "service": "thisdid-driver-ens" },
   ],
   // Analytics: D1 = authoritative per-resolution event log; KV = live counter + dashboard cache.
   // Create them and paste the ids below:

@@ -29,6 +29,10 @@ export interface ResolutionEvent {
   chain: string | null;
   country: string | null;
   colo: string | null;
+  /** Probation double-check outcome (`match` | `mismatch` | `unchecked`) or null. */
+  verification: string | null;
+  /** Analytics tag of the verifying upstream, when double-checked. */
+  verifiedBy: string | null;
   ts: number;
 }
 
@@ -52,6 +56,12 @@ export interface ProviderLatency {
   minMs: number;
   maxMs: number;
 }
+export interface VerificationCount {
+  key: string;
+  match: number;
+  mismatch: number;
+  unverified: number;
+}
 export interface TimelinePoint {
   t: string;
   count: number;
@@ -70,6 +80,8 @@ export interface RecentRow {
   durationMs: number;
   success: boolean;
   error: string | null;
+  verification: string | null;
+  verifiedBy: string | null;
 }
 
 export interface RecentPage {
@@ -95,6 +107,8 @@ export interface Stats {
   byResolver: Count[];
   byCountry: Count[];
   latencyByProvider: ProviderLatency[];
+  /** Probation double-check outcomes per method (drives driver graduation). */
+  verification: VerificationCount[];
   timeline: { granularity: Bucket; points: TimelinePoint[] };
   /** Daily counts over the last ~53 weeks (GitHub-style activity heatmap). */
   calendar: { day: string; count: number }[];
@@ -152,6 +166,8 @@ async function ensureSchema(db: D1Database): Promise<void> {
     ["chain", "TEXT"],
     ["country", "TEXT"],
     ["colo", "TEXT"],
+    ["verification", "TEXT"],
+    ["verified_by", "TEXT"],
   ];
   for (const [name, type] of columns) {
     if (!have.has(name)) {
@@ -197,8 +213,8 @@ export async function recordResolution(
       await ensureSchema(env.DB);
       await env.DB.prepare(
         `INSERT INTO resolutions
-          (ts, did, method, route, provider, resolver, via, network, duration_ms, success, error, chain, country, colo)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          (ts, did, method, route, provider, resolver, via, network, duration_ms, success, error, chain, country, colo, verification, verified_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
         .bind(
           ev.ts,
@@ -215,6 +231,8 @@ export async function recordResolution(
           ev.chain,
           ev.country,
           ev.colo,
+          ev.verification,
+          ev.verifiedBy,
         )
         .run();
     }
@@ -299,6 +317,7 @@ function emptyStats(filter: StatsFilter): Stats {
     byResolver: [],
     byCountry: [],
     latencyByProvider: [],
+    verification: [],
     timeline: { granularity: "day", points: [] },
     calendar: [],
     recent: [],
@@ -308,7 +327,7 @@ function emptyStats(filter: StatsFilter): Stats {
 }
 
 const RECENT_COLS =
-  "id, ts, did, method, provider, resolver, route, country, duration_ms durationMs, success, error";
+  "id, ts, did, method, provider, resolver, route, country, duration_ms durationMs, success, error, verification, verified_by verifiedBy";
 
 function parseCursor(c?: string): { ts: number; id: number } | null {
   if (!c) return null;
@@ -393,48 +412,65 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
       .bind(...w.binds);
 
   // One D1 round-trip for every read the dashboard needs.
-  const [totalsR, latR, tlR, recentR, calR, cOptR, mOptR, mR, pR, rR, cR] =
-    await db.batch<Record<string, number | string | null>>([
-      db
-        .prepare(
-          `SELECT COUNT(*) total,
+  const [
+    totalsR,
+    latR,
+    verR,
+    tlR,
+    recentR,
+    calR,
+    cOptR,
+    mOptR,
+    mR,
+    pR,
+    rR,
+    cR,
+  ] = await db.batch<Record<string, number | string | null>>([
+    db
+      .prepare(
+        `SELECT COUNT(*) total,
                   SUM(success) ok,
                   SUM(CASE WHEN success = 1 THEN duration_ms ELSE 0 END) lat,
                   AVG(CASE WHEN success = 1 THEN duration_ms END) avg_ms
              FROM resolutions ${w.sql}`,
-        )
-        .bind(...w.binds),
-      db
-        .prepare(
-          `SELECT COALESCE(provider,'—') k, COUNT(*) c, AVG(duration_ms) avg, MIN(duration_ms) lo, MAX(duration_ms) hi FROM resolutions ${w.sql} ${and} success = 1 AND provider IS NOT NULL GROUP BY k ORDER BY c DESC`,
-        )
-        .bind(...w.binds),
-      db
-        .prepare(
-          `SELECT ${bucketExpr} t, COUNT(*) c, SUM(success) ok FROM resolutions ${w.sql} GROUP BY t ORDER BY t`,
-        )
-        .bind(...w.binds),
-      db
-        .prepare(
-          `SELECT ${RECENT_COLS} FROM resolutions ${w.sql} ORDER BY ts DESC, id DESC LIMIT ?`,
-        )
-        .bind(...w.binds, RECENT_LIMIT),
-      db
-        .prepare(
-          `SELECT date(ts/1000,'unixepoch') d, COUNT(*) c FROM resolutions WHERE ${calClauses.join(" AND ")} GROUP BY d`,
-        )
-        .bind(...calBinds),
-      db.prepare(
-        "SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k",
-      ),
-      db.prepare(
-        "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k",
-      ),
-      group("method"),
-      group("provider", "NOT_FOUND"),
-      group("resolver", "NOT_FOUND"),
-      group("country"),
-    ]);
+      )
+      .bind(...w.binds),
+    db
+      .prepare(
+        `SELECT COALESCE(provider,'—') k, COUNT(*) c, AVG(duration_ms) avg, MIN(duration_ms) lo, MAX(duration_ms) hi FROM resolutions ${w.sql} ${and} success = 1 AND provider IS NOT NULL GROUP BY k ORDER BY c DESC`,
+      )
+      .bind(...w.binds),
+    db
+      .prepare(
+        `SELECT COALESCE(method,'?') k, COALESCE(verification,'?') v, COUNT(*) c FROM resolutions ${w.sql} ${and} verification IS NOT NULL GROUP BY k, v`,
+      )
+      .bind(...w.binds),
+    db
+      .prepare(
+        `SELECT ${bucketExpr} t, COUNT(*) c, SUM(success) ok FROM resolutions ${w.sql} GROUP BY t ORDER BY t`,
+      )
+      .bind(...w.binds),
+    db
+      .prepare(
+        `SELECT ${RECENT_COLS} FROM resolutions ${w.sql} ORDER BY ts DESC, id DESC LIMIT ?`,
+      )
+      .bind(...w.binds, RECENT_LIMIT),
+    db
+      .prepare(
+        `SELECT date(ts/1000,'unixepoch') d, COUNT(*) c FROM resolutions WHERE ${calClauses.join(" AND ")} GROUP BY d`,
+      )
+      .bind(...calBinds),
+    db.prepare(
+      "SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k",
+    ),
+    db.prepare(
+      "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k",
+    ),
+    group("method"),
+    group("provider", "NOT_FOUND"),
+    group("resolver", "NOT_FOUND"),
+    group("country"),
+  ]);
 
   const t = (totalsR.results[0] ?? {}) as {
     total: number;
@@ -477,6 +513,22 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     byProvider: toCounts(pR),
     byResolver: toCounts(rR),
     byCountry: toCounts(cR),
+    verification: (() => {
+      const byMethod = new Map<string, VerificationCount>();
+      for (const row of verR.results as { k: string; v: string; c: number }[]) {
+        const entry = byMethod.get(row.k) ?? {
+          key: row.k,
+          match: 0,
+          mismatch: 0,
+          unverified: 0,
+        };
+        if (row.v === "match") entry.match += row.c;
+        else if (row.v === "mismatch") entry.mismatch += row.c;
+        else entry.unverified += row.c;
+        byMethod.set(row.k, entry);
+      }
+      return [...byMethod.values()].sort((a, b) => a.key.localeCompare(b.key));
+    })(),
     latencyByProvider: (
       latR.results as {
         k: string;
@@ -526,4 +578,113 @@ export async function getStats(env: Env, filter: StatsFilter): Promise<Stats> {
     }).catch(() => {});
   }
   return stats;
+}
+
+// ── Probation mismatch evidence log ────────────────────────────────────────
+
+/** Bound stored documents so a pathological mismatch cannot bloat a D1 row. */
+const MAX_EVIDENCE_CHARS = 32 * 1024;
+
+let mismatchSchemaReady = false;
+
+async function ensureMismatchSchema(db: D1Database): Promise<void> {
+  if (mismatchSchemaReady) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS verification_mismatches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        did TEXT NOT NULL,
+        method TEXT,
+        provider TEXT,
+        reason TEXT,
+        local_document TEXT,
+        upstream_document TEXT
+      )`,
+    )
+    .run();
+  await db
+    .prepare(
+      "CREATE INDEX IF NOT EXISTS idx_vmismatch_ts ON verification_mismatches (ts)",
+    )
+    .run();
+  mismatchSchemaReady = true;
+}
+
+/** Prefix kept inside a truncation envelope — small enough that JSON string
+ * escaping can never push the envelope itself past MAX_EVIDENCE_CHARS. */
+const EVIDENCE_PREFIX_CHARS = 8 * 1024;
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Serialize one document for a D1 evidence column. An oversized document is
+ * stored as a structured truncation envelope — still valid JSON — carrying
+ * the full serialization's hash and length plus a raw prefix for eyeballing,
+ * never as a mid-string slice that later adjudication could not parse.
+ */
+async function evidence(value: unknown): Promise<string | null> {
+  if (value == null) return null;
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= MAX_EVIDENCE_CHARS) return json;
+    return JSON.stringify({
+      truncated: true,
+      originalChars: json.length,
+      sha256: await sha256Hex(json),
+      prefix: json.slice(0, EVIDENCE_PREFIX_CHARS),
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Record one probation disagreement with both documents as adjudication
+ * evidence. Fire-and-forget (ctx.waitUntil) and never throws into resolution.
+ */
+export async function recordMismatch(
+  env: Env,
+  record: {
+    did: string;
+    method: string;
+    provider: string;
+    reason: string;
+    localDocument: unknown;
+    upstreamDocument: unknown;
+  },
+): Promise<void> {
+  try {
+    if (!env.DB) return;
+    await ensureMismatchSchema(env.DB);
+    const [localEvidence, upstreamEvidence] = await Promise.all([
+      evidence(record.localDocument),
+      evidence(record.upstreamDocument),
+    ]);
+    await env.DB.prepare(
+      `INSERT INTO verification_mismatches
+        (ts, did, method, provider, reason, local_document, upstream_document)
+       VALUES (?,?,?,?,?,?,?)`,
+    )
+      .bind(
+        Date.now(),
+        record.did,
+        record.method,
+        record.provider,
+        record.reason,
+        localEvidence,
+        upstreamEvidence,
+      )
+      .run();
+  } catch {
+    // evidence logging must never affect resolution
+  }
 }

@@ -19,15 +19,45 @@ export type UpstreamResult =
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
+/**
+ * Canonical DIF camelCase error codes, keyed by their case/underscore-folded
+ * form. Upstreams following the newer W3C problem-details draft emit uppercase
+ * types (`METHOD_NOT_SUPPORTED`, sometimes as `https://w3id.org/security#…`
+ * URLs); ThisDID's public API speaks the published DID Resolution spec's
+ * camelCase, so known codes are folded here and unknown codes pass through
+ * verbatim (minus any URL prefix) to preserve diagnostics.
+ */
+const CANONICAL_CODES: Record<string, string> = {
+  notfound: "notFound",
+  invaliddid: "invalidDid",
+  invaliddidurl: "invalidDidUrl",
+  invaliddiddocument: "invalidDidDocument",
+  methodnotsupported: "methodNotSupported",
+  unsupporteddidmethod: "unsupportedDidMethod",
+  representationnotsupported: "representationNotSupported",
+  internalerror: "internalError",
+  invalidoptions: "invalidOptions",
+  invalidpublickey: "invalidPublicKey",
+  deactivated: "deactivated",
+};
+
+function canonicalCode(code: string): string {
+  const fragment = code.includes("#")
+    ? code.slice(code.lastIndexOf("#") + 1)
+    : code;
+  return (
+    CANONICAL_CODES[fragment.replace(/[_\s-]/g, "").toLowerCase()] ?? fragment
+  );
+}
+
 /** Coerce non-conformant upstream error objects into DIF string error codes. */
 function normalizeUpstreamError(value: unknown): string | undefined {
-  if (typeof value === "string" && value) return value;
+  if (typeof value === "string" && value) return canonicalCode(value);
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
   const candidate = record.error ?? record.code ?? record.type;
   if (typeof candidate !== "string" || !candidate) return "upstreamError";
-  if (candidate === "INTERNAL_ERROR") return "internalError";
-  return candidate;
+  return canonicalCode(candidate);
 }
 
 /** Read at most the configured response limit, cancelling the stream when it exceeds it. */
@@ -73,6 +103,18 @@ export async function fetchUpstream(
   if (token) headers.authorization = `Bearer ${token}`;
   try {
     const res = await fetch(url, { headers, signal });
+    if (res.status === 429) {
+      // Public-tier upstreams (Godiddy in particular) throttle by quota; a
+      // 429 means "alive but rate-limited" — never an outage, and never an
+      // opinion about the DID. Surfaced as its own code so the orchestrator
+      // falls through to the next provider and labels the attempt honestly.
+      try {
+        await res.body?.cancel();
+      } catch {
+        // best-effort stream cleanup only
+      }
+      return { ok: false, failure: { error: "rateLimited", status: 429 } };
+    }
     const declaredLength = Number(res.headers.get("content-length") ?? 0);
     if (declaredLength > MAX_RESPONSE_BYTES) {
       return {

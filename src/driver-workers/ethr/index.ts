@@ -9,8 +9,8 @@ import { createDriverWorker } from "../runtime";
 
 interface EthrEnv {
   /** Full Alchemy URLs, including credentials; stored only on this driver Worker. */
-  EVM_RPC_MAINNET_URL?: string;
-  EVM_RPC_SEPOLIA_URL?: string;
+  ETH_RPC_MAINNET_URL?: string;
+  ETH_RPC_SEPOLIA_URL?: string;
 }
 
 const MAX_LOG_VALUE_CHARS = 4000;
@@ -82,26 +82,26 @@ const driver = createDriverWorker<EthrEnv>({
   cacheResolver: false,
   registry: (env) => {
     const networks = [
-      ...(env.EVM_RPC_MAINNET_URL
+      ...(env.ETH_RPC_MAINNET_URL
         ? [
             {
               name: "mainnet",
               chainId: 1,
               provider: new LoggingJsonRpcProvider(
-                env.EVM_RPC_MAINNET_URL,
+                env.ETH_RPC_MAINNET_URL,
                 1,
                 "mainnet",
               ),
             },
           ]
         : []),
-      ...(env.EVM_RPC_SEPOLIA_URL
+      ...(env.ETH_RPC_SEPOLIA_URL
         ? [
             {
               name: "sepolia",
               chainId: 11155111,
               provider: new LoggingJsonRpcProvider(
-                env.EVM_RPC_SEPOLIA_URL,
+                env.ETH_RPC_SEPOLIA_URL,
                 11155111,
                 "sepolia",
               ),

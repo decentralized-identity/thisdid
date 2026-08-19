@@ -128,6 +128,16 @@ export function renderDashboard(): string {
   .skel{background:linear-gradient(90deg,var(--surface2) 25%,rgba(255,255,255,.06) 37%,var(--surface2) 63%);background-size:400% 100%;animation:sh 1.3s ease infinite;border-radius:10px}
   @keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
   @media(max-width:820px){.grid2{grid-template-columns:1fr}.did{max-width:160px}.bar-label{width:88px}.lat-sub{margin-left:98px}}
+.probation-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber,#f0b968);border:1px solid currentColor;border-radius:6px;padding:1px 7px;vertical-align:2px}
+.vrow{display:flex;align-items:center;gap:14px;padding:8px 4px;border-bottom:1px solid var(--border)}
+.vrow:last-child{border-bottom:0}
+.vmethod{font-family:'IBM Plex Mono',monospace;font-size:13px;min-width:90px}
+.vstat{font-size:12.5px;font-weight:700}
+.vok{color:#57b96a}
+.vbad{color:#e0655f}
+.vdim{color:var(--faint)}
+.vbadge{color:#57b96a;font-weight:700;margin-left:6px;font-size:12px}
+.vwarn{color:#f0b968;font-weight:700;margin-left:6px;font-size:12px}
 </style></head>
 <body><div id="bar"></div><div class="wrap">
   <header>
@@ -158,6 +168,9 @@ export function renderDashboard(): string {
 
   <h2>Provider status</h2>
   <div class="panel"><div id="provider-status" class="provider-grid"></div></div>
+
+  <h2>Driver verification <span class="probation-tag">probation</span></h2>
+  <div class="panel"><div id="verify"></div></div>
 
   <h2>Requests over time</h2>
   <div class="panel"><div id="timeline"></div></div>
@@ -334,9 +347,21 @@ export function renderDashboard(): string {
     return rows.map(function(r,i){ var pct=Math.max(1,Math.round(r.count/max*100)),col=color(r,i); return '<tr><td class="rank">'+(i+1)+'</td><td class="lb-key" title="'+esc(r.key)+' · '+fmt(r.count)+' requests"><span class="lb-bar" aria-hidden="true" style="width:'+pct+'%;background:'+col+'"></span><span class="lb-label">'+esc(r.key)+'</span></td><td class="num mono">'+fmt(r.count)+'</td></tr>'; }).join('');
   }
 
+  function verifyPanel(list){
+    if(!list.length) return '<div class="empty">No probation resolutions in this window yet. New drivers (webvh, plc, ebsi, near) are double-checked against a redundant upstream on every edge resolution.</div>';
+    return list.map(function(v){
+      var total=v.match+v.mismatch+v.unverified;
+      var rate=total?Math.round(v.match/total*1000)/10:0;
+      return '<div class="vrow"><span class="vmethod">did:'+esc(v.key)+'</span>'
+        +'<span class="vstat vok">&#10003; '+fmt(v.match)+' matched</span>'
+        +'<span class="vstat '+(v.mismatch>0?'vbad':'vdim')+'">&#9888; '+fmt(v.mismatch)+' mismatched</span>'
+        +'<span class="vstat vdim">'+fmt(v.unverified)+' unverified</span>'
+        +'<span class="vstat vdim" style="margin-left:auto">'+rate+'% match rate</span></div>';
+    }).join('');
+  }
   function recentRows(rows,now){
     if(!rows.length) return '';
-    return rows.map(function(r){ return '<tr><td class="mono did" title="'+esc(r.did)+'">'+esc(r.did)+'</td><td><span class="pill" style="--c:'+pcolor(r.provider)+'">'+esc(r.provider||'—')+'</span></td><td class="mono dim">'+esc(r.resolver||'—')+'</td><td>'+esc(r.country||'—')+'</td><td>'+(r.success?'<span class="ok">ok</span>':'<span class="err">'+esc(r.error||'error')+'</span>')+'</td><td class="mono num">'+fmt(r.durationMs)+' ms</td><td class="dim num">'+ago(r.ts,now)+'</td></tr>'; }).join('');
+    return rows.map(function(r){ return '<tr><td class="mono did" title="'+esc(r.did)+'">'+esc(r.did)+'</td><td><span class="pill" style="--c:'+pcolor(r.provider)+'">'+esc(r.provider||'—')+'</span>'+(r.verification==='match'?'<span class="vbadge" title="Double-checked by '+esc(r.verifiedBy||'')+'">&#10003;&#128737;</span>':(r.verification==='mismatch'?'<span class="vwarn" title="Verification mismatch — served from '+esc(r.verifiedBy||'upstream')+'">&#9888;</span>':''))+'</td><td class="mono dim">'+esc(r.resolver||'—')+'</td><td>'+esc(r.country||'—')+'</td><td>'+(r.success?'<span class="ok">ok</span>':'<span class="err">'+esc(r.error||'error')+'</span>')+'</td><td class="mono num">'+fmt(r.durationMs)+' ms</td><td class="dim num">'+ago(r.ts,now)+'</td></tr>'; }).join('');
   }
   function updateOlder(){ var b=q('older'); if(state.cursor){ b.style.display='inline-block'; b.disabled=false; b.textContent='Load older'; } else { b.style.display='none'; } }
   function loadOlder(){
@@ -358,8 +383,9 @@ export function renderDashboard(): string {
 
   function render(d){
     q('setup').style.display=d.configured?'none':'block';
-    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('Success',fmt(d.totals.success),d.totals.successRate+'%')+card('Failure',fmt(d.totals.errors))+card('Providers','4')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
+    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('RESOLVED',fmt(d.totals.success),d.totals.successRate+'%')+card('NOT_FOUND',fmt(d.totals.errors))+card('Providers','4')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
     q('timeline').innerHTML=timeline(d.timeline);
+    q('verify').innerHTML=verifyPanel(d.verification||[]);
     q('pie').innerHTML=pie(d.byProvider);
     q('methods').innerHTML=vbars(d.byMethod);
     q('country').innerHTML=hbars(d.byCountry,function(){return '#b587f0';});
