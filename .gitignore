@@ -32,3 +32,6 @@ npm-debug.log*
 .pnpm-store
 .pnpm-store/*
 **/logs/*
+**/node_modules/
+# temporary parking name used while regenerating package-lock.json
+**/node_modules.ci-fix-bak/
