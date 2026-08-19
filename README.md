@@ -227,7 +227,10 @@ Every DID method is resolved through an **ordered fallback chain** defined in
 - **`godiddy`** — routed to the [Godiddy](https://godiddy.com) Universal Resolver
   (`api.godiddy.com`, by Danube Tech). **Requires an API key** (`Authorization: Bearer`).
 - **`archon`** — routed to the [Archon](https://archon.technology) Universal Resolver
-  (`resolver.archon.technology`), which runs the iden3 & did:cid drivers. Open, no key.
+  (`resolver.archon.technology`), which runs the iden3 driver. Open, no key. **Exception:
+  `did:cid`** is served only by Archon's Gatekeeper API (`archon.technology/api/v1/did`,
+  founder-confirmed) — the Universal Resolver deployment times out on cid, so the archon step
+  switches base for that one method (`ARCHON_CID_RESOLVER`).
 
 The chain is tried top-to-bottom; the first step that returns a usable DID document wins,
 otherwise the next step is attempted (or the last error is returned if all fail).

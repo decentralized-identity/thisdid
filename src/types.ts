@@ -26,6 +26,9 @@ export interface Env extends DriverBindings {
   GODIDDY_API_KEY?: string;
   /** archon Universal Resolver base (path prefix, DID appended). */
   ARCHON_RESOLVER: string;
+  /** Archon Gatekeeper base for did:cid ONLY (DID appended) — Archon serves
+   * cid through archon.technology/api/v1/did, not its Universal Resolver. */
+  ARCHON_CID_RESOLVER: string;
   /** GoPlausible Universal Resolver base (DID appended) — tried first for did:algo / did:nfd. */
   GOPLAUSIBLE_RESOLVER: string;
   RESOLVER_LABEL: string;

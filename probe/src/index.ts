@@ -34,6 +34,8 @@ import {
 interface ProbeEnv extends DriverBindings {
   GODIDDY_RESOLVER: string;
   ARCHON_RESOLVER: string;
+  /** Archon Gatekeeper base for did:cid ONLY (same as the main Worker). */
+  ARCHON_CID_RESOLVER?: string;
   GOPLAUSIBLE_RESOLVER: string;
   /** Godiddy's unmetered ingress health endpoint (probed instead of the quota-throttled resolver API). */
   GODIDDY_HEALTH?: string;
@@ -105,6 +107,13 @@ const CANARIES: { step: Step; did: string }[] = [
     step: "archon",
     did: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
   },
+  // archon.technology's own node identity, served by Archon's cid-only
+  // Gatekeeper endpoint (a different deployment than its Universal Resolver —
+  // both fold into the `archon` health key).
+  {
+    step: "archon",
+    did: "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
+  },
 ];
 
 /** Same wall-clock bound as a live routing step (STEP_TIMEOUT_MS in src/resolve.ts). */
@@ -128,12 +137,15 @@ interface ProbeResult {
   error: string | null;
 }
 
-function upstreamBase(step: Step, env: ProbeEnv): string {
+function upstreamBase(step: Step, env: ProbeEnv, did: string): string {
   switch (step) {
     case "godiddy":
       return env.GODIDDY_RESOLVER;
     case "archon":
-      return env.ARCHON_RESOLVER;
+      // did:cid is served only by Archon's Gatekeeper API (see main Worker).
+      return did.startsWith("did:cid:")
+        ? env.ARCHON_CID_RESOLVER || env.ARCHON_RESOLVER
+        : env.ARCHON_RESOLVER;
     case "goplausible":
       return env.GOPLAUSIBLE_RESOLVER;
     default:
@@ -178,7 +190,10 @@ export async function probeOne(
         if (res.status === 429) return "rateLimited";
         return res.ok ? "ok" : null;
       }
-      const r = await fetchUpstream(canary.did, upstreamBase(canary.step, env));
+      const r = await fetchUpstream(
+        canary.did,
+        upstreamBase(canary.step, env, canary.did),
+      );
       if (r.ok) return "ok";
       return r.failure.error === "rateLimited" ? "rateLimited" : null;
     })();

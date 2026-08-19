@@ -21,6 +21,9 @@
     // for the per-method ordering of these routes.
     "GODIDDY_RESOLVER": "https://api.godiddy.com/1.0.0/universal-resolver/identifiers",
     "ARCHON_RESOLVER": "https://resolver.archon.technology/1.0/identifiers",
+    // did:cid is served ONLY by Archon's Gatekeeper API (founder-confirmed);
+    // the Universal Resolver deployment above times out on cid.
+    "ARCHON_CID_RESOLVER": "https://archon.technology/api/v1/did",
     // GoPlausible Universal Resolver (DID appended as `/{did}`) — tried first for did:algo / did:nfd.
     "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
     "RESOLVER_LABEL": "thisdid-edge",

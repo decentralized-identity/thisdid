@@ -15,6 +15,8 @@
     // quota-throttled, and a throttled canary misread as an outage.
     "GODIDDY_HEALTH": "https://api.godiddy.com/health",
     "ARCHON_RESOLVER": "https://resolver.archon.technology/1.0/identifiers",
+    // did:cid is served ONLY by Archon's Gatekeeper API (same var as the main Worker).
+    "ARCHON_CID_RESOLVER": "https://archon.technology/api/v1/did",
     "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
     "ENS_CANARY_DID": "did:ens:vitalik.eth",
     // Add ETHR_CANARY_DID only after the ethr driver has approved RPC configuration.

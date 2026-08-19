@@ -33,13 +33,17 @@ function errorResult(error: string): ThisDidResolution {
   };
 }
 
-/** The endpoint/base a step routes to (for the `via` metadata field). */
-function upstreamBase(step: Step, env: Env): string {
+/** The endpoint/base a step routes to (also the `via` metadata field). */
+function upstreamBase(step: Step, env: Env, method?: string): string {
   switch (step) {
     case "godiddy":
       return env.GODIDDY_RESOLVER;
     case "archon":
-      return env.ARCHON_RESOLVER;
+      // did:cid lives ONLY behind Archon's Gatekeeper API; the Universal
+      // Resolver deployment times out on it (founder-confirmed 2026-08).
+      return method === "cid"
+        ? env.ARCHON_CID_RESOLVER || env.ARCHON_RESOLVER
+        : env.ARCHON_RESOLVER;
     case "goplausible":
       return env.GOPLAUSIBLE_RESOLVER;
     default:
@@ -80,11 +84,12 @@ async function runStep(
             },
           };
     }
-    // godiddy / archon / goplausible are all DIF Universal Resolver GET endpoints.
+    // godiddy / archon / goplausible are all DIF Universal Resolver GET
+    // endpoints (Archon's cid Gatekeeper speaks the same result shape).
     const token = step === "godiddy" ? env.GODIDDY_API_KEY : undefined;
     const upstream = await fetchUpstream(
       did,
-      upstreamBase(step, env),
+      upstreamBase(step, env, parse(did)?.method),
       token,
       signal,
     );
@@ -196,7 +201,7 @@ function finalize(
     attempted: ctx.attempts.map((a) => a.step),
     ...(attempt.step === "local"
       ? {}
-      : { via: upstreamBase(attempt.step, ctx.env) }),
+      : { via: upstreamBase(attempt.step, ctx.env, ctx.method) }),
     ...(verification ? { verification } : {}),
   };
   return result;

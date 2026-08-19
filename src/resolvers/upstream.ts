@@ -150,11 +150,19 @@ export async function fetchUpstream(
     }
 
     // Accept either a full DID Resolution Result or a bare DID document.
+    // Some upstreams (Archon's cid Gatekeeper) report misses as
+    // `didDocument: {}` — an empty object counts as absent so the semantic
+    // error (notFound) wins over the document-shape check below.
+    const rawDocument = body.didDocument;
     const didDocument =
-      (body.didDocument as DIDResolutionResult["didDocument"]) ??
-      (body["id"]
-        ? (body as unknown as DIDResolutionResult["didDocument"])
-        : null);
+      rawDocument &&
+      typeof rawDocument === "object" &&
+      !Array.isArray(rawDocument) &&
+      Object.keys(rawDocument).length > 0
+        ? (rawDocument as DIDResolutionResult["didDocument"])
+        : body["id"]
+          ? (body as unknown as DIDResolutionResult["didDocument"])
+          : null;
 
     const error = normalizeUpstreamError(body.didResolutionMetadata?.error);
     const resolutionMetadata = body.didResolutionMetadata

@@ -221,6 +221,9 @@ const OVERRIDES: Record<string, string> = {
   evrc: "did:evrc:issuer:polygon:62eeb90e-eee4-4d31-8927-1075e82b2a74",
   webs: "did:webs:peacekeeper.github.io:did-webs-iiw37-tutorial:EKYGGh-FtAphGmSZbsuBs_t4qpsjYJ2ZqvMKluq9OxmP",
   iden3: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+  // archon.technology's own node identity — resolution-verified 2026-08-19
+  // via Archon's Gatekeeper API (the only endpoint serving did:cid).
+  cid: "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
   empe: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
   hedera:
     "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",

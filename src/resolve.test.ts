@@ -7,6 +7,7 @@ import { fetchUpstream } from "./resolvers/upstream";
 const env = {
   GODIDDY_RESOLVER: "https://godiddy.test",
   ARCHON_RESOLVER: "https://archon.test",
+  ARCHON_CID_RESOLVER: "https://gatekeeper.test/api/v1/did",
   GOPLAUSIBLE_RESOLVER: "https://goplausible.test",
   RESOLVER_LABEL: "test",
 } as Env;
@@ -66,6 +67,25 @@ it("canonicalizes upstream problem-details error casing to DIF camelCase", async
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failure.error).toBe(expected);
   }
+});
+
+it("treats an empty didDocument object as absent so upstream notFound surfaces", async () => {
+  // Archon's cid Gatekeeper reports misses as HTTP 200 + `didDocument: {}`.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        didResolutionMetadata: { error: "notFound" },
+        didDocument: {},
+        didDocumentMetadata: {},
+      }),
+    ),
+  );
+  const result = await fetchUpstream(
+    "did:cid:missing",
+    "https://resolver.test",
+  );
+  expect(result).toMatchObject({ ok: false, failure: { error: "notFound" } });
 });
 
 it("maps an upstream HTTP 429 to a rateLimited transport failure", async () => {
@@ -152,6 +172,52 @@ describe("resolveDid", () => {
         (attempt) => attempt.error === "invalidResponse",
       ),
     ).toBe(true);
+  });
+
+  it("routes did:cid through Archon's Gatekeeper endpoint, not its Universal Resolver", async () => {
+    const CID_DID =
+      "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq";
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        return url.startsWith("https://gatekeeper.test/api/v1/did/")
+          ? Response.json({
+              didDocument: { id: CID_DID, verificationMethod: [] },
+              didDocumentMetadata: { versionSequence: "18" },
+              didResolutionMetadata: {},
+            })
+          : new Response("wrong endpoint", { status: 404 });
+      }),
+    );
+    const result = await resolveDid(CID_DID, env);
+    expect(result.didDocument?.id).toBe(CID_DID);
+    expect(result.didResolutionMetadata.provider).toBe("archon");
+    expect(result.didResolutionMetadata.via).toBe(
+      "https://gatekeeper.test/api/v1/did",
+    );
+    expect(result.didResolutionMetadata.network).toBe("IPFS (Archon)");
+    expect(urls[0]).toBe(
+      `https://gatekeeper.test/api/v1/did/${encodeURIComponent(CID_DID)}`,
+    );
+  });
+
+  it("keeps non-cid Archon traffic on the Universal Resolver base", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(String(input));
+        return new Response("miss", { status: 404 });
+      }),
+    );
+    await resolveDid(
+      "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+      env,
+    );
+    expect(urls[0]).toMatch(/^https:\/\/archon\.test\//);
   });
 
   it("falls through a rate-limited provider to the next chain step", async () => {

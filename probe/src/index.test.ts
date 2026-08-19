@@ -75,6 +75,27 @@ it("counts a failing Godiddy health endpoint as a miss", async () => {
   expect(result.error).toBe("miss");
 });
 
+it("probes did:cid canaries against Archon's Gatekeeper base", async () => {
+  const CID_DID = "did:cid:bagaaieraexample";
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    expect(String(input)).toBe(
+      `https://gatekeeper.test/api/v1/did/${encodeURIComponent(CID_DID)}`,
+    );
+    return Response.json({
+      didDocument: { id: CID_DID },
+      didDocumentMetadata: {},
+      didResolutionMetadata: {},
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const result = await probeOne({ step: "archon", did: CID_DID }, {
+    ARCHON_RESOLVER: "https://archon.test",
+    ARCHON_CID_RESOLVER: "https://gatekeeper.test/api/v1/did",
+  } as ProbeEnv);
+  expect(result.ok).toBe(true);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
 it("counts a rate-limited canary resolution as up for any upstream", async () => {
   vi.stubGlobal(
     "fetch",

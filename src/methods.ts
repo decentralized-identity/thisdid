@@ -262,6 +262,7 @@ const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
   iden3: "Polygon (Iden3)",
+  cid: "IPFS (Archon)",
   sol: "Solana",
 };
 
