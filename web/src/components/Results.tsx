@@ -546,7 +546,25 @@ function Overview({
                 </div>
               </div>
               <div style={{ ...eyebrow, marginBottom: 5 }}>{vm.keyLabel}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!vm.keyValue && (
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--faint)",
+                    fontStyle: "italic",
+                    padding: "8px 2px",
+                  }}
+                >
+                  None carried by this method
+                </div>
+              )}
+              <div
+                style={{
+                  display: vm.keyValue ? "flex" : "none",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
                 <code
                   style={{
                     flex: 1,
@@ -584,7 +602,7 @@ function Overview({
                   <Icon.Copy size={14} />
                 </button>
               </div>
-              {vm.uses.length > 0 && (
+              {vm.badges.length + vm.uses.length > 0 && (
                 <div
                   style={{
                     display: "flex",
@@ -593,7 +611,7 @@ function Overview({
                     marginTop: 12,
                   }}
                 >
-                  {vm.uses.map((u) => (
+                  {[...vm.badges, ...vm.uses].map((u) => (
                     <span
                       key={u}
                       style={{
