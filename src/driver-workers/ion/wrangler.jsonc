@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-driver-ion",
+  "main": "index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Short-form (anchored) ION resolution endpoint — DELIBERATELY unset:
+  // never point a driver at a universal resolver (dev.uniresolver.io will
+  // itself front ThisDID). Unconfigured, the driver reports notConfigured
+  // for short-form and the routing chain falls through to its upstreams;
+  // long-form resolution is fully offline and unaffected. Set
+  // ION_RESOLUTION_ENDPOINT here once a self-hosted/provider ION node exists.
+  // "vars": { "ION_RESOLUTION_ENDPOINT": "https://<ion-node>" },
+}

@@ -36,7 +36,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install ThisDID vendored driver dependencies
         run: |
-          for d in near-did-resolver webvh-did-resolver plc-did-resolver jwk-did-resolver cheqd-did-resolver dns-did-resolver ens-did-resolver; do
+          for d in near-did-resolver webvh-did-resolver plc-did-resolver jwk-did-resolver cheqd-did-resolver dns-did-resolver ens-did-resolver cid-did-resolver ion-did-resolver; do
             (cd vendor/$d && pnpm install --frozen-lockfile) || exit 1
           done
       - name: Audit production dependencies
@@ -46,7 +46,7 @@ jobs:
         run: pnpm run lint && pnpm run format:check && pnpm run test && pnpm run build
       - name: Verify ThisDID vendored driver packages
         run: |
-          for d in near-did-resolver webvh-did-resolver plc-did-resolver jwk-did-resolver cheqd-did-resolver dns-did-resolver ens-did-resolver; do
+          for d in near-did-resolver webvh-did-resolver plc-did-resolver jwk-did-resolver cheqd-did-resolver dns-did-resolver ens-did-resolver cid-did-resolver ion-did-resolver; do
             (cd vendor/$d && pnpm run format:check && pnpm test && pnpm run build) || exit 1
           done
       - name: Verify ThisDID

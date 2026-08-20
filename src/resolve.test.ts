@@ -204,6 +204,44 @@ describe("resolveDid", () => {
     );
   });
 
+  it("probation-verifies the local cid driver against Archon's Gatekeeper", async () => {
+    const CID_DID =
+      "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq";
+    const doc = {
+      id: CID_DID,
+      verificationMethod: [
+        {
+          id: "#key-1",
+          controller: CID_DID,
+          type: "EcdsaSecp256k1VerificationKey2019",
+          publicKeyJwk: { kty: "EC", crv: "secp256k1", x: "xVal", y: "yVal" },
+        },
+      ],
+      authentication: ["#key-1"],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe(
+          `https://gatekeeper.test/api/v1/did/${encodeURIComponent(CID_DID)}`,
+        );
+        return Response.json({
+          didResolutionMetadata: {},
+          didDocument: doc,
+          didDocumentMetadata: {},
+        });
+      }),
+    );
+    const probationEnv = { ...env, DRIVER_CID: fakeDriver("cid", doc) } as Env;
+    const result = await resolveDid(CID_DID, probationEnv);
+    expect(result.didResolutionMetadata.provider).toBe("ThisDID");
+    expect(result.didResolutionMetadata.route).toBe("local");
+    expect(result.didResolutionMetadata.verification).toEqual({
+      status: "match",
+      provider: "archon",
+    });
+  });
+
   it("keeps non-cid Archon traffic on the Universal Resolver base", async () => {
     const urls: string[] = [];
     vi.stubGlobal(

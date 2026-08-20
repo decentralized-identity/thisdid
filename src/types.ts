@@ -15,6 +15,8 @@ export interface DriverBindings {
   DRIVER_CHEQD?: DriverServiceBinding;
   DRIVER_DNS?: DriverServiceBinding;
   DRIVER_ENS?: DriverServiceBinding;
+  DRIVER_CID?: DriverServiceBinding;
+  DRIVER_ION?: DriverServiceBinding;
 }
 
 /** Worker bindings (see wrangler.jsonc). */

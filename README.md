@@ -4,7 +4,7 @@
 [DIF](https://identity.foundation/) Universal DID Resolver: one endpoint that resolves any
 Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
-A smart **routing engine** matches every DID to the appropriate method driver: **thirteen
+A smart **routing engine** matches every DID to the appropriate method driver: **fifteen
 methods resolve at the edge** through isolated TypeScript DID Resolver Workers, and the long tail
 is routed to redundant upstream Universal Resolvers with failover. Newly added edge drivers run
 under a **verification guarantee** — every resolution is double-checked in parallel against a
@@ -148,7 +148,7 @@ metadata apply regardless of which resolver flavor succeeds.
         DRIVER_WEBVH   DRIVER_PLC   DRIVER_EBSI   DRIVER_NEAR   DRIVER_JWK
              │            │             │             │
              ▼            ▼             ▼             ▼
-        thirteen independently deployed private driver Workers (src/driver-workers/)
+        fifteen independently deployed private driver Workers (src/driver-workers/)
 
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
 │  cron `* * * * *`  →  one canary DID resolution round per route every minute │
@@ -219,7 +219,9 @@ Every DID method is resolved through an **ordered fallback chain** defined in
 
 - **TypeScript DID Resolver** — resolved by an isolated method Worker through a private Cloudflare
   Service Binding. Waves one and two support `did:web`, `did:key`, `did:pkh`, `did:peer`,
-  configured `did:ethr`, `did:webvh`, `did:plc`, `did:ebsi`, `did:near`, `did:jwk`, `did:cheqd`, `did:dns`, and `did:ens`; each Worker uses its
+  configured `did:ethr`, `did:webvh`, `did:plc`, `did:ebsi`, `did:near`, `did:jwk`, `did:cheqd`, `did:dns`, `did:ens`, `did:cid`
+  (a chain-verifying, resolution-only Archon Gatekeeper), and `did:ion` (long-form verified
+  offline; short-form via a configurable Sidetree endpoint); each Worker uses its
   published (or vendored) package with the vendored `did-resolver` core. See
   [`src/driver-workers/`](src/driver-workers/README.md).
 - **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
@@ -260,12 +262,13 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method                                                                                            | Chain (in order)                               |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens` | **TypeScript DID Resolver** → Godiddy → Archon |
-| `algo`, `nfd`                                                                                     | **GoPlausible** → Godiddy → Archon             |
-| `iden3`, `cid`                                                                                    | **Archon** → TypeScript DID Resolver → Godiddy |
-| _all others_                                                                                      | **TypeScript DID Resolver** → Godiddy → Archon |
+| Method                                                                                                   | Chain (in order)                               |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `ion` | **TypeScript DID Resolver** → Godiddy → Archon |
+| `algo`, `nfd`                                                                                            | **GoPlausible** → Godiddy → Archon             |
+| `iden3`                                                                                                  | **Archon** → TypeScript DID Resolver → Godiddy |
+| `cid`                                                                                                    | **TypeScript DID Resolver** → Archon → Godiddy |
+| _all others_                                                                                             | **TypeScript DID Resolver** → Godiddy → Archon |
 
 Only the first row has an implemented local TypeScript driver. For every other advertised method,
 the `local` step reports `notConfigured` and the mother continues to its configured upstream
@@ -280,7 +283,7 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 
 #### Probation double-checking (new-driver guarantee)
 
-Newly added edge drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`) carry a **New · under test**
+Newly added edge drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `cid`, `ion`) carry a **New · under test**
 badge and run under a guarantee mechanism: every edge resolution is executed **in parallel** with
 one redundant upstream, and the two documents' security core (document
 `id`, the set of public verification keys, deactivation status) is compared in the mother Worker:
@@ -353,7 +356,8 @@ resolution path.
 
 ## Getting started
 
-Requires **Node ≥ 22.12**, npm 11, and a recursive clone:
+Requires **Node ≥ 22.12**, **npm ≥ 11**, **pnpm 11** (for the vendored packages — e.g.
+`npm install -g pnpm@11`), and a recursive clone:
 
 ```bash
 git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
@@ -361,11 +365,15 @@ git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
 git submodule update --init --recursive
 
 npm install            # installs the root Worker + web workspace
-npm run install:vendor # installs all five pnpm-locked vendored packages
+npm run install:vendor # initializes submodules, then installs the pnpm-locked vendored packages
 npm run build          # builds the vendored packages + the SPA
-npm run drivers:check  # bundles all thirteen isolated drivers without deploying
+npm run drivers:check  # bundles all fifteen isolated drivers without deploying
 npm run check          # Worker + web typechecks, all tests, and production builds
 ```
+
+> If `install:vendor` reports _“This project is configured to use npm”_, pnpm is running in an
+> empty `vendor/did-resolver` — the submodule was not initialized. The script now initializes
+> submodules itself; run it from the repository root.
 
 > Installs are gated through [Socket](https://socket.dev): use `socket npm install`.
 

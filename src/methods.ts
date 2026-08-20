@@ -137,6 +137,25 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example: "did:ens:vitalik.eth",
     local: true,
   },
+  {
+    id: "cid",
+    glyph: "I",
+    probation: true,
+    desc: "Content-addressed Archon identities, chain-verified at the edge",
+    network: "IPFS (Archon)",
+    example:
+      "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
+    local: true,
+  },
+  {
+    id: "ion",
+    glyph: "O",
+    probation: true,
+    desc: "Sidetree DIDs anchored to Bitcoin; long-form verified offline",
+    network: "Bitcoin · ION (Sidetree)",
+    example: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
+    local: true,
+  },
 ];
 
 /** Methods with intentionally configured local or upstream routes. */
@@ -234,6 +253,8 @@ export const LOCAL_DRIVER_METHODS = [
   "cheqd",
   "dns",
   "ens",
+  "cid",
+  "ion",
 ];
 
 /**
@@ -250,6 +271,8 @@ export const PROBATION_METHODS: Set<string> = new Set([
   "cheqd",
   "dns",
   "ens",
+  "cid",
+  "ion",
 ]);
 
 /** True when ThisDID advertises a resolution route for the method. */
@@ -262,7 +285,6 @@ const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
   iden3: "Polygon (Iden3)",
-  cid: "IPFS (Archon)",
   sol: "Solana",
 };
 

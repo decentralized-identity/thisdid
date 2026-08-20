@@ -18,9 +18,11 @@ export const DEFAULT_CHAIN: Step[] = ["local", "godiddy", "archon"];
 
 /** Per-method chain overrides. */
 export const ROUTE_CHAINS: Record<string, Step[]> = {
-  // iden3 & cid: archon is authoritative first, then ThisDID, then godiddy.
+  // iden3: archon is authoritative first, then ThisDID, then godiddy.
   iden3: ["archon", "local", "godiddy"],
-  cid: ["archon", "local", "godiddy"],
+  // cid: ThisDID's chain-verifying driver first (probation-checked against
+  // archon's cid Gatekeeper), then archon, then godiddy.
+  cid: ["local", "archon", "godiddy"],
   // Algorand-anchored methods: GoPlausible first, then godiddy, then archon.
   algo: ["goplausible", "godiddy", "archon"],
   nfd: ["goplausible", "godiddy", "archon"],

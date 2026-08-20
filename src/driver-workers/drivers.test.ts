@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
 
 import cheqdWorker from "./cheqd";
+import cidWorker from "./cid";
 import dnsWorker from "./dns";
 import ebsiWorker from "./ebsi";
 import ensWorker from "./ens";
 import ethrWorker from "./ethr";
+import ionWorker from "./ion";
 import jwkWorker from "./jwk";
 import keyWorker from "./key";
 import nearWorker from "./near";
@@ -16,6 +18,15 @@ import webWorker from "./web";
 import webvhWorker from "./webvh";
 import type { DriverResponseV1 } from "./contract";
 import { createDriverWorker } from "./runtime";
+import {
+  ARCHON_NODE_DID,
+  FIXTURE,
+} from "../../vendor/cid-did-resolver/src/__tests__/fixture";
+import {
+  LONG_FORM_DID as ION_LONG_FORM_DID,
+  LONG_FORM_EXPECTED as ION_LONG_FORM_EXPECTED,
+  SHORT_FORM_DID as ION_SHORT_FORM_DID,
+} from "../../vendor/ion-did-resolver/src/__tests__/fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -303,6 +314,67 @@ describe("Tier 1 driver Workers", () => {
     expect(body.result.didDocument?.id).toBe(did);
     expect(body.result.didDocument?.verificationMethod?.[0]?.id).toBe(
       `${did}#key1`,
+    );
+  });
+
+  it("chain-verifies did:cid from a Gatekeeper event export", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe(
+          "https://gatekeeper.test/api/v1/dids/export",
+        );
+        return Response.json([FIXTURE.events]);
+      }),
+    );
+    const body = await resolve(cidWorker, ARCHON_NODE_DID, {
+      CID_GATEKEEPER_URL: "https://gatekeeper.test/api/v1",
+    });
+    expect(body.driver).toMatchObject({
+      method: "cid",
+      packageName: "@thisdid/cid-did-resolver",
+    });
+    expect(body.result.didDocument).toEqual(FIXTURE.expected.didDocument);
+    expect(body.result.didDocumentMetadata).toEqual(
+      FIXTURE.expected.didDocumentMetadata,
+    );
+  });
+
+  it("resolves a long-form did:ion fully offline with verification", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = await resolve(ionWorker, ION_LONG_FORM_DID);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(body.driver).toMatchObject({
+      method: "ion",
+      packageName: "@thisdid/ion-did-resolver",
+    });
+    expect(body.result.didDocument).toEqual(ION_LONG_FORM_EXPECTED.didDocument);
+    expect(body.result.didDocumentMetadata).toEqual(
+      ION_LONG_FORM_EXPECTED.didDocumentMetadata,
+    );
+  });
+
+  it("fetches short-form did:ion from the configured Sidetree endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe(
+          `https://ion.test/1.0/identifiers/${encodeURIComponent(ION_SHORT_FORM_DID)}`,
+        );
+        return Response.json({
+          didDocument: { id: ION_SHORT_FORM_DID },
+          didDocumentMetadata: { canonicalId: ION_SHORT_FORM_DID },
+          didResolutionMetadata: {},
+        });
+      }),
+    );
+    const body = await resolve(ionWorker, ION_SHORT_FORM_DID, {
+      ION_RESOLUTION_ENDPOINT: "https://ion.test/1.0",
+    });
+    expect(body.result.didDocument?.id).toBe(ION_SHORT_FORM_DID);
+    expect(body.result.didDocumentMetadata.canonicalId).toBe(
+      ION_SHORT_FORM_DID,
     );
   });
 

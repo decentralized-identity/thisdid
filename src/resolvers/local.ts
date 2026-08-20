@@ -49,6 +49,10 @@ function bindingFor(
       return env.DRIVER_DNS;
     case "ens":
       return env.DRIVER_ENS;
+    case "cid":
+      return env.DRIVER_CID;
+    case "ion":
+      return env.DRIVER_ION;
     default:
       return undefined;
   }
