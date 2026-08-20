@@ -169,7 +169,7 @@ metadata apply regardless of which resolver flavor succeeds.
 
 ### Isolated TypeScript driver Workers
 
-The mother Worker does not bundle the thirteen driver packages. Each one is built and
+The mother Worker does not bundle the fifteen driver packages. Each one is built and
 deployed as its own private Cloudflare Worker, with `workers.dev` and preview URLs disabled. The
 mother invokes only the selected method Worker through a Service Binding; Cloudflare starts or
 reuses that deployed isolate on demand.
@@ -202,7 +202,7 @@ package replacing `@kaytrust/did-near-resolver`, whose `near-api-js` chain carri
 elliptic CVE-2025-14505 and a native addon. Per the vendoring convention every vendored package
 records its exit criteria back to upstream in its README.
 
-All thirteen Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
+All fifteen Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
 internal request/response contract. The mother retains generic DID validation, timeouts,
 returned-document ID validation, health-aware fallback, public metadata, rate limiting, and
 analytics. A driver never chooses another provider or records analytics itself.
@@ -364,12 +364,16 @@ git clone --recurse-submodules https://github.com/decentralized-identity/thisdid
 # Existing clone:
 git submodule update --init --recursive
 
-npm install            # installs the root Worker + web workspace
 npm run install:vendor # initializes submodules, then installs the pnpm-locked vendored packages
+npm install            # installs the root Worker + web workspace (links the vendored packages)
 npm run build          # builds the vendored packages + the SPA
 npm run drivers:check  # bundles all fifteen isolated drivers without deploying
 npm run check          # Worker + web typechecks, all tests, and production builds
 ```
+
+`install:vendor` runs first on purpose: `npm install` links `vendor/did-resolver` as a
+dependency, so the submodule must exist before it — and `install:vendor` guarantees that even on
+a non-recursive clone.
 
 > If `install:vendor` reports _“This project is configured to use npm”_, pnpm is running in an
 > empty `vendor/did-resolver` — the submodule was not initialized. The script now initializes
@@ -386,13 +390,14 @@ application's dependency graph.
 ### Develop
 
 ```bash
-npm run dev            # mother Worker + thirteen bound driver Workers + Vite SPA
+npm run dev            # mother Worker + fifteen bound driver Workers + Vite SPA
 npm run dev:worker     # mother Worker only (drivers must already be running)
-npm run dev:drivers    # thirteen discoverable local driver processes on ports 8791–8803
+npm run dev:drivers    # fifteen discoverable local driver processes on ports 8791–8805
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
+npm test               # root Worker + probe + web test suites (per-package: cd vendor/<pkg> && pnpm test)
 ```
 
-`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8803
+`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8805
 with separate inspector ports, while clients test the complete routing path through the mother API
 on port 8787. For local ethr resolution, copy
 `src/driver-workers/ethr/.dev.vars.example` to `src/driver-workers/ethr/.dev.vars` and add the full
@@ -401,8 +406,8 @@ Alchemy URLs.
 ### Build & deploy
 
 ```bash
-npm run build          # → vendor/did-resolver/lib + web/dist
-npm run deploy:drivers # deploy thirteen isolated driver Workers first
+npm run build          # → all vendored package libs + web/dist
+npm run deploy:drivers # deploy fifteen isolated driver Workers first
 npm run deploy         # deploy the mother Worker only
 npm run deploy:all     # deploy drivers, then probe, then mother Worker
 npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)
