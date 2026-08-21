@@ -4,7 +4,7 @@
 [DIF](https://identity.foundation/) Universal DID Resolver: one endpoint that resolves any
 Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
-A smart **routing engine** matches every DID to the appropriate method driver: **fifteen
+A smart **routing engine** matches every DID to the appropriate method driver: **fourteen
 methods resolve at the edge** through isolated TypeScript DID Resolver Workers, and the long tail
 is routed to redundant upstream Universal Resolvers with failover. Newly added edge drivers run
 under a **verification guarantee** — every resolution is double-checked in parallel against a
@@ -148,7 +148,7 @@ metadata apply regardless of which resolver flavor succeeds.
         DRIVER_WEBVH   DRIVER_PLC   DRIVER_EBSI   DRIVER_NEAR   DRIVER_JWK
              │            │             │             │
              ▼            ▼             ▼             ▼
-        fifteen independently deployed private driver Workers (src/driver-workers/)
+        fourteen independently deployed private driver Workers (src/driver-workers/)
 
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
 │  cron `* * * * *`  →  one canary DID resolution round per route every minute │
@@ -169,7 +169,7 @@ metadata apply regardless of which resolver flavor succeeds.
 
 ### Isolated TypeScript driver Workers
 
-The mother Worker does not bundle the fifteen driver packages. Each one is built and
+The mother Worker does not bundle the fourteen driver packages. Each one is built and
 deployed as its own private Cloudflare Worker, with `workers.dev` and preview URLs disabled. The
 mother invokes only the selected method Worker through a Service Binding; Cloudflare starts or
 reuses that deployed isolate on demand.
@@ -202,7 +202,7 @@ package replacing `@kaytrust/did-near-resolver`, whose `near-api-js` chain carri
 elliptic CVE-2025-14505 and a native addon. Per the vendoring convention every vendored package
 records its exit criteria back to upstream in its README.
 
-All fifteen Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
+All fourteen Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
 internal request/response contract. The mother retains generic DID validation, timeouts,
 returned-document ID validation, health-aware fallback, public metadata, rate limiting, and
 analytics. A driver never chooses another provider or records analytics itself.
@@ -219,9 +219,8 @@ Every DID method is resolved through an **ordered fallback chain** defined in
 
 - **TypeScript DID Resolver** — resolved by an isolated method Worker through a private Cloudflare
   Service Binding. Waves one and two support `did:web`, `did:key`, `did:pkh`, `did:peer`,
-  configured `did:ethr`, `did:webvh`, `did:plc`, `did:ebsi`, `did:near`, `did:jwk`, `did:cheqd`, `did:dns`, `did:ens`, `did:cid`
-  (a chain-verifying, resolution-only Archon Gatekeeper), and `did:ion` (long-form verified
-  offline; short-form via a configurable Sidetree endpoint); each Worker uses its
+  configured `did:ethr`, `did:webvh`, `did:plc`, `did:ebsi`, `did:near`, `did:jwk`, `did:cheqd`, `did:dns`, `did:ens`, and `did:cid`
+  (a chain-verifying, resolution-only Archon Gatekeeper); each Worker uses its
   published (or vendored) package with the vendored `did-resolver` core. See
   [`src/driver-workers/`](src/driver-workers/README.md).
 - **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
@@ -262,13 +261,13 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method                                                                                                   | Chain (in order)                               |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `ion` | **TypeScript DID Resolver** → Godiddy → Archon |
-| `algo`, `nfd`                                                                                            | **GoPlausible** → Godiddy → Archon             |
-| `iden3`                                                                                                  | **Archon** → TypeScript DID Resolver → Godiddy |
-| `cid`                                                                                                    | **TypeScript DID Resolver** → Archon → Godiddy |
-| _all others_                                                                                             | **TypeScript DID Resolver** → Godiddy → Archon |
+| Method                                                                                            | Chain (in order)                               |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens` | **TypeScript DID Resolver** → Godiddy → Archon |
+| `algo`, `nfd`                                                                                     | **GoPlausible** → Godiddy → Archon             |
+| `iden3`                                                                                           | **Archon** → TypeScript DID Resolver → Godiddy |
+| `cid`                                                                                             | **TypeScript DID Resolver** → Archon → Godiddy |
+| _all others_                                                                                      | **TypeScript DID Resolver** → Godiddy → Archon |
 
 Only the first row has an implemented local TypeScript driver. For every other advertised method,
 the `local` step reports `notConfigured` and the mother continues to its configured upstream
@@ -283,7 +282,7 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 
 #### Probation double-checking (new-driver guarantee)
 
-Newly added edge drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `cid`, `ion`) carry a **New · under test**
+Newly added edge drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `cid`) carry a **New · under test**
 badge and run under a guarantee mechanism: every edge resolution is executed **in parallel** with
 one redundant upstream, and the two documents' security core (document
 `id`, the set of public verification keys, deactivation status) is compared in the mother Worker:
@@ -367,7 +366,7 @@ git submodule update --init --recursive
 npm run install:vendor # initializes submodules, then installs the pnpm-locked vendored packages
 npm install            # installs the root Worker + web workspace (links the vendored packages)
 npm run build          # builds the vendored packages + the SPA
-npm run drivers:check  # bundles all fifteen isolated drivers without deploying
+npm run drivers:check  # bundles all fourteen isolated drivers without deploying
 npm run check          # Worker + web typechecks, all tests, and production builds
 ```
 
@@ -390,14 +389,14 @@ application's dependency graph.
 ### Develop
 
 ```bash
-npm run dev            # mother Worker + fifteen bound driver Workers + Vite SPA
+npm run dev            # mother Worker + fourteen bound driver Workers + Vite SPA
 npm run dev:worker     # mother Worker only (drivers must already be running)
-npm run dev:drivers    # fifteen discoverable local driver processes on ports 8791–8805
+npm run dev:drivers    # fourteen discoverable local driver processes on ports 8791–8804
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
 npm test               # root Worker + probe + web test suites (per-package: cd vendor/<pkg> && pnpm test)
 ```
 
-`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8805
+`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8804
 with separate inspector ports, while clients test the complete routing path through the mother API
 on port 8787. For local ethr resolution, copy
 `src/driver-workers/ethr/.dev.vars.example` to `src/driver-workers/ethr/.dev.vars` and add the full
@@ -407,7 +406,7 @@ Alchemy URLs.
 
 ```bash
 npm run build          # → all vendored package libs + web/dist
-npm run deploy:drivers # deploy fifteen isolated driver Workers first
+npm run deploy:drivers # deploy fourteen isolated driver Workers first
 npm run deploy         # deploy the mother Worker only
 npm run deploy:all     # deploy drivers, then probe, then mother Worker
 npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)

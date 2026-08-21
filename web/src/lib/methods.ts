@@ -120,14 +120,6 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example:
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
   },
-  {
-    id: "ion",
-    name: "did:ion",
-    glyph: "O",
-    probation: true,
-    desc: "Sidetree DIDs anchored to Bitcoin; long-form verified offline",
-    example: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
-  },
 ];
 
 export const ALL_METHODS: string[] = [

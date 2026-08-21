@@ -147,15 +147,6 @@ export const FEATURED_METHODS: MethodMeta[] = [
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
     local: true,
   },
-  {
-    id: "ion",
-    glyph: "O",
-    probation: true,
-    desc: "Sidetree DIDs anchored to Bitcoin; long-form verified offline",
-    network: "Bitcoin · ION (Sidetree)",
-    example: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
-    local: true,
-  },
 ];
 
 /** Methods with intentionally configured local or upstream routes. */
@@ -254,7 +245,6 @@ export const LOCAL_DRIVER_METHODS = [
   "dns",
   "ens",
   "cid",
-  "ion",
 ];
 
 /**
@@ -272,7 +262,6 @@ export const PROBATION_METHODS: Set<string> = new Set([
   "dns",
   "ens",
   "cid",
-  "ion",
 ]);
 
 /** True when ThisDID advertises a resolution route for the method. */
@@ -285,6 +274,10 @@ const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
   iden3: "Polygon (Iden3)",
+  // ion is upstream-routed for now: the built driver (vendor/ion-did-resolver
+  // + src/driver-workers/ion) is parked until a non-resolver short-form
+  // endpoint exists — see .notes/typescript-did-resolver-driver-tiers.md.
+  ion: "Bitcoin · ION (Sidetree)",
   sol: "Solana",
 };
 
