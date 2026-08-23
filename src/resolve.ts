@@ -276,8 +276,19 @@ async function resolveWithVerification(
   ctx.attempts.push(local, upstream);
 
   if (local.result && upstream.result) {
-    if (compareCores(local.result, upstream.result) === "match") {
+    const verdict = compareCores(local.result, upstream.result);
+    if (verdict === "match") {
       return finalize(local, ctx, { status: "match", provider });
+    }
+    if (verdict === "incomparable") {
+      // A document carried verification material the comparator does not
+      // understand — the guarantee cannot be given either way, so serve the
+      // local result unbadged rather than fabricate a match or a mismatch.
+      return finalize(local, ctx, {
+        status: "unverified",
+        provider,
+        reason: "unverifiableMaterial",
+      });
     }
     hooks?.onMismatch?.({
       did,

@@ -98,6 +98,36 @@ const CANARIES: { step: Step; did: string }[] = [
     step: "local",
     did: "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
   },
+  // did:sol — the catalog example (legacy-program account on devnet); works
+  // once the sol driver's SOL_RPC_DEVNET_URL secret is configured.
+  {
+    step: "local",
+    did: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+  },
+  // did:iden3 — the catalog example, read from the Amoy State contract; works
+  // once the iden3 driver's IDEN3_RPC_POLYGON_AMOY_URL secret is configured.
+  {
+    step: "local",
+    did: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+  },
+  // did:polygonid — the Privado docs' mainnet example (unpublished, resolves
+  // as published:false); needs POLYGONID_RPC_POLYGON_MAIN_URL configured.
+  {
+    step: "local",
+    did: "did:polygonid:polygon:main:2q4Q7F7tM1xpwUTgWivb6TgKX3vWirsE3mqymuYjVv",
+  },
+  // did:hedera — the catalog example's HCS topic on the public testnet
+  // mirror node (keyless; no secrets required).
+  {
+    step: "local",
+    did: "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
+  },
+  // did:xrpl — the catalog example's XLS-40 DID entry on mainnet, read from
+  // the public xrplcluster JSON-RPC (keyless; no secrets required).
+  {
+    step: "local",
+    did: "did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE",
+  },
   // The network-backed ens canary is enabled with ENS_CANARY_DID once the ens
   // driver's RPC secret is configured (same pattern as ETHR_CANARY_DID).
   // Godiddy: NOT a canary resolution — its public resolver API is

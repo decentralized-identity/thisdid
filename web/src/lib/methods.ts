@@ -120,6 +120,49 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example:
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
   },
+  {
+    id: "sol",
+    name: "did:sol",
+    glyph: "A",
+    probation: true,
+    desc: "Solana on-chain identities, resolved from both sol-did programs",
+    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+  },
+  {
+    id: "iden3",
+    name: "did:iden3",
+    glyph: "3",
+    probation: true,
+    desc: "Iden3 identity states, read from the on-chain State contract",
+    example: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+  },
+  {
+    id: "polygonid",
+    name: "did:polygonid",
+    glyph: "G",
+    probation: true,
+    desc: "Privado ID identities on the same iden3 State-contract engine",
+    example:
+      "did:polygonid:polygon:main:2q4Q7F7tM1xpwUTgWivb6TgKX3vWirsE3mqymuYjVv",
+  },
+
+  {
+    id: "hedera",
+    name: "did:hedera",
+    glyph: "H",
+    probation: true,
+    desc: "Hedera Consensus Service DID topics, signature-verified",
+    example:
+      "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
+  },
+  {
+    id: "xrpl",
+    name: "did:xrpl",
+    glyph: "X",
+    probation: true,
+    desc: "Native XLS-40 DIDs, read from the XRP Ledger itself",
+    example: "did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE",
+  },
 ];
 
 export const ALL_METHODS: string[] = [
@@ -187,10 +230,12 @@ export const ALL_METHODS: string[] = [
   "webvh",
   "prism",
   "iden3",
+  "polygonid",
   "cndid",
   "tgrid",
   "empe",
   "hedera",
+  "xrpl",
   "nfd",
   "bluchain",
   "webplus",

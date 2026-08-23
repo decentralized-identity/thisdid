@@ -147,6 +147,55 @@ export const FEATURED_METHODS: MethodMeta[] = [
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
     local: true,
   },
+  {
+    id: "sol",
+    glyph: "A",
+    probation: true,
+    desc: "Solana on-chain identities, resolved from both sol-did programs",
+    network: "Solana",
+    example: "did:sol:devnet:2eK2DKs6vdzTEoj842Gfcs6DdtffPpw1iF6JbzQL4TuK",
+    local: true,
+  },
+  {
+    id: "iden3",
+    glyph: "3",
+    probation: true,
+    desc: "Iden3 identity states, read from the on-chain State contract",
+    network: "Polygon (Iden3)",
+    example: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
+    local: true,
+  },
+  {
+    id: "polygonid",
+    glyph: "G",
+    probation: true,
+    desc: "Privado ID identities on the same iden3 State-contract engine",
+    network: "Polygon (Privado ID)",
+    example:
+      "did:polygonid:polygon:main:2q4Q7F7tM1xpwUTgWivb6TgKX3vWirsE3mqymuYjVv",
+    local: true,
+  },
+
+  {
+    id: "hedera",
+    glyph: "H",
+    probation: true,
+    desc: "Hedera Consensus Service DID topics, signature-verified",
+    network: "Hedera (HCS)",
+    example:
+      "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
+    local: true,
+  },
+
+  {
+    id: "xrpl",
+    glyph: "X",
+    probation: true,
+    desc: "Native XLS-40 DIDs, read from the XRP Ledger itself",
+    network: "XRP Ledger",
+    example: "did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE",
+    local: true,
+  },
 ];
 
 /** Methods with intentionally configured local or upstream routes. */
@@ -215,10 +264,12 @@ export const ALL_METHODS: string[] = [
   "webvh",
   "prism",
   "iden3",
+  "polygonid",
   "cndid",
   "tgrid",
   "empe",
   "hedera",
+  "xrpl",
   "nfd",
   "bluchain",
   "webplus",
@@ -245,6 +296,11 @@ export const LOCAL_DRIVER_METHODS = [
   "dns",
   "ens",
   "cid",
+  "sol",
+  "iden3",
+  "polygonid",
+  "hedera",
+  "xrpl",
 ];
 
 /**
@@ -262,6 +318,11 @@ export const PROBATION_METHODS: Set<string> = new Set([
   "dns",
   "ens",
   "cid",
+  "sol",
+  "iden3",
+  "polygonid",
+  "hedera",
+  "xrpl",
 ]);
 
 /** True when ThisDID advertises a resolution route for the method. */
@@ -273,12 +334,10 @@ export function isSupportedMethod(method: string): boolean {
 const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
-  iden3: "Polygon (Iden3)",
   // ion is upstream-routed for now: the built driver (vendor/ion-did-resolver
   // + src/driver-workers/ion) is parked until a non-resolver short-form
   // endpoint exists — see .notes/typescript-did-resolver-driver-tiers.md.
   ion: "Bitcoin · ION (Sidetree)",
-  sol: "Solana",
 };
 
 const NETWORKS: Record<string, string> = {

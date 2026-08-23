@@ -1,8 +1,8 @@
 # Tier 1 driver Workers
 
-Each directory here is a private Cloudflare Worker deployment unit. It imports one published DID
-method resolver package and runs that package with DIF's TypeScript `did-resolver` core. Method
-implementation source is not copied into ThisDID.
+Each directory here is a private Cloudflare Worker deployment unit. It imports one DID method
+resolver package (published npm or ThisDID-vendored) and runs it with DIF's TypeScript
+`did-resolver` core.
 
 The mother Worker invokes these Workers through Service Bindings using the versioned contract in
 `contract.ts`. `workers_dev` and preview URLs are disabled, so the driver Workers do not expose
@@ -10,76 +10,75 @@ public routes. They do not select fallbacks or record analytics.
 
 ## Workers
 
-| Binding        | Worker name            | Package                                        | Configuration |
-| -------------- | ---------------------- | ---------------------------------------------- | ------------- |
-| `DRIVER_WEB`   | `thisdid-driver-web`   | `web-did-resolver@2.0.32`                      | None          |
-| `DRIVER_KEY`   | `thisdid-driver-key`   | `key-did-resolver@4.0.0`                       | None          |
-| `DRIVER_PKH`   | `thisdid-driver-pkh`   | `pkh-did-resolver@2.0.0`                       | None          |
-| `DRIVER_PEER`  | `thisdid-driver-peer`  | `peer-did-resolver@2.0.0`                      | None          |
-| `DRIVER_ETHR`  | `thisdid-driver-ethr`  | `ethr-did-resolver@14.1.2`                     | Secret        |
-| `DRIVER_WEBVH` | `thisdid-driver-webvh` | `@thisdid/webvh-did-resolver@1.0.0` (vendored) | None          |
-| `DRIVER_PLC`   | `thisdid-driver-plc`   | `@thisdid/plc-did-resolver@1.0.0` (vendored)   | Var           |
-| `DRIVER_EBSI`  | `thisdid-driver-ebsi`  | `@cef-ebsi/ebsi-did-resolver@4.1.0`            | Var           |
-| `DRIVER_NEAR`  | `thisdid-driver-near`  | `@thisdid/near-did-resolver@1.0.0` (vendored)  | Vars          |
+All nineteen active drivers (the `ion/` directory also exists but is **parked** — built and
+tested, deliberately unbound and unrouted until a non-resolver short-form endpoint exists):
+
+| Binding            | Worker name                | Resolver package                                       | Configuration                                     |
+| ------------------ | -------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
+| `DRIVER_WEB`       | `thisdid-driver-web`       | `web-did-resolver@2.0.32`                              | None                                              |
+| `DRIVER_KEY`       | `thisdid-driver-key`       | `key-did-resolver@4.0.0`                               | None                                              |
+| `DRIVER_PKH`       | `thisdid-driver-pkh`       | `pkh-did-resolver@2.0.0`                               | None                                              |
+| `DRIVER_PEER`      | `thisdid-driver-peer`      | `peer-did-resolver@2.0.0`                              | None                                              |
+| `DRIVER_ETHR`      | `thisdid-driver-ethr`      | `ethr-did-resolver@14.1.2`                             | Secrets per enabled network (`ETH_RPC_*`)         |
+| `DRIVER_WEBVH`     | `thisdid-driver-webvh`     | `@thisdid/webvh-did-resolver@1.0.0` (vendored wrapper) | None                                              |
+| `DRIVER_PLC`       | `thisdid-driver-plc`       | `@thisdid/plc-did-resolver@1.0.0` (vendored wrapper)   | `PLC_DIRECTORY_URL` var (default `plc.directory`) |
+| `DRIVER_EBSI`      | `thisdid-driver-ebsi`      | `@cef-ebsi/ebsi-did-resolver@4.1.0`                    | `EBSI_DID_REGISTRY` var (pilot registry)          |
+| `DRIVER_NEAR`      | `thisdid-driver-near`      | `@thisdid/near-did-resolver@1.0.0` (clean-room)        | `NEAR_RPC_*` vars (public defaults)               |
+| `DRIVER_JWK`       | `thisdid-driver-jwk`       | `@thisdid/jwk-did-resolver@1.0.0` (clean-room)         | None (deterministic, offline)                     |
+| `DRIVER_CHEQD`     | `thisdid-driver-cheqd`     | `@thisdid/cheqd-did-resolver@1.0.0` (vendored)         | `CHEQD_RESOLVER_URL` var (official default)       |
+| `DRIVER_DNS`       | `thisdid-driver-dns`       | `@thisdid/dns-did-resolver@1.0.0` (vendored)           | `DOH_URL` var (Cloudflare default)                |
+| `DRIVER_ENS`       | `thisdid-driver-ens`       | `@thisdid/ens-did-resolver@1.0.0` (vendored)           | `ETH_RPC_MAINNET_URL` secret                      |
+| `DRIVER_CID`       | `thisdid-driver-cid`       | `@thisdid/cid-did-resolver@1.0.0` (clean-room)         | `CID_GATEKEEPER_URL` var (Archon default)         |
+| `DRIVER_SOL`       | `thisdid-driver-sol`       | `@thisdid/sol-did-resolver@1.0.0` (clean-room)         | Secrets per enabled cluster (`SOL_RPC_*`)         |
+| `DRIVER_IDEN3`     | `thisdid-driver-iden3`     | `@thisdid/iden3-did-resolver@1.0.0` (clean-room)       | Secrets per enabled network (`IDEN3_RPC_*`)       |
+| `DRIVER_POLYGONID` | `thisdid-driver-polygonid` | same `@thisdid/iden3-did-resolver` package             | Secrets per enabled network (`POLYGONID_RPC_*`)   |
+| `DRIVER_HEDERA`    | `thisdid-driver-hedera`    | `@thisdid/hedera-did-resolver@1.0.0` (clean-room)      | None (keyless; optional `HEDERA_MIRROR_*` vars)   |
+| `DRIVER_XRPL`      | `thisdid-driver-xrpl`      | `@thisdid/xrpl-did-resolver@1.0.0` (clean-room)        | None (keyless; optional `XRPL_RPC_*` vars)        |
 
 Every entrypoint registers a DIF `getResolver()` package directly. Six consume published npm
-packages; `webvh`, `plc`, and `near` consume ThisDID-custodied `@thisdid/*` packages vendored
-under `vendor/`: `@thisdid/webvh-did-resolver` and `@thisdid/plc-did-resolver` are thin DIF
-standard wrappers whose only runtime dependency is the upstream method library (`didwebvh-ts`,
-`@atproto/identity`) — the wrapper adds the registry contract plus required glue (a WebCrypto
-Ed25519 proof verifier for webvh; a workerd-safe directory fetch for plc) — while
-`@thisdid/near-did-resolver` is a clean-room fetch-native implementation, and
-`@thisdid/jwk-did-resolver` is a clean-room, dependency-free implementation of the deterministic
-did:jwk specification (fully offline). Each vendored package
-documents its exit criteria back to upstream.
+packages; the rest consume ThisDID-custodied `@thisdid/*` packages vendored under `vendor/`, in
+two families:
 
-The plc Worker reads `PLC_DIRECTORY_URL` (public var, default `https://plc.directory`). The ebsi
-Worker reads `EBSI_DID_REGISTRY` (public var, currently the EBSI pilot registry) and fails closed
-without it so a misdeployed Worker can never silently answer from the wrong registry environment.
+- **Wrappers** — `@thisdid/webvh-did-resolver` and `@thisdid/plc-did-resolver` are thin DIF
+  standard wrappers whose only runtime dependency is the upstream method library (`didwebvh-ts`,
+  `@atproto/identity`); the wrapper adds the registry contract plus required glue (a WebCrypto
+  Ed25519 proof verifier for webvh; a workerd-safe directory fetch for plc).
+- **Clean-room implementations** — built where no workerd-compatible package exists or the
+  existing one is unsafe: `near` (replaces a chain carrying the unpatched elliptic
+  CVE-2025-14505 and a native addon), `jwk` (dependency-free, fully offline), `cid` (a
+  resolution-only Archon Gatekeeper that re-verifies the full signed operation chain), `sol`
+  (both on-chain sol-did programs in one RPC round-trip, no Anchor/web3.js), `iden3` (direct
+  State-contract reads, serving `polygonid` too with ID type-byte enforcement), `hedera`
+  (every publicly-writable HCS topic event Ed25519-verified against the DID root key; bounded,
+  **fail-closed** event history), and `xrpl` (native XLS-40 ledger entries; authored on-ledger
+  documents pass strict usability validation before being served). Each vendored package
+  documents its trust model, fail-closed behavior, test-vector provenance, and exit criteria in
+  its own README under [`vendor/`](../../vendor/).
 
-The near Worker consumes the **vendored** `@thisdid/near-did-resolver` package
-([`vendor/near-did-resolver`](../../vendor/near-did-resolver/README.md)) instead of
-`@kaytrust/did-near-resolver`, whose `near-api-js` chain carries the unpatched elliptic
-CVE-2025-14505 and a native secp256k1 addon. It reads `NEAR_RPC_MAINNET_URL` /
-`NEAR_RPC_TESTNET_URL` (public endpoints as vars; a keyed provider URL should be a secret
-instead) and optional `NEAR_REGISTRY_CONTRACT_MAINNET` / `NEAR_REGISTRY_CONTRACT_TESTNET` for
-base58 registry identifiers, and fails closed when no RPC endpoint is configured.
+## Configuration and security conventions
 
-The cheqd Worker reads `CHEQD_RESOLVER_URL` (optional var; defaults to cheqd's official
-`resolver.cheqd.net`). The dns Worker reads `DOH_URL` (optional var; defaults to Cloudflare's
-DNS-over-HTTPS resolver). The ens Worker follows the ethr convention: it reads its own
-`ETH_RPC_MAINNET_URL` secret and fails closed without it:
-
-```sh
-npx wrangler secret put ETH_RPC_MAINNET_URL --config src/driver-workers/ens/wrangler.jsonc
-```
-
-The ethr Worker reads full Alchemy RPC URLs from `ETH_RPC_MAINNET_URL` and
-`ETH_RPC_SEPOLIA_URL`. Configure one or both as secrets on the ethr Worker; RPC credentials stay
-inside that driver and never enter the mother Worker.
-
-```sh
-npx wrangler secret put ETH_RPC_MAINNET_URL --config src/driver-workers/ethr/wrangler.jsonc
-npx wrangler secret put ETH_RPC_SEPOLIA_URL --config src/driver-workers/ethr/wrangler.jsonc
-```
-
-Use the complete provider URL, including its access token, as the secret value.
-
-`ETH_RPC_ETH_MAINNET_URL` and `ETH_RPC_ETH_SEPOLIA_URL` are reserved for a Base-capable driver.
-The installed `ethr-did-resolver` package does not publish ERC-1056 deployment metadata for Base,
-so ThisDID does not guess a registry address or advertise Base `did:ethr` resolution.
-
-`SVM_RPC_MAINNET_URL` and `SVM_RPC_DEVNET_URL` are reserved for the future isolated Solana driver.
-They must be attached to that driver Worker when it is implemented, not to existing workers.
-
-The secret naming convention is `<VM>_RPC_<NETWORK>_URL`, with an optional ecosystem qualifier such
-as `ETH_RPC_ETH_MAINNET_URL`. Every value is the complete authenticated endpoint URL. A driver
-receives only the secrets for networks it directly accesses; Service Bindings do not inherit the
-mother Worker's environment.
+- The full **required/optional configuration table** with `wrangler secret put` commands lives
+  in the [root README](../../README.md) — this file only records the conventions.
+- Secret naming is `<VM>_RPC_<NETWORK>_URL` (e.g. `SOL_RPC_DEVNET_URL`,
+  `IDEN3_RPC_POLYGON_AMOY_URL`), with an optional ecosystem qualifier such as
+  `ETH_RPC_ETH_MAINNET_URL`. Every value is the complete authenticated endpoint URL — RPC
+  credentials stay inside the owning driver and never enter the mother Worker; Service Bindings
+  do not inherit the mother's environment.
+- Secrets are **per enabled network**: a driver fails closed (`notConfigured`) only for the
+  specific network/cluster that is unconfigured — an ethr deployment may configure mainnet
+  without Sepolia, and sol only the clusters it serves. `notConfigured` is transport-class for
+  the mother, which falls through to the method's upstream chain.
+- The ebsi Worker fails closed without `EBSI_DID_REGISTRY` so a misdeployed Worker can never
+  silently answer from the wrong registry environment; near fails closed when no RPC endpoint
+  is configured for the requested network.
+- `ETH_RPC_ETH_MAINNET_URL` / `ETH_RPC_ETH_SEPOLIA_URL` remain reserved for a Base-capable
+  driver: the installed `ethr-did-resolver` publishes no ERC-1056 deployment metadata for Base,
+  so ThisDID does not guess a registry address or advertise Base `did:ethr` resolution.
 
 ## Deployment order
 
-Run `npm run drivers:check`, then deploy the thirteen drivers before deploying the mother Worker:
+Run `npm run drivers:check` (dry-run bundles all nineteen), then deploy the drivers before the
+mother Worker:
 
 ```sh
 npm run deploy:drivers
@@ -92,10 +91,13 @@ Publishing, deployment, commits, and pushes remain explicit maintainer actions.
 
 ## Local development
 
-`npm run dev` starts thirteen driver processes, the mother Worker, and the Vite SPA together. Wrangler
-discovers the driver processes by their configured service names and connects the mother's Service
-Bindings at `http://localhost:8787`; nothing is deployed. `npm run dev:drivers` and
-`npm run dev:worker` are also available when separate terminals are preferable.
+`npm run dev` starts the nineteen driver processes, the mother Worker, and the Vite SPA
+together. Wrangler discovers the driver processes by their configured service names and connects
+the mother's Service Bindings at `http://localhost:8787`; nothing is deployed.
+`npm run dev:drivers` (ports 8791–8809) and `npm run dev:worker` are also available when
+separate terminals are preferable.
 
-For local ethr resolution, copy `ethr/.dev.vars.example` to `ethr/.dev.vars` and insert the full
-Alchemy URLs. The offline `key`, `pkh`, and `peer` drivers need no local secrets.
+For local network-backed resolution, copy `.dev.vars.example` to `.dev.vars` inside each
+secret-requiring driver directory (`ethr`, `ens`, `sol`, `iden3`, `polygonid`) and insert the
+full provider URLs. The keyless drivers (`hedera`, `xrpl`) and the offline drivers (`key`,
+`pkh`, `peer`, `jwk`) need no local secrets.

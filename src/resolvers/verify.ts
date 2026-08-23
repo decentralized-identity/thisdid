@@ -40,7 +40,7 @@ export interface VerificationMeta {
   status: VerificationStatus;
   /** Analytics tag of the verifying upstream (e.g. `godiddy`). */
   provider?: string;
-  /** mismatch: `coreMismatch`; unverified: `upstreamUnavailable` | `upstreamRateLimited` | `upstreamUnsupported` | `upstream:<error>`. */
+  /** mismatch: `coreMismatch`; unverified: `upstreamUnavailable` | `upstreamRateLimited` | `upstreamUnsupported` | `unverifiableMaterial` | `upstream:<error>`. */
   reason?: string;
 }
 
@@ -163,8 +163,46 @@ function canonicalJwk(jwk: Record<string, unknown>): string {
   return entries.join("|");
 }
 
-/** Normalized value of one verification method's key material. */
-function keyMaterial(vm: Record<string, unknown>): string {
+/**
+ * Iden3StateInfo2023 carries NO public key — its security material is the
+ * on-chain identity state itself. Canonicalize the state-bearing fields so
+ * two iden3/polygonid documents with different states, roots, contracts, or
+ * proofs can never read as a match. Lifecycle timestamps/blocks are
+ * legitimately read-time-dependent and are deliberately excluded.
+ */
+function iden3StateMaterial(vm: Record<string, unknown>): string {
+  const str = (value: unknown): string =>
+    typeof value === "string" || typeof value === "number" ? String(value) : "";
+  const bool = (value: unknown): string =>
+    typeof value === "boolean" ? String(value) : "";
+  const info = (vm.info ?? {}) as Record<string, unknown>;
+  const global = (vm.global ?? {}) as Record<string, unknown>;
+  const proof = (global.proof ?? {}) as Record<string, unknown>;
+  const siblings = Array.isArray(proof.siblings)
+    ? proof.siblings.map(str).join(",")
+    : "";
+  return [
+    "iden3state",
+    `contract:${str(vm.stateContractAddress).toLowerCase()}`,
+    `published:${bool(vm.published)}`,
+    `state:${str(info.state).toLowerCase()}`,
+    `replaced:${str(info.replacedByState).toLowerCase()}`,
+    `root:${str(global.root).toLowerCase()}`,
+    `rootReplaced:${str(global.replacedByRoot).toLowerCase()}`,
+    `existence:${bool(proof.existence)}`,
+    `siblings:${siblings}`,
+  ].join("|");
+}
+
+/**
+ * Normalized value of one verification method's key material, or undefined
+ * when the method carries NOTHING this comparator understands — an opaque
+ * method makes the whole document non-comparable (unverified), because
+ * comparing opaque methods by fragment alone would let two documents with
+ * different security state read as a match.
+ */
+function keyMaterial(vm: Record<string, unknown>): string | undefined {
+  if (vm.type === "Iden3StateInfo2023") return iden3StateMaterial(vm);
   const ed25519 = ed25519Canonical(vm);
   if (ed25519) return ed25519;
   if (typeof vm.publicKeyMultibase === "string") {
@@ -179,9 +217,7 @@ function keyMaterial(vm: Record<string, unknown>): string {
   if (typeof vm.blockchainAccountId === "string") {
     return `caip10:${vm.blockchainAccountId}`;
   }
-  // No recognized material — fall back to the method's fragment so two
-  // unrecognized methods still compare by identity rather than collapsing.
-  return `unknown:${fragmentOf(vm.id)}`;
+  return undefined;
 }
 
 const RELATIONSHIPS = [
@@ -220,6 +256,8 @@ interface SecurityCore {
   keys: Map<string, number>;
   /** Per relationship: the set of key values it authorizes. */
   relationships: Record<Relationship, Set<string>>;
+  /** True when any verification method carried no comparable material. */
+  opaque: boolean;
 }
 
 function relationshipEntries(
@@ -245,12 +283,15 @@ function securityCore(doc: DIDDocument): SecurityCore {
   const materialByFragment = new Map<string, string>();
   const seen = new Set<string>();
   const keys = new Map<string, number>();
+  let opaque = false;
 
   const register = (value: unknown): void => {
     if (!value || typeof value !== "object") return;
     const vm = value as Record<string, unknown>;
     const fragment = fragmentOf(vm.id);
-    const material = keyMaterial(vm);
+    const recognized = keyMaterial(vm);
+    if (recognized === undefined) opaque = true;
+    const material = recognized ?? `opaque:${fragment}`;
     materialByFragment.set(fragment, material);
     const controller = controllerOf(vm, docId);
     const identity = `${fragment}|${controller}|${material}`;
@@ -279,7 +320,7 @@ function securityCore(doc: DIDDocument): SecurityCore {
     }
     relationships[rel] = authorized;
   }
-  return { keys, relationships };
+  return { keys, relationships, opaque };
 }
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
@@ -297,11 +338,16 @@ function deactivatedOf(result: DIDResolutionResult): boolean {
   return result.didDocumentMetadata?.deactivated === true;
 }
 
-/** Compare the security cores of a local and an upstream resolution. */
+/**
+ * Compare the security cores of a local and an upstream resolution.
+ * `incomparable` means a document carried a verification method whose
+ * material this comparator does not understand — the guarantee cannot be
+ * given, so the caller reports `unverified`, never a false `match`.
+ */
 export function compareCores(
   local: DIDResolutionResult,
   upstream: DIDResolutionResult,
-): "match" | "mismatch" {
+): "match" | "mismatch" | "incomparable" {
   const localDoc = local.didDocument;
   const upstreamDoc = upstream.didDocument;
   if (!localDoc || !upstreamDoc) return "mismatch";
@@ -310,6 +356,7 @@ export function compareCores(
 
   const localCore = securityCore(localDoc);
   const upstreamCore = securityCore(upstreamDoc);
+  if (localCore.opaque || upstreamCore.opaque) return "incomparable";
   if (localCore.keys.size !== upstreamCore.keys.size) return "mismatch";
   for (const [pair, count] of localCore.keys) {
     if (upstreamCore.keys.get(pair) !== count) return "mismatch";

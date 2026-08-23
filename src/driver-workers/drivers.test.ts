@@ -7,6 +7,8 @@ import dnsWorker from "./dns";
 import ebsiWorker from "./ebsi";
 import ensWorker from "./ens";
 import ethrWorker from "./ethr";
+import hederaWorker from "./hedera";
+import iden3Worker from "./iden3";
 import ionWorker from "./ion";
 import jwkWorker from "./jwk";
 import keyWorker from "./key";
@@ -14,8 +16,11 @@ import nearWorker from "./near";
 import peerWorker from "./peer";
 import pkhWorker from "./pkh";
 import plcWorker from "./plc";
+import polygonidWorker from "./polygonid";
+import solWorker from "./sol";
 import webWorker from "./web";
 import webvhWorker from "./webvh";
+import xrplWorker from "./xrpl";
 import type { DriverResponseV1 } from "./contract";
 import { createDriverWorker } from "./runtime";
 import {
@@ -27,6 +32,30 @@ import {
   LONG_FORM_EXPECTED as ION_LONG_FORM_EXPECTED,
   SHORT_FORM_DID as ION_SHORT_FORM_DID,
 } from "../../vendor/ion-did-resolver/src/__tests__/fixture";
+import {
+  DEVNET_DID as SOL_DEVNET_DID,
+  KEY2_PUBKEY as SOL_KEY2_PUBKEY,
+  LEGACY_ACCOUNT_B64 as SOL_LEGACY_ACCOUNT_B64,
+  LEGACY_PROGRAM as SOL_LEGACY_PROGRAM,
+} from "../../vendor/sol-did-resolver/src/__tests__/fixture";
+import {
+  REFERENCE_DOCUMENT as HEDERA_REFERENCE_DOCUMENT,
+  TESTNET_DID as HEDERA_TESTNET_DID,
+  TOPIC_MESSAGES as HEDERA_TOPIC_MESSAGES,
+} from "../../vendor/hedera-did-resolver/src/__tests__/fixture";
+import {
+  MAINNET_DID as XRPL_MAINNET_DID,
+  MAINNET_REFERENCE_DOCUMENT as XRPL_REFERENCE_DOCUMENT,
+  MAINNET_RESPONSE as XRPL_MAINNET_RESPONSE,
+} from "../../vendor/xrpl-did-resolver/src/__tests__/fixture";
+import {
+  AMOY_DID as IDEN3_AMOY_DID,
+  POLYGONID_MAIN_DID,
+  RAW_GIST_PROOF_RETURN as IDEN3_RAW_GIST_PROOF,
+  RAW_ROOT_INFO_RETURN as IDEN3_RAW_ROOT_INFO,
+  RAW_STATE_RETURN as IDEN3_RAW_STATE,
+  REFERENCE_DOCUMENT as IDEN3_REFERENCE_DOCUMENT,
+} from "../../vendor/iden3-did-resolver/src/__tests__/fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -376,6 +405,184 @@ describe("Tier 1 driver Workers", () => {
     expect(body.result.didDocumentMetadata.canonicalId).toBe(
       ION_SHORT_FORM_DID,
     );
+  });
+
+  it("resolves a legacy-program did:sol from a devnet account fixture", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe("https://sol-devnet.test");
+        return Response.json({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            value: [
+              null,
+              {
+                owner: SOL_LEGACY_PROGRAM,
+                data: [SOL_LEGACY_ACCOUNT_B64, "base64"],
+              },
+            ],
+          },
+        });
+      }),
+    );
+    const body = await resolve(solWorker, SOL_DEVNET_DID, {
+      SOL_RPC_DEVNET_URL: "https://sol-devnet.test",
+    });
+    expect(body.driver).toMatchObject({
+      method: "sol",
+      packageName: "@thisdid/sol-did-resolver",
+    });
+    expect(body.result.didDocument?.capabilityInvocation).toEqual([
+      `${SOL_DEVNET_DID}#key2`,
+    ]);
+    expect(
+      body.result.didDocument?.verificationMethod?.[1]?.publicKeyBase58,
+    ).toBe(SOL_KEY2_PUBKEY);
+  });
+
+  it("composes did:iden3 from raw Amoy State-contract returns", async () => {
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe("https://amoy.rpc.test");
+        call++;
+        return Response.json(
+          call === 1
+            ? [
+                { jsonrpc: "2.0", id: 0, result: IDEN3_RAW_STATE },
+                { jsonrpc: "2.0", id: 1, result: IDEN3_RAW_GIST_PROOF },
+              ]
+            : [{ jsonrpc: "2.0", id: 0, result: IDEN3_RAW_ROOT_INFO }],
+        );
+      }),
+    );
+    const body = await resolve(iden3Worker, IDEN3_AMOY_DID, {
+      IDEN3_RPC_POLYGON_AMOY_URL: "https://amoy.rpc.test",
+    });
+    expect(body.driver).toMatchObject({
+      method: "iden3",
+      packageName: "@thisdid/iden3-did-resolver",
+    });
+    expect(body.result.didDocument).toEqual(IDEN3_REFERENCE_DOCUMENT);
+  });
+
+  it("resolves did:polygonid (unpublished) through its own worker", async () => {
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe("https://polygon.rpc.test");
+        call++;
+        return Response.json(
+          call === 1
+            ? [
+                {
+                  jsonrpc: "2.0",
+                  id: 0,
+                  error: {
+                    message: "execution reverted: Identity does not exist",
+                  },
+                },
+                { jsonrpc: "2.0", id: 1, result: IDEN3_RAW_GIST_PROOF },
+              ]
+            : [{ jsonrpc: "2.0", id: 0, result: IDEN3_RAW_ROOT_INFO }],
+        );
+      }),
+    );
+    const body = await resolve(polygonidWorker, POLYGONID_MAIN_DID, {
+      POLYGONID_RPC_POLYGON_MAIN_URL: "https://polygon.rpc.test",
+    });
+    expect(body.driver).toMatchObject({
+      method: "polygonid",
+      packageName: "@thisdid/iden3-did-resolver",
+    });
+    const vm = body.result.didDocument
+      ?.verificationMethod?.[0] as unknown as Record<string, unknown>;
+    expect(vm.published).toBe(false);
+    expect(vm.id).toBe(`${POLYGONID_MAIN_DID}#state-info`);
+  });
+
+  it("resolves did:hedera from public mirror-node topic messages", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toContain(
+          "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.7280148/messages",
+        );
+        return Response.json({
+          messages: HEDERA_TOPIC_MESSAGES.messages.map((m) => ({
+            message: m.message,
+          })),
+          links: { next: null },
+        });
+      }),
+    );
+    const body = await resolve(hederaWorker, HEDERA_TESTNET_DID);
+    expect(body.driver).toMatchObject({
+      method: "hedera",
+      packageName: "@thisdid/hedera-did-resolver",
+    });
+    expect(body.result.didDocument).toEqual(HEDERA_REFERENCE_DOCUMENT);
+    expect(body.result.didDocumentMetadata.deactivated).toBe(false);
+  });
+
+  it("resolves did:xrpl from the native XLS-40 ledger entry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe("https://xrplcluster.com");
+        const rpc = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: [{ did: string }];
+        };
+        expect(rpc.method).toBe("ledger_entry");
+        expect(rpc.params[0].did).toBe("r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE");
+        return Response.json(XRPL_MAINNET_RESPONSE);
+      }),
+    );
+    const body = await resolve(xrplWorker, XRPL_MAINNET_DID);
+    expect(body.driver).toMatchObject({
+      method: "xrpl",
+      packageName: "@thisdid/xrpl-did-resolver",
+    });
+    expect(body.result.didDocument).toEqual(XRPL_REFERENCE_DOCUMENT);
+    expect(body.result.didDocumentMetadata).toMatchObject({
+      network: "mainnet",
+      deactivated: false,
+    });
+  });
+
+  it("honors an XRPL RPC endpoint override from worker vars", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe("https://xrpl-rpc.example");
+        return Response.json(XRPL_MAINNET_RESPONSE);
+      }),
+    );
+    const body = await resolve(xrplWorker, XRPL_MAINNET_DID, {
+      XRPL_RPC_MAINNET_URL: "https://xrpl-rpc.example",
+    });
+    expect(body.result.didDocument).toEqual(XRPL_REFERENCE_DOCUMENT);
+  });
+
+  it("fails closed when the iden3 network RPC secret is absent", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = await resolve(iden3Worker, IDEN3_AMOY_DID);
+    expect(body.result.didResolutionMetadata.error).toBe("notConfigured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the sol cluster RPC secret is absent", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = await resolve(solWorker, SOL_DEVNET_DID);
+    expect(body.result.didResolutionMetadata.error).toBe("notConfigured");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("fails closed when the ens RPC secret is absent", async () => {

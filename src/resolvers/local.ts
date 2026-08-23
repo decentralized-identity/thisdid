@@ -53,6 +53,16 @@ function bindingFor(
       return env.DRIVER_CID;
     case "ion":
       return env.DRIVER_ION;
+    case "sol":
+      return env.DRIVER_SOL;
+    case "iden3":
+      return env.DRIVER_IDEN3;
+    case "polygonid":
+      return env.DRIVER_POLYGONID;
+    case "hedera":
+      return env.DRIVER_HEDERA;
+    case "xrpl":
+      return env.DRIVER_XRPL;
     default:
       return undefined;
   }

@@ -303,6 +303,93 @@ describe("Ed25519 decoder input bound", () => {
   });
 });
 
+describe("compareCores Iden3StateInfo2023 state comparison", () => {
+  const IDEN3_DID =
+    "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw";
+  const stateVm = (overrides: Record<string, unknown> = {}) => ({
+    id: `${IDEN3_DID}#state-info`,
+    type: "Iden3StateInfo2023",
+    controller: IDEN3_DID,
+    stateContractAddress: "80002:0x1a4cC30f2aA0377b0c3bc9848766D90cb4404124",
+    published: true,
+    info: {
+      id: IDEN3_DID,
+      state: "9d6aa32cfe98d6f96fb0c9c9c1c66666951928d0a129b09b6d4e9d1e33d5b1e1",
+      replacedByState:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      createdAtTimestamp: "1712102596",
+      replacedAtTimestamp: "0",
+    },
+    global: {
+      root: "8b2b9e9201f6d0b6f0e1f9f7e78dc7dc19f9e40707c9e2b696a17b3f27fa5a5e",
+      replacedByRoot:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      createdAtTimestamp: "1755700000",
+      proof: {
+        type: "Iden3SparseMerkleTreeProof",
+        existence: true,
+        siblings: ["123", "456"],
+      },
+    },
+    ...overrides,
+  });
+  const iden3Result = (vm: Record<string, unknown>) =>
+    result({ id: IDEN3_DID, verificationMethod: [vm] });
+
+  it("matches identical state info, ignoring read-time lifecycle fields", () => {
+    const local = stateVm();
+    const upstream = stateVm({
+      global: {
+        ...(stateVm().global as Record<string, unknown>),
+        createdAtTimestamp: "1755799999", // read-time metadata may differ
+      },
+    });
+    expect(compareCores(iden3Result(local), iden3Result(upstream))).toBe(
+      "match",
+    );
+  });
+
+  it("mismatches identical ids/fragments whose state roots differ", () => {
+    const upstream = stateVm({
+      global: {
+        ...(stateVm().global as Record<string, unknown>),
+        root: "deadbeef00000000000000000000000000000000000000000000000000000000",
+      },
+    });
+    expect(compareCores(iden3Result(stateVm()), iden3Result(upstream))).toBe(
+      "mismatch",
+    );
+  });
+
+  it("mismatches on differing identity state or published flag", () => {
+    const differentState = stateVm({
+      info: {
+        ...(stateVm().info as Record<string, unknown>),
+        state:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+      },
+    });
+    expect(
+      compareCores(iden3Result(stateVm()), iden3Result(differentState)),
+    ).toBe("mismatch");
+    const unpublished = stateVm({ published: false, info: undefined });
+    expect(compareCores(iden3Result(stateVm()), iden3Result(unpublished))).toBe(
+      "mismatch",
+    );
+  });
+
+  it("reports unrecognized keyless methods as incomparable, never a match", () => {
+    const opaque = {
+      id: `${DID}#cond`,
+      type: "VerifiableCondition2021",
+      controller: DID,
+      conditionWeightedThreshold: [],
+    };
+    const doc = result({ id: DID, verificationMethod: [opaque] });
+    expect(compareCores(doc, doc)).toBe("incomparable");
+  });
+});
+
 describe("isVerificationExempt", () => {
   it("exempts NEAR implicit accounts only", () => {
     expect(isVerificationExempt("near", `did:near:${"a1".repeat(32)}`)).toBe(

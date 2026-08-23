@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-driver-xrpl",
+  "main": "index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // No secrets required: resolution reads public XRPL JSON-RPC endpoints.
+  // Optional overrides: XRPL_RPC_MAINNET_URL / XRPL_RPC_TESTNET_URL /
+  // XRPL_RPC_DEVNET_URL (network-ids 0 / 1 / 2).
+}

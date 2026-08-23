@@ -18,8 +18,9 @@ export const DEFAULT_CHAIN: Step[] = ["local", "godiddy", "archon"];
 
 /** Per-method chain overrides. */
 export const ROUTE_CHAINS: Record<string, Step[]> = {
-  // iden3: archon is authoritative first, then ThisDID, then godiddy.
-  iden3: ["archon", "local", "godiddy"],
+  // iden3: ThisDID's State-contract driver first (probation-checked against
+  // archon, which ran this route until 2026-08-21), then archon, then godiddy.
+  iden3: ["local", "archon", "godiddy"],
   // cid: ThisDID's chain-verifying driver first (probation-checked against
   // archon's cid Gatekeeper), then archon, then godiddy.
   cid: ["local", "archon", "godiddy"],
@@ -78,6 +79,10 @@ export const UPSTREAM_METHOD_SUPPORT: Partial<
     "plc",
     "cheqd",
     "ens",
+    // resolution-verified 2026-08-21 (legacy-program did:sol answered live).
+    "sol",
+    // resolution-verified 2026-08-21 (HCS testnet DID answered live).
+    "hedera",
   ]),
   goplausible: new Set(["algo", "nfd"]),
 };

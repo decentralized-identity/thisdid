@@ -17,6 +17,11 @@ export interface DriverBindings {
   DRIVER_ENS?: DriverServiceBinding;
   DRIVER_CID?: DriverServiceBinding;
   DRIVER_ION?: DriverServiceBinding;
+  DRIVER_SOL?: DriverServiceBinding;
+  DRIVER_IDEN3?: DriverServiceBinding;
+  DRIVER_POLYGONID?: DriverServiceBinding;
+  DRIVER_HEDERA?: DriverServiceBinding;
+  DRIVER_XRPL?: DriverServiceBinding;
 }
 
 /** Worker bindings (see wrangler.jsonc). */
