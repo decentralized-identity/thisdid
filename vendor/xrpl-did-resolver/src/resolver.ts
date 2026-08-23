@@ -37,17 +37,36 @@ import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
 
 export interface XrplResolverOptions {
-  /** Network-id → JSON-RPC base URL. Defaults to the three public networks. */
-  rpcUrls?: Record<string, string>;
+  /**
+   * Network-id → JSON-RPC base URL(s). A string pins one endpoint; an array
+   * is tried in order on TRANSPORT failures (a consensus answer — including
+   * `entryNotFound` — never falls through). Defaults below.
+   */
+  rpcUrls?: Record<string, string | string[]>;
   /** Per-request wall-clock bound. Default 6000 ms. */
   timeoutMs?: number;
 }
 
-/** Public JSON-RPC endpoints, keyed by the chain's own network_id. */
-const DEFAULT_RPC_URLS: Record<string, string> = {
-  "0": "https://xrplcluster.com",
-  "1": "https://s.altnet.rippletest.net:51234",
-  "2": "https://s.devnet.rippletest.net:51234",
+/**
+ * Public JSON-RPC endpoints, keyed by the chain's own network_id, with
+ * fallbacks (all resolution-verified live 23 Aug 2026): public clusters
+ * occasionally throttle shared Workers egress IPs, so a transport failure on
+ * one endpoint retries the next before the driver reports an error.
+ */
+const DEFAULT_RPC_URLS: Record<string, string[]> = {
+  "0": [
+    "https://xrplcluster.com",
+    "https://s1.ripple.com:51234",
+    "https://s2.ripple.com:51234",
+  ],
+  "1": [
+    "https://s.altnet.rippletest.net:51234",
+    "https://clio.altnet.rippletest.net:51234",
+  ],
+  "2": [
+    "https://s.devnet.rippletest.net:51234",
+    "https://clio.devnet.rippletest.net:51234",
+  ],
 };
 const NETWORK_LABELS: Record<string, string> = {
   "0": "mainnet",
@@ -514,8 +533,11 @@ export function getResolver(options?: XrplResolverOptions): ResolverRegistry {
       }
       const address = encodeAddress(accountId);
 
-      const rpcBase = rpcUrls[networkId]?.replace(/\/+$/, "");
-      if (!rpcBase) {
+      const configured = rpcUrls[networkId];
+      const endpoints = (
+        Array.isArray(configured) ? configured : configured ? [configured] : []
+      ).map((u) => u.replace(/\/+$/, ""));
+      if (!endpoints.length) {
         return errorResult(
           "notConfigured",
           `no XRPL endpoint configured for network-id \`${networkId}\``,
@@ -523,28 +545,56 @@ export function getResolver(options?: XrplResolverOptions): ResolverRegistry {
       }
       const network = NETWORK_LABELS[networkId] ?? `network-${networkId}`;
 
-      const response = await fetch(rpcBase, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          method: "ledger_entry",
-          params: [{ did: address, ledger_index: "validated" }],
-        }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok) {
-        return errorResult("networkError", `XRPL RPC HTTP ${response.status}`);
+      // Transport failures (unreachable, non-2xx, oversized, malformed, or
+      // an RPC-level error other than entryNotFound — e.g. slowDown/tooBusy)
+      // fall through to the next endpoint; a consensus answer never does.
+      let result: LedgerEntryResult | null = null;
+      let lastTransportError = "no endpoint answered";
+      for (const rpcBase of endpoints) {
+        try {
+          const response = await fetch(rpcBase, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              method: "ledger_entry",
+              params: [{ did: address, ledger_index: "validated" }],
+            }),
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (!response.ok) {
+            lastTransportError = `XRPL RPC HTTP ${response.status}`;
+            continue;
+          }
+          const text = await readBounded(response);
+          if (text === null) {
+            lastTransportError = "response exceeds size bound";
+            continue;
+          }
+          let parsed: LedgerEntryResult;
+          try {
+            parsed = (JSON.parse(text) as { result?: LedgerEntryResult })
+              .result!;
+            if (!parsed || typeof parsed !== "object") throw new Error("shape");
+          } catch {
+            lastTransportError = "malformed XRPL RPC response";
+            continue;
+          }
+          if (parsed.error && parsed.error !== "entryNotFound") {
+            lastTransportError =
+              parsed.error_message ?? parsed.error ?? "XRPL RPC error";
+            continue;
+          }
+          result = parsed;
+          break;
+        } catch (cause) {
+          lastTransportError =
+            cause instanceof Error
+              ? cause.message.slice(0, 200)
+              : "fetch failed";
+        }
       }
-      const text = await readBounded(response);
-      if (text === null) {
-        return errorResult("networkError", "response exceeds size bound");
-      }
-      let result: LedgerEntryResult;
-      try {
-        result = (JSON.parse(text) as { result?: LedgerEntryResult }).result!;
-        if (!result || typeof result !== "object") throw new Error("shape");
-      } catch {
-        return errorResult("networkError", "malformed XRPL RPC response");
+      if (result === null) {
+        return errorResult("networkError", lastTransportError);
       }
 
       // equivalentId: both forms of the DID name the same ledger entry.

@@ -9,10 +9,11 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",
       "probe/src/**/*.test.ts",
+      "directory/src/**/*.test.ts",
       "web/src/**/*.test.ts",
     ],
     coverage: {
-      include: ["src/**/*.ts", "probe/src/**/*.ts"],
+      include: ["src/**/*.ts", "probe/src/**/*.ts", "directory/src/**/*.ts"],
       exclude: ["**/*.test.ts"],
     },
   },

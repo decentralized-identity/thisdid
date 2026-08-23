@@ -8,10 +8,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "vars": {
-    // Public NEAR JSON-RPC endpoints (no credentials). A keyed provider URL
+    // FastNear's free public JSON-RPC (the official successor to the
+    // deprecated rpc.*.near.org endpoints, which now aggressively throttle
+    // shared egress IPs — canary failures, 23 Aug 2026). A keyed provider URL
     // should instead be set as a secret and these vars removed.
-    "NEAR_RPC_MAINNET_URL": "https://rpc.mainnet.near.org",
-    "NEAR_RPC_TESTNET_URL": "https://rpc.testnet.near.org",
+    "NEAR_RPC_MAINNET_URL": "https://free.rpc.fastnear.com",
+    "NEAR_RPC_TESTNET_URL": "https://test.rpc.fastnear.com",
     // NEAR_REGISTRY_CONTRACT_MAINNET / NEAR_REGISTRY_CONTRACT_TESTNET are
     // unset until a DID registry contract is chosen; base58 registry
     // identifiers return notConfigured meanwhile.

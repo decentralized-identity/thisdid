@@ -1,6 +1,7 @@
 /**
  * thisdid-probe — connected sub-worker that health-checks every resolver route
- * with real canary DID resolutions once per minute (cron `* * * * *`).
+ * with real canary DID resolutions every five minutes (see the cron trigger
+ * in probe/wrangler.jsonc).
  *
  * Each round:
  *   - fires all canaries in parallel (same 8s bound as live traffic),
@@ -30,6 +31,7 @@ import {
   type ProviderHealth,
   type ProviderStatus,
 } from "../../src/routing/health";
+import { recordStatusTransitions, runRollups, type StatusMap } from "./rollup";
 
 interface ProbeEnv extends DriverBindings {
   GODIDDY_RESOLVER: string;
@@ -158,7 +160,8 @@ const RETENTION_MS = 30 * 24 * 3600 * 1000;
 const DEFAULT_GODIDDY_HEALTH = "https://api.godiddy.com/health";
 
 // Health-fold tuning: latency EWMA reacts in ~3 rounds, success rate in ~7;
-// 3 all-canary-failed rounds (~3 min) trips "down"; EWMA above 4s reads "degraded".
+// 3 all-canary-failed rounds (~15 min at the 5-min cadence) trips "down";
+// EWMA above 4s reads "degraded".
 const EWMA_LATENCY = 0.3;
 const EWMA_SUCCESS = 0.15;
 const BREAKER_FAILS = 3;
@@ -362,19 +365,30 @@ async function runRound(env: ProbeEnv): Promise<void> {
   ];
   const results = await Promise.all(canaries.map((c) => probeOne(c, env)));
 
-  // Snapshot first — it is what routing decisions will read.
+  // Snapshot first — it is what routing decisions will read. Status changes
+  // are also journaled to D1 (`provider_status_events`): the snapshot is
+  // overwritten every round, and the journal is what preserves uptime
+  // intervals and flap history for the rollups.
+  let prevStatuses: StatusMap = {};
+  let nextStatuses: StatusMap = {};
   if (env.STATS_KV) {
     try {
       const raw = await env.STATS_KV.get(HEALTH_KEY);
       const prev = raw ? (JSON.parse(raw) as HealthSnapshot) : null;
-      await env.STATS_KV.put(
-        HEALTH_KEY,
-        JSON.stringify(fold(prev, results, now)),
-      );
+      const next = fold(prev, results, now);
+      await env.STATS_KV.put(HEALTH_KEY, JSON.stringify(next));
+      for (const [key, p] of Object.entries(prev?.providers ?? {})) {
+        if (p) prevStatuses[key] = p.status;
+      }
+      for (const [key, p] of Object.entries(next.providers)) {
+        if (p) nextStatuses[key] = p.status;
+      }
     } catch (err) {
       console.error(
         JSON.stringify({ event: "probe.snapshot_error", error: String(err) }),
       );
+      prevStatuses = {};
+      nextStatuses = {};
     }
   }
 
@@ -398,6 +412,7 @@ async function runRound(env: ProbeEnv): Promise<void> {
           ),
         ),
       );
+      await recordStatusTransitions(env.DB, prevStatuses, nextStatuses, now);
     } catch (err) {
       console.error(
         JSON.stringify({ event: "probe.d1_error", error: String(err) }),
@@ -435,8 +450,24 @@ async function prune(env: ProbeEnv): Promise<void> {
 export default {
   async scheduled(ctrl, env, ctx) {
     await runRound(env);
-    // Housekeeping once an hour, off the round path.
-    if (new Date(ctrl.scheduledTime).getUTCMinutes() === 0)
+    // Housekeeping once an hour, off the round path: raw-log pruning and the
+    // durable stats rollups (hourly provider stats, daily method stats),
+    // cursor-driven so missed ticks self-heal and history backfills itself.
+    if (new Date(ctrl.scheduledTime).getUTCMinutes() === 0) {
       ctx.waitUntil(prune(env));
+      if (env.DB) {
+        const db = env.DB;
+        ctx.waitUntil(
+          runRollups(db, Date.now()).catch((err) =>
+            console.error(
+              JSON.stringify({
+                event: "probe.rollup_error",
+                error: String(err),
+              }),
+            ),
+          ),
+        );
+      }
+    }
   },
 } satisfies ExportedHandler<ProbeEnv>;

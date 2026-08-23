@@ -10,7 +10,7 @@ is routed to redundant upstream Universal Resolvers with failover. Newly added e
 under a **verification guarantee** — wherever an independent upstream can resolve the method,
 every resolution is double-checked in parallel against it until the driver's live match-rate
 earns its graduation (methods no upstream serves are honestly stamped `unverified`). A connected **probe
-sub-worker** health-checks every route with real canary DID resolutions every minute, feeding the
+sub-worker** health-checks every route with real canary DID resolutions every five minutes, feeding the
 engine live per-resolver health (surfaced at [`/status`](https://thisdid.com/status)). The same
 edge Worker serves the landing SPA and the JSON resolver API from a single origin via content
 negotiation.
@@ -153,21 +153,22 @@ metadata apply regardless of which resolver flavor succeeds.
         nineteen independently deployed private driver Workers (src/driver-workers/)
 
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
-│  cron `* * * * *`  →  one canary DID resolution round per route every minute │
+│  cron `*/5 * * * *` →  one canary DID resolution round per route every 5 min │
 │  results → D1 `probes` log  +  KV `routing:health:v2` snapshot → GET /status │
 │  shares the main Worker's D1 + KV by id · never sits on the request path     │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Path                    | What it is                                                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/`                  | The Cloudflare Worker — the ThisDID Resolver API and SPA host.                                                                                                                                                           |
-| `src/driver-workers/`   | Private Tier 1 Worker entrypoints; each directly consumes one published or vendored resolver package.                                                                                                                    |
-| `web/`                  | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`.                                                                                                                                                  |
-| `vendor/did-resolver`   | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**.                                                                                                                   |
-| `vendor/*-did-resolver` | ThisDID-custodied `@thisdid/*` driver packages (webvh, plc, near, jwk, cheqd, dns, ens, cid, sol, iden3, hedera, xrpl — plus the parked ion driver); each documents its trust model and exit criteria in its own README. |
-| `probe/`                | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`).                                                                                                 |
-| `wrangler.jsonc`        | Worker + static-assets config.                                                                                                                                                                                           |
+| Path                    | What it is                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/`                  | The Cloudflare Worker — the ThisDID Resolver API and SPA host.                                                                                                                                                                                                                                                              |
+| `src/driver-workers/`   | Private Tier 1 Worker entrypoints; each directly consumes one published or vendored resolver package.                                                                                                                                                                                                                       |
+| `web/`                  | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`.                                                                                                                                                                                                                                                     |
+| `vendor/did-resolver`   | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**.                                                                                                                                                                                                                      |
+| `vendor/*-did-resolver` | ThisDID-custodied `@thisdid/*` driver packages (webvh, plc, near, jwk, cheqd, dns, ens, cid, sol, iden3, hedera, xrpl — plus the parked ion driver); each documents its trust model and exit criteria in its own README.                                                                                                    |
+| `probe/`                | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`).                                                                                                                                                                                                    |
+| `directory/`            | The **thisdid-directory** worker — the public DID method directory at [thisdid.com/directory](https://thisdid.com/directory): curated per-method research + live measured scores from the shared analytics, with a daily DIF registry sync (Universal Resolver compose catalog + DID Methods WG recommended/endorsed sets). |
+| `wrangler.jsonc`        | Worker + static-assets config.                                                                                                                                                                                                                                                                                              |
 
 ### Isolated TypeScript driver Workers
 
@@ -358,8 +359,8 @@ and unresolvable by upstreams).
 #### Resolver health probes (`thisdid-probe`)
 
 The routing engine is fed by a **connected sub-worker** ([`probe/`](probe/)) that pings every
-route with **real canary DID resolutions** — not TCP checks — **once per minute**
-(cron `* * * * *`). One canary per authoritative route, each bounded by the same 8s timeout as
+route with **real canary DID resolutions** — not TCP checks — **every five minutes**
+(cron `*/5 * * * *`). One canary per authoritative route, each bounded by the same 8s timeout as
 live traffic: a resolution-verified canary per TypeScript driver (`web`, `key`, `pkh`, `peer`,
 `webvh`, `plc`, `ebsi`, `jwk`, `cheqd`, `dns`, `cid`, `sol`, `iden3`, `polygonid`, `hedera`,
 `xrpl`, and two for `near` — an offline implicit account plus a live mainnet RPC account; the
@@ -382,8 +383,18 @@ Each round is recorded twice:
   traffic never pollutes user analytics.
 - **KV `routing:health:v2` snapshot** — per upstream provider and isolated driver: `status`
   (`up`/`degraded`/`down`), EWMA
-  latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 3 min
+  latency, rolling success rate, and a consecutive-failure counter (3 all-failed rounds ≈ 15 min
   trips `down`).
+
+On its hourly housekeeping tick the probe worker additionally writes **durable stats history**
+to D1 ([`migrations/0004_stats_rollups.sql`](migrations/0004_stats_rollups.sql)):
+`provider_stats_hourly` (per provider × UTC hour — probe health, routed live traffic,
+verification agreement, status-transition counts) and `method_stats_daily` (per method × UTC
+day — popularity/availability history). Status changes are journaled to
+`provider_status_events` the minute they happen, so uptime intervals survive the snapshot's
+per-round overwrite. The rollups are idempotent and cursor-driven (`rollup_state`): a missed
+tick self-heals, and a fresh deployment backfills automatically from the earliest raw rows.
+This is the data feed for the upcoming ThisDID Directory's provider reliability scores.
 
 The snapshot + 24h aggregates are public at **`GET /status`**. The probe worker connects to the
 main Worker only through the shared D1 + KV namespaces — it never sits on the request path, so
@@ -452,7 +463,7 @@ Alchemy URLs.
 ```bash
 npm run build          # → all vendored package libs + web/dist
 npm run deploy:drivers # deploy nineteen isolated driver Workers first
-npm run deploy         # deploy the mother Worker only
+npm run deploy         # build, deploy the directory worker, then the mother Worker
 npm run deploy:all     # deploy drivers, then probe, then mother Worker
 npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)
 npm run dev:probe      # probe worker locally; trigger: GET /__scheduled?cron=*+*+*+*+*

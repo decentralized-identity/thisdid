@@ -102,8 +102,8 @@ export function Header({ mode, setMode, onScan }: Props) {
           <a href="#providers" style={navLink}>
             Providers
           </a>
-          <a href="#network" style={navLink}>
-            Network
+          <a href="/directory" style={navLink}>
+            Directory
           </a>
           <a
             href="/docs"

@@ -363,6 +363,17 @@ app.get("/analytics", async (c) => {
 // Legacy path — permanently moved (keeps old links and bookmarks working).
 app.get("/dashboard", (c) => c.redirect("/analytics", 301));
 
+// ── /directory — the thisdid-directory worker under the main origin ─────────
+// Normally the directory's own route (thisdid.com/directory*) answers before
+// this Worker ever sees the request; this Service-Binding proxy is the
+// guaranteed fallback so /directory works regardless of route precedence.
+app.all("/directory", (c) =>
+  c.env.DIRECTORY ? c.env.DIRECTORY.fetch(c.req.raw) : c.notFound(),
+);
+app.all("/directory/*", (c) =>
+  c.env.DIRECTORY ? c.env.DIRECTORY.fetch(c.req.raw) : c.notFound(),
+);
+
 // ── Root & DID-at-root: content-negotiate SPA vs. JSON resolution ──────────
 // `did:...` deep links (e.g. thisdid.com/did:web:example.com) resolve to JSON
 // when JSON is requested, otherwise fall through to the SPA which reads them.

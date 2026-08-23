@@ -5,8 +5,8 @@
   "compatibility_date": "2024-12-18",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // One probe round per minute.
-  "triggers": { "crons": ["* * * * *"] },
+  // One probe round every five minutes.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     // Same upstream Universal Resolver bases as the main Worker (wrangler.jsonc).
     "GODIDDY_RESOLVER": "https://api.godiddy.com/1.0.0/universal-resolver/identifiers",

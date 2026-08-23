@@ -29,8 +29,12 @@
  */
 import type { ResolverRegistry } from "did-resolver";
 export interface XrplResolverOptions {
-    /** Network-id → JSON-RPC base URL. Defaults to the three public networks. */
-    rpcUrls?: Record<string, string>;
+    /**
+     * Network-id → JSON-RPC base URL(s). A string pins one endpoint; an array
+     * is tried in order on TRANSPORT failures (a consensus answer — including
+     * `entryNotFound` — never falls through). Defaults below.
+     */
+    rpcUrls?: Record<string, string | string[]>;
     /** Per-request wall-clock bound. Default 6000 ms. */
     timeoutMs?: number;
 }

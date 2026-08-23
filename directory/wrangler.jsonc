@@ -1,0 +1,33 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-directory",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  // The public DID method + provider directory, served under the MAIN
+  // origin at thisdid.com/directory — one product, one domain. The explicit
+  // route takes precedence over the mother Worker for this prefix; the
+  // mother also carries a DIRECTORY service-binding proxy as a guaranteed
+  // fallback, so /directory works regardless of route/custom-domain
+  // precedence.
+  "routes": [
+    { "pattern": "thisdid.com/directory*", "zone_name": "thisdid.com" },
+  ],
+  // Daily DIF registry sync: universal-resolver docker-compose driver catalog
+  // + the DID Methods WG dif-recommended / dif-endorsed sets.
+  "triggers": { "crons": ["17 3 * * *"] },
+  // D1-ONLY by design: the directory shares the main Worker's analytics D1
+  // (same id as ../wrangler.jsonc) — reading the event logs + phase-0
+  // rollups, and writing ONLY its own small `directory_store` table
+  // (migrations/0005_directory_store.sql). No KV involvement.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thisdid-analytics",
+      "database_id": "509d9b5e-5fd1-4271-bb2b-5dfe73715770",
+    },
+  ],
+}

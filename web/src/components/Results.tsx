@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import type { ResultView } from "../lib/api";
+import { FEATURED_METHODS } from "../lib/methods";
 import * as Icon from "../icons";
 
 const card = {
@@ -370,69 +371,87 @@ function Overview({
   view: ResultView;
   copy: (t: string) => void;
 }) {
+  const featured = FEATURED_METHODS.find((m) => m.id === view.method);
+  const glyph = featured?.glyph ?? view.method.charAt(0).toUpperCase();
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-      {/* identity + health */}
+      {/* method + health */}
       <div
         className="split-2"
-        style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
       >
-        <div style={card}>
+        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
           <div style={cardHead}>
-            <span style={iconTile(true)}>
-              <Icon.Person />
-            </span>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>
-              Subject Identity
-            </span>
             <span
               style={{
-                marginLeft: "auto",
-                fontSize: 11.5,
+                ...iconTile(true),
+                fontFamily: "'Space Grotesk'",
                 fontWeight: 700,
-                color: "#57b96a",
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
+                fontSize: 15,
               }}
             >
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: "#57b96a",
-                }}
-              />
-              {view.deactivated === "Yes" ? "Deactivated" : "Active"}
+              {glyph}
             </span>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>
+              {view.methodTag}
+            </span>
+            <a
+              href={`/directory/method/${view.method}`}
+              style={{
+                marginLeft: "auto",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--accent-bright)",
+                textDecoration: "none",
+              }}
+            >
+              View in Directory →
+            </a>
           </div>
-          <div
-            style={{
-              fontFamily: "'IBM Plex Mono'",
-              fontSize: 14,
-              lineHeight: 1.55,
-              wordBreak: "break-all",
-              padding: "12px 14px",
-              borderRadius: 11,
-              background: "var(--surface2)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {view.did}
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
-            <Field label="Controller" value={view.controllerShort} mono />
-            <Field label="Deactivated" value={view.deactivated} />
-            <Field label="Created" value={view.created} />
-            <Field label="Updated" value={view.updated} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+            {featured?.desc && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--dim)",
+                  lineHeight: 1.5,
+                  marginBottom: 2,
+                }}
+              >
+                {featured.desc}
+              </div>
+            )}
+            {[
+              { label: "Network", value: view.network },
+              { label: "Resolved by", value: view.resolver },
+              {
+                label: "Route",
+                value: view.route === "local" ? "Edge driver" : "Upstream",
+              },
+              { label: "Latency", value: view.duration },
+            ].map((row) => (
+              <div
+                key={row.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span style={{ fontSize: 13.5, color: "var(--dim)" }}>
+                  {row.label}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Space Grotesk'",
+                    fontWeight: 700,
+                    fontSize: 14,
+                  }}
+                >
+                  {row.value}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -471,6 +490,66 @@ function Overview({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* subject identity — full width */}
+      <div style={card}>
+        <div style={cardHead}>
+          <span style={iconTile(true)}>
+            <Icon.Person />
+          </span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>
+            Subject Identity
+          </span>
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: "#57b96a",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "#57b96a",
+              }}
+            />
+            {view.deactivated === "Yes" ? "Deactivated" : "Active"}
+          </span>
+        </div>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Mono'",
+            fontSize: 14,
+            lineHeight: 1.55,
+            wordBreak: "break-all",
+            padding: "12px 14px",
+            borderRadius: 11,
+            background: "var(--surface2)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {view.did}
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          <Field label="Controller" value={view.controllerShort} mono />
+          <Field label="Deactivated" value={view.deactivated} />
+          <Field label="Created" value={view.created} />
+          <Field label="Updated" value={view.updated} />
         </div>
       </div>
 

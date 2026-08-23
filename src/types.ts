@@ -27,6 +27,8 @@ export interface DriverBindings {
 /** Worker bindings (see wrangler.jsonc). */
 export interface Env extends DriverBindings {
   ASSETS: Fetcher;
+  /** thisdid-directory worker — fallback proxy for /directory (see index.ts). */
+  DIRECTORY?: Fetcher;
   /** godiddy Universal Resolver base (path prefix, DID appended). */
   GODIDDY_RESOLVER: string;
   /** godiddy API key / OAuth2 token (secret). Sent as `Authorization: Bearer`. Optional. */

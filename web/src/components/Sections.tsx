@@ -498,6 +498,7 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
 
 const PROVIDERS = [
   {
+    id: "godiddy",
     name: "Godiddy",
     by: "Danube Tech",
     glyph: "G",
@@ -507,6 +508,7 @@ const PROVIDERS = [
     href: "https://godiddy.com",
   },
   {
+    id: "archon",
     name: "Archon",
     by: "Archon Technology",
     glyph: "A",
@@ -516,6 +518,7 @@ const PROVIDERS = [
     href: "https://archon.technology",
   },
   {
+    id: "goplausible",
     name: "GoPlausible",
     by: "GoPlausible",
     glyph: "G",
@@ -549,13 +552,10 @@ export function ResolverProviders() {
         }}
       >
         {PROVIDERS.map((p) => (
-          <a
+          <div
             key={p.name}
-            href={p.href}
-            target="_blank"
-            rel="noopener noreferrer"
             style={{
-              textDecoration: "none",
+              position: "relative",
               color: "var(--text)",
               display: "flex",
               flexDirection: "column",
@@ -567,6 +567,12 @@ export function ResolverProviders() {
               boxShadow: "var(--shadow)",
             }}
           >
+            <a
+              href={`/directory/provider/${p.id}`}
+              title={`${p.name} in the provider directory`}
+              aria-label={`${p.name} in the provider directory`}
+              style={{ position: "absolute", inset: 0, borderRadius: 18 }}
+            />
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span
                 style={{
@@ -605,9 +611,20 @@ export function ResolverProviders() {
                   by {p.by}
                 </div>
               </div>
-              <span style={{ marginLeft: "auto", color: "var(--dim)" }}>
+              <a
+                href={p.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${p.href.replace("https://", "")}`}
+                style={{
+                  marginLeft: "auto",
+                  color: "var(--dim)",
+                  position: "relative",
+                  zIndex: 1,
+                }}
+              >
                 <Icon.ExternalArrow size={16} />
-              </span>
+              </a>
             </div>
             <div
               style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--dim)" }}
@@ -627,7 +644,7 @@ export function ResolverProviders() {
             >
               {p.resolver}
             </div>
-          </a>
+          </div>
         ))}
       </div>
     </section>
@@ -803,6 +820,8 @@ export function Footer() {
       </div>
 
       <nav className="footer-links" aria-label="Footer navigation">
+        <a href="/directory">Directory</a>
+        <a href="/directory/providers">Providers</a>
         <a href="/analytics">Analytics</a>
         <a href="/docs">API docs</a>
         <a

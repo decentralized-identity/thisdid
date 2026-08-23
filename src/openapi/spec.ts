@@ -6,7 +6,7 @@ export function openApiSpec(origin: string) {
     openapi: "3.1.0",
     info: {
       title: "ThisDID DIF Universal DID Resolver API",
-      version: "2.0.1",
+      version: "2.1.0",
       description:
         "ThisDID is a W3C DID Core-conformant DIF Universal DID Resolver. It implements the DIF " +
         "Universal Resolver HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method " +
@@ -136,7 +136,7 @@ export function openApiSpec(origin: string) {
           summary: "Per-resolver route health",
           description:
             "Live health of every resolver route (ThisDID local, GoPlausible, godiddy, archon), fed by " +
-            "the thisdid-probe sub-worker: canary DID resolutions every minute (godiddy is probed via " +
+            "the thisdid-probe sub-worker: canary DID resolutions every five minutes (godiddy is probed via " +
             "its unmetered health endpoint instead — its public resolver API is quota-throttled, and a " +
             "throttled canary would misread as an outage). Returns the current " +
             "snapshot (status, EWMA latency, rolling success rate, consecutive failures) plus 24h " +

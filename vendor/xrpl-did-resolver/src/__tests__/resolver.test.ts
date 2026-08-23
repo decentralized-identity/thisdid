@@ -546,6 +546,40 @@ describe("did:xrpl validation", () => {
 });
 
 describe("did:xrpl transport hardening", () => {
+  it("falls back to the next public endpoint on a transport failure", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        calls.push(String(input));
+        if (calls.length === 1) return new Response("busy", { status: 503 });
+        return Response.json(MAINNET_RESPONSE);
+      }),
+    );
+    const result = await resolve(MAINNET_DID);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocument).toEqual(MAINNET_REFERENCE_DOCUMENT);
+    expect(calls).toEqual([
+      "https://xrplcluster.com",
+      "https://s1.ripple.com:51234",
+    ]);
+  });
+
+  it("never falls through on a consensus answer (entryNotFound is final)", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        calls.push(String(input));
+        return Response.json(NOTFOUND_RESPONSE);
+      }),
+    );
+    const result = await resolve(`did:xrpl:0:${NOTFOUND_ADDRESS}`);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.implicit).toBe(true);
+    expect(calls).toEqual(["https://xrplcluster.com"]);
+  });
+
   it("maps RPC transport failures to networkError", async () => {
     vi.stubGlobal(
       "fetch",

@@ -49,6 +49,9 @@
     { "binding": "DRIVER_POLYGONID", "service": "thisdid-driver-polygonid" },
     { "binding": "DRIVER_HEDERA", "service": "thisdid-driver-hedera" },
     { "binding": "DRIVER_XRPL", "service": "thisdid-driver-xrpl" },
+    // The directory worker — /directory fallback proxy (its own route
+    // normally answers first); deploy thisdid-directory before the mother.
+    { "binding": "DIRECTORY", "service": "thisdid-directory" },
   ],
   // Analytics: D1 = authoritative per-resolution event log; KV = live counter + dashboard cache.
   // Create them and paste the ids below:

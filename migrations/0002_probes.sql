@@ -1,5 +1,5 @@
 -- Resolver health probes: one row per canary DID resolution fired by the
--- thisdid-probe sub-worker (cron, one-minute cadence). Kept separate from
+-- thisdid-probe sub-worker (cron, five-minute cadence). Kept separate from
 -- `resolutions` so probe traffic never pollutes user-facing analytics.
 CREATE TABLE IF NOT EXISTS probes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
