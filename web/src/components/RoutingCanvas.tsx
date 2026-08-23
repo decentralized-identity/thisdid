@@ -10,6 +10,8 @@ interface Palette {
   text: string;
   ring: string;
   glow: string;
+  badgeBg: string;
+  good: string;
 }
 
 function palette(dark: boolean): Palette {
@@ -24,6 +26,8 @@ function palette(dark: boolean): Palette {
         text: "rgba(244,239,230,0.55)",
         ring: "rgba(217,119,87,0.5)",
         glow: "rgba(217,119,87,0.4)",
+        badgeBg: "rgba(22,19,15,0.85)",
+        good: "#57b96a",
       }
     : {
         line: "rgba(30,24,16,0.10)",
@@ -35,6 +39,8 @@ function palette(dark: boolean): Palette {
         text: "rgba(60,50,40,0.6)",
         ring: "rgba(201,99,63,0.45)",
         glow: "rgba(201,99,63,0.25)",
+        badgeBg: "rgba(255,255,255,0.9)",
+        good: "#2f8f47",
       };
 }
 
@@ -265,7 +271,7 @@ export function RoutingCanvas({
       ctx.lineWidth = 1.4;
       ctx.setLineDash([4, 9]);
       ctx.beginPath();
-      ctx.arc(hub.x, hub.y, 34 * S, t * 0.5, t * 0.5 + Math.PI * 2);
+      ctx.arc(hub.x, hub.y, 34 * S, t * 0.375, t * 0.375 + Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
@@ -275,7 +281,7 @@ export function RoutingCanvas({
         const a = pts[pk.seg].p;
         const b = pts[pk.seg + 1].p;
         const segLen = dist(a, b) || 1;
-        pk.p += (pk.sp * 150 * dt) / segLen;
+        pk.p += (pk.sp * 75 * dt) / segLen; // 50% of the original pace
         while (pk.p >= 1) {
           pk.p -= 1;
           pk.seg++;
@@ -293,7 +299,13 @@ export function RoutingCanvas({
         const b2 = pts[pk.seg + 1].p;
         const x = a2.x + (b2.x - a2.x) * pk.p;
         const y = a2.y + (b2.y - a2.y) * pk.p;
-        const col = pk.direct ? pal.accent : rc[pk.ri];
+        // Payload legs: a green DID rides out; the DOC rides back wearing
+        // the answering provider's color (accent = the ThisDID edge).
+        const turn = pts.findIndex((pt) => pt.k === (pk.direct ? "h" : "r"));
+        const returning = turn >= 0 && pk.seg >= turn;
+        const label = returning ? "DOC" : "DID";
+        const providerCol = pk.direct ? pal.accent : rc[pk.ri];
+        const col = returning ? providerCol : pal.good;
         ctx.save();
         ctx.shadowColor = col;
         ctx.shadowBlur = 12 * S;
@@ -301,6 +313,28 @@ export function RoutingCanvas({
         ctx.beginPath();
         ctx.arc(x, y, 3.1 * S, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+
+        const fs = 7.5 * S;
+        ctx.save();
+        ctx.font = `700 ${fs}px 'IBM Plex Mono', monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const tw = ctx.measureText(label).width;
+        const bw = tw + 8 * S;
+        const bh = 11 * S;
+        const bx = x - bw / 2;
+        const by = y - 15 * S;
+        ctx.fillStyle = pal.badgeBg;
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.92;
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, bh, 4 * S);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = col;
+        ctx.fillText(label, x, by + bh / 2 + 0.5);
         ctx.restore();
       }
 
@@ -316,7 +350,7 @@ export function RoutingCanvas({
           ctx.arc(p.x, p.y, (7 + (1 - m.pulse) * 13) * S, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
-          m.pulse = Math.max(0, m.pulse - dt * 2);
+          m.pulse = Math.max(0, m.pulse - dt * 1.5);
         }
         if (countryModeRef.current) {
           ctx.font = `${(16 * S).toFixed(1)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
@@ -353,7 +387,7 @@ export function RoutingCanvas({
           ctx.arc(p.x, p.y, (10 + (1 - r.pulse) * 17) * S, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
-          r.pulse = Math.max(0, r.pulse - dt * 1.8);
+          r.pulse = Math.max(0, r.pulse - dt * 1.35);
         }
         ctx.save();
         ctx.shadowColor = col;
@@ -377,7 +411,7 @@ export function RoutingCanvas({
         ctx.arc(hub.x, hub.y, (26 + (1 - hubPulse) * 40) * S, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
-        hubPulse = Math.max(0, hubPulse - dt * 1.6);
+        hubPulse = Math.max(0, hubPulse - dt * 1.2);
       }
       const grd = ctx.createRadialGradient(
         hub.x,
