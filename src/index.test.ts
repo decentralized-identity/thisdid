@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import app from "./index";
+import { resetDifBadgesCache } from "./dif-badges";
 import type { Env } from "./types";
 
 const env = {
@@ -145,5 +146,66 @@ describe("HTTP binding", () => {
       ctx,
     );
     expect(res.status).toBe(429);
+  });
+});
+
+describe("/methods DIF badge enrichment", () => {
+  const request = (extra: Partial<Env>) =>
+    app.request(
+      "/methods",
+      { headers: { accept: "application/json" } },
+      { ...(env as object), ...extra } as Env,
+      ctx,
+    );
+
+  it("serves fallback recommended badges when D1 is absent", async () => {
+    resetDifBadgesCache();
+    const res = await request({});
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      dif: { recommended: { id: string }[]; endorsed: unknown[] };
+    };
+    expect(body.dif.recommended.map((r) => r.id)).toEqual([
+      "cid",
+      "ethr",
+      "hedera",
+      "webplus",
+      "webvh",
+    ]);
+    expect(body.dif.endorsed).toEqual([]);
+  });
+
+  it("serves synced sets when D1 holds a valid current-version registry", async () => {
+    resetDifBadgesCache();
+    const stored = JSON.stringify({
+      v: 2,
+      syncedAt: 7,
+      recommended: [{ id: "webvh", url: "https://x/findings-did-webvh.md" }],
+      endorsed: [{ id: "cid", url: "https://x/endorsed.md" }],
+    });
+    const DB = {
+      prepare: () => ({ first: async () => ({ value: stored }) }),
+    } as unknown as Env["DB"];
+    const res = await request({ DB });
+    const body = (await res.json()) as {
+      dif: { syncedAt: number; recommended: { id: string }[] };
+    };
+    expect(body.dif.syncedAt).toBe(7);
+    expect(body.dif.recommended.map((r) => r.id)).toEqual(["webvh"]);
+  });
+
+  it("still answers when the D1 read throws", async () => {
+    resetDifBadgesCache();
+    const DB = {
+      prepare: () => ({
+        first: async () => {
+          throw new Error("no such table: directory_store");
+        },
+      }),
+    } as unknown as Env["DB"];
+    const res = await request({ DB });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { dif: { recommended: unknown[] } };
+    expect(body.dif.recommended.length).toBeGreaterThan(0);
   });
 });

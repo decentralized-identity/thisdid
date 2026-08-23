@@ -61,3 +61,47 @@ export function useCopy(timeout = 1400) {
   );
   return { copied, copy };
 }
+
+/** DIF Recommended/Endorsed badge sets, fetched from /methods (id → findings URL). */
+export interface DifBadgeSets {
+  recommended: Record<string, string>;
+  endorsed: Record<string, string>;
+}
+
+export function useDifBadges(): DifBadgeSets {
+  const [sets, setSets] = useState<DifBadgeSets>({
+    recommended: {},
+    endorsed: {},
+  });
+  useEffect(() => {
+    let active = true;
+    const toMap = (list: unknown): Record<string, string> =>
+      Object.fromEntries(
+        (Array.isArray(list) ? list : [])
+          .filter(
+            (e): e is { id: string; url: string } =>
+              !!e &&
+              typeof e.id === "string" &&
+              typeof e.url === "string" &&
+              e.url.startsWith("https://"),
+          )
+          .map((e) => [e.id, e.url]),
+      );
+    fetch("/methods", { headers: { accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!active || !d?.dif) return;
+        setSets({
+          recommended: toMap(d.dif.recommended),
+          endorsed: toMap(d.dif.endorsed),
+        });
+      })
+      .catch(() => {
+        /* offline / dev without worker — badges gracefully absent */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return sets;
+}

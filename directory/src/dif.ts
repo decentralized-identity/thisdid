@@ -17,9 +17,10 @@
 import { storeGet, storePut } from "./store";
 import type { DifRegistry, Env } from "./types";
 
+import { DIF_REGISTRY_VERSION } from "../../src/dif-registry-contract";
+
 export const DIF_REGISTRY_KEY = "dif-registry";
-/** Bump when DifRegistry's stored shape changes. */
-export const DIF_REGISTRY_VERSION = 2;
+export { DIF_REGISTRY_VERSION };
 
 const UR_RAW =
   "https://raw.githubusercontent.com/decentralized-identity/universal-resolver/main";

@@ -6,6 +6,7 @@ import {
   mixHex,
 } from "../lib/methods";
 import * as Icon from "../icons";
+import { useDifBadges } from "../hooks";
 
 const h2 = {
   fontFamily: "'Space Grotesk'",
@@ -320,6 +321,7 @@ export function HowItWorks() {
 }
 
 export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
+  const dif = useDifBadges();
   const graded = FEATURED_METHODS.map((m, i) => ({
     ...m,
     color: mixHex(
@@ -345,17 +347,16 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))",
+          gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))",
           gap: 14,
         }}
       >
         {graded.map((m) => (
-          <button
+          <div
             key={m.id}
-            onClick={() => onResolve(m.example)}
             style={{
+              position: "relative",
               textAlign: "left",
-              cursor: "pointer",
               padding: 18,
               borderRadius: 16,
               border: "1px solid var(--border)",
@@ -366,6 +367,19 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
               gap: 14,
             }}
           >
+            <button
+              onClick={() => onResolve(m.example)}
+              aria-label={`Resolve the ${m.name} example`}
+              title={`Resolve ${m.example}`}
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: 16,
+                border: 0,
+                background: "transparent",
+                cursor: "pointer",
+              }}
+            />
             <span
               style={{
                 display: "flex",
@@ -376,53 +390,86 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
             >
               <span
                 style={{
-                  width: 38,
+                  flex: "none",
                   height: 38,
+                  padding: "0 13px",
                   borderRadius: 11,
                   display: "grid",
                   placeItems: "center",
-                  fontFamily: "'Space Grotesk'",
+                  fontFamily: "'IBM Plex Mono'",
                   fontWeight: 700,
-                  fontSize: 16,
+                  fontSize: 14,
                   color: m.color,
                   background: `color-mix(in srgb, ${m.color} 16%, var(--surface2))`,
                   border: `1px solid color-mix(in srgb, ${m.color} 28%, transparent)`,
                 }}
               >
-                {m.glyph}
+                {m.name}
               </span>
-              {m.probation && (
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    fontWeight: 800,
-                    letterSpacing: ".06em",
-                    textTransform: "uppercase",
-                    color: "var(--res-c)",
-                    background:
-                      "color-mix(in srgb, var(--res-c) 12%, transparent)",
-                    border:
-                      "1px solid color-mix(in srgb, var(--res-c) 45%, transparent)",
-                    padding: "2px 7px",
-                    borderRadius: 999,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  New · under test
-                </span>
-              )}
-            </span>
-            <div>
-              <div
+              <span
                 style={{
-                  fontFamily: "'IBM Plex Mono'",
-                  fontWeight: 600,
-                  fontSize: 14.5,
-                  color: "var(--text)",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                  alignItems: "flex-start",
+                  gap: 6,
+                  minWidth: 0,
                 }}
               >
-                {m.name}
-              </div>
+                {m.probation && (
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      letterSpacing: ".06em",
+                      textTransform: "uppercase",
+                      color: "var(--res-c)",
+                      background:
+                        "color-mix(in srgb, var(--res-c) 12%, transparent)",
+                      border:
+                        "1px solid color-mix(in srgb, var(--res-c) 45%, transparent)",
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    New · under test
+                  </span>
+                )}
+                {(dif.recommended[m.id] || dif.endorsed[m.id]) && (
+                  <a
+                    href={dif.endorsed[m.id] ?? dif.recommended[m.id]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={
+                      dif.endorsed[m.id]
+                        ? "DIF Endorsed — read the WG findings"
+                        : "DIF Recommended — read the WG findings"
+                    }
+                    style={{
+                      position: "relative",
+                      zIndex: 1,
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      letterSpacing: ".06em",
+                      textTransform: "uppercase",
+                      color: "var(--twist-bright)",
+                      background:
+                        "color-mix(in srgb, var(--twist) 12%, transparent)",
+                      border:
+                        "1px solid color-mix(in srgb, var(--twist) 45%, transparent)",
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {dif.endorsed[m.id] ? "DIF Endorsed" : "DIF Recommended"}
+                  </a>
+                )}
+              </span>
+            </span>
+            <div>
               <div
                 style={{
                   fontSize: 12.5,
@@ -434,7 +481,7 @@ export function Methods({ onResolve }: { onResolve: (did: string) => void }) {
                 {m.desc}
               </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
       <div

@@ -4,6 +4,7 @@ import { SwaggerUI } from "@hono/swagger-ui";
 import { resolveDid } from "./resolve";
 import { openApiSpec } from "./openapi/spec";
 import { FEATURED_METHODS, ALL_METHODS, LOCAL_DRIVER_METHODS } from "./methods";
+import { getDifBadges } from "./dif-badges";
 import {
   getStats,
   parseFilter,
@@ -263,10 +264,13 @@ app.get("/mcp", (c) =>
 );
 
 // ── Discovery / docs ───────────────────────────────────────────────────────
-app.get("/methods", (c) =>
+app.get("/methods", async (c) =>
   c.json({
     featured: FEATURED_METHODS,
     all: ALL_METHODS,
+    // DIF DID Methods WG badge sets (recommended/endorsed), read from the
+    // directory worker's synced registry in shared D1 — see src/dif-badges.ts.
+    dif: await getDifBadges(c.env, Date.now()),
     semantics: {
       all: "Methods with an intentionally configured local or upstream route; successful resolution depends on the selected provider.",
       local: LOCAL_DRIVER_METHODS,
