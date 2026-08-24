@@ -209,8 +209,7 @@ function empeCompressedJwk(
     return undefined;
   }
   try {
-    const uncompressed =
-      secp256k1.ProjectivePoint.fromHex(compressed).toRawBytes(false);
+    const uncompressed = secp256k1.Point.fromBytes(compressed).toBytes(false);
     return canonicalJwk({
       kty: "EC",
       crv: "secp256k1",
