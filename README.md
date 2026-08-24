@@ -343,10 +343,14 @@ Newly added TS Universal Resolver drivers (currently `webvh`, `plc`, `ebsi`, `ne
 badge and run under a guarantee mechanism **wherever an independent verifier exists**: when a
 capable upstream is configured for the method, every ThisDID resolution is executed **in parallel**
 with that redundant upstream, and the two documents' security core (document
-`id`, root controllers, aliases, services, complete verification-method IDs,
-the set of public verification keys — or, for keyless methods like iden3/polygonid, the
+`id`, root controllers, aliases, services, the set of `(absolute verification-method ID,
+controller, public key material)` triples — or, for keyless methods like iden3/polygonid, the
 on-chain identity state itself — authorization relationships, and deactivation status) is compared
 in the mother Worker.
+Service `type` and `serviceEndpoint` scalar/set forms are canonicalized before comparison, so
+DID Core representation choices such as a URL versus a one-element URL set do not create false
+mismatches. Empeiria's chain-specific compressed secp256k1 point is expanded only for `did:empe`
+comparison; incomplete EC JWKs remain invalid for every other method.
 Methods no upstream anywhere can currently resolve (`polygonid`, `xrpl`, `dht`) are **local-authoritative**:
 their results are honestly stamped `verification: { status: "unverified", reason:
 "upstreamUnsupported" }` rather than being double-checked, until an independent verifier becomes
@@ -366,12 +370,14 @@ available:
 - **Incomparable material** — a document carries a verification method whose material the
   comparator does not understand → served unbadged (`status: "unverified"`, reason
   `unverifiableMaterial`), never a fabricated match or mismatch. The same conservative result
-  applies to structurally invalid documents, active documents with no comparable security
-  material, and purpose-silent providers: matching keys without matching authorization is not a
-  full match. Keyless methods the comparator DOES understand are compared by their real security
+  applies to structurally invalid documents, empty active documents with no comparable identity
+  state, and purpose-silent providers: matching keys without matching authorization is not a full
+  match. Legitimate keyless documents remain comparable when their controllers, aliases, or
+  services carry identity state. Keyless methods the comparator DOES understand are compared by their real security
   state: iden3/polygonid documents compare the on-chain identity state, GIST root, State contract,
   and proof — not just key sets. Deactivated outcomes remain semantic verifier results even when
-  their DID document is null, so active-versus-deactivated is recorded as a hard mismatch.
+  their DID document is null, so active-versus-deactivated is recorded as a hard mismatch; when
+  both providers return deactivated documents, those documents are still fully compared.
 
 The verifier is chosen **capability- and health-aware** (`UPSTREAM_METHOD_SUPPORT` in
 [`src/resolvers/registry.ts`](src/resolvers/registry.ts)): only an upstream known to resolve the

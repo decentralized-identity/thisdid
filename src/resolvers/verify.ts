@@ -5,9 +5,10 @@
  * in parallel, then compares the two documents' security core:
  *
  *   - document `id` equality,
- *   - the MULTISET of (controller, public key value) pairs across all
- *     verification methods — two distinct methods carrying the same key stay
- *     two entries, and a controller change is a core change,
+ *   - the set of (absolute method ID, controller, public key value) triples
+ *     across all verification methods — two distinct methods carrying the
+ *     same key stay two entries, and an ID or controller change is a core
+ *     change,
  *   - each verification relationship (`authentication`, `assertionMethod`,
  *     `keyAgreement`, `capabilityInvocation`, `capabilityDelegation`) as the
  *     set of key values it authorizes — references and embedded methods are
@@ -32,6 +33,7 @@
  * mismatch log.
  */
 import type { DIDDocument, DIDResolutionResult } from "did-resolver";
+import { secp256k1 } from "@noble/curves/secp256k1";
 
 export type VerificationStatus = "match" | "mismatch" | "unverified";
 
@@ -107,6 +109,15 @@ function base64urlDecode(encoded: string): Uint8Array | undefined {
   }
 }
 
+function base64urlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
 const toHex = (bytes: Uint8Array): string =>
   [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -160,6 +171,55 @@ function canonicalJwk(jwk: Record<string, unknown>): string {
     .filter((k) => typeof jwk[k] === "string")
     .map((k) => `${k}:${jwk[k] as string}`);
   return entries.join("|");
+}
+
+/**
+ * Empeiria currently serializes a compressed SEC1 secp256k1 point in JWK `x`
+ * and omits `y`. That is not a complete RFC 7518 EC JWK, so accept and expand
+ * it only inside a did:empe document. The resulting coordinates also make the
+ * chain form compare equal to an upstream's standards-shaped public JWK.
+ */
+function empeCompressedJwk(
+  value: unknown,
+  empeDocument: boolean,
+): string | undefined {
+  if (
+    !empeDocument ||
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return undefined;
+  }
+  const jwk = value as Record<string, unknown>;
+  if (
+    jwk.d !== undefined ||
+    jwk.kty !== "EC" ||
+    jwk.crv !== "secp256k1" ||
+    typeof jwk.x !== "string" ||
+    jwk.y !== undefined
+  ) {
+    return undefined;
+  }
+  const compressed = base64urlDecode(jwk.x);
+  if (
+    compressed?.length !== 33 ||
+    (compressed[0] !== 0x02 && compressed[0] !== 0x03)
+  ) {
+    return undefined;
+  }
+  try {
+    const uncompressed =
+      secp256k1.ProjectivePoint.fromHex(compressed).toRawBytes(false);
+    return canonicalJwk({
+      kty: "EC",
+      crv: "secp256k1",
+      x: base64urlEncode(uncompressed.subarray(1, 33)),
+      y: base64urlEncode(uncompressed.subarray(33, 65)),
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function validPublicJwk(value: unknown): boolean {
@@ -243,6 +303,7 @@ const TZ_ACCOUNT_ANCHORED_VM_TYPES = new Set([
 function keyMaterial(
   vm: Record<string, unknown>,
   tezosDocument: boolean,
+  empeDocument: boolean,
 ): string | undefined {
   if (vm.type === "Iden3StateInfo2023") return iden3StateMaterial(vm);
   if (
@@ -254,6 +315,8 @@ function keyMaterial(
   }
   const ed25519 = ed25519Canonical(vm);
   if (ed25519) return ed25519;
+  const empeJwk = empeCompressedJwk(vm.publicKeyJwk, empeDocument);
+  if (empeJwk) return `jwk:${empeJwk}`;
   if (typeof vm.publicKeyMultibase === "string") {
     return `multibase:${vm.publicKeyMultibase}`;
   }
@@ -272,6 +335,7 @@ function keyMaterial(
 function hasValidMaterial(
   vm: Record<string, unknown>,
   tezosDocument: boolean,
+  empeDocument: boolean,
 ): boolean {
   if (vm.type === "Iden3StateInfo2023") return true;
   if (tezosDocument && TZ_ACCOUNT_ANCHORED_VM_TYPES.has(vm.type as string)) {
@@ -286,7 +350,9 @@ function hasValidMaterial(
   return (
     cryptographic <= 1 &&
     (cryptographic === 1 || account) &&
-    (vm.publicKeyJwk === undefined || validPublicJwk(vm.publicKeyJwk))
+    (vm.publicKeyJwk === undefined ||
+      validPublicJwk(vm.publicKeyJwk) ||
+      empeCompressedJwk(vm.publicKeyJwk, empeDocument) !== undefined)
   );
 }
 
@@ -349,24 +415,51 @@ function normalizedServices(value: unknown, docId: string): string | undefined {
     }
     const service = entry as Record<string, unknown>;
     const serviceId = normalizeMethodId(service.id, docId);
+    const types = normalizedStringSet(service.type);
+    const typeEntries =
+      typeof service.type === "string" ? [service.type] : service.type;
+    const endpointValue = service.serviceEndpoint;
+    const endpointEntries = Array.isArray(endpointValue)
+      ? endpointValue
+      : [endpointValue];
+    const validEndpoints = endpointEntries.every(
+      (endpoint) =>
+        (typeof endpoint === "string" && endpoint.length > 0) ||
+        (!!endpoint &&
+          typeof endpoint === "object" &&
+          !Array.isArray(endpoint)),
+    );
+    const endpoints = validEndpoints
+      ? [...new Set(endpointEntries.map(stableJson))].sort()
+      : undefined;
     if (
       !serviceId ||
-      typeof service.type !== "string" ||
-      !service.type ||
-      service.serviceEndpoint === undefined ||
+      !types ||
+      !Array.isArray(typeEntries) ||
+      typeEntries.length === 0 ||
+      typeEntries.some((type) => typeof type !== "string" || !type) ||
+      endpointValue === undefined ||
+      !endpoints?.length ||
       ids.has(serviceId)
     ) {
       return undefined;
     }
     ids.add(serviceId);
-    services.push(stableJson({ ...service, id: serviceId }));
+    services.push(
+      stableJson({
+        ...service,
+        id: serviceId,
+        type: types,
+        serviceEndpoint: stableJson(endpoints),
+      }),
+    );
   }
   return stableJson(services.sort());
 }
 
 interface SecurityCore {
-  /** `controller|material` → occurrence count across verification methods. */
-  keys: Map<string, number>;
+  /** Set of `absolute method ID|controller|material` identities. */
+  keys: Set<string>;
   /** Per relationship: the set of key values it authorizes. */
   relationships: Record<Relationship, Set<string>>;
   /** True when any verification method carried no comparable material. */
@@ -400,10 +493,11 @@ function securityCore(doc: DIDDocument): SecurityCore {
   const docId = doc.id;
   const tezosDocument =
     typeof docId === "string" && docId.startsWith("did:tz:");
+  const empeDocument =
+    typeof docId === "string" && docId.startsWith("did:empe:");
   const materialByFragment = new Map<string, string>();
   const registeredById = new Map<string, string>();
-  const seen = new Set<string>();
-  const keys = new Map<string, number>();
+  const keys = new Set<string>();
   let opaque = false;
   let invalid = false;
 
@@ -417,12 +511,12 @@ function securityCore(doc: DIDDocument): SecurityCore {
       !controller ||
       typeof vm.type !== "string" ||
       !vm.type ||
-      !hasValidMaterial(vm, tezosDocument)
+      !hasValidMaterial(vm, tezosDocument, empeDocument)
     ) {
       invalid = true;
       return;
     }
-    const recognized = keyMaterial(vm, tezosDocument);
+    const recognized = keyMaterial(vm, tezosDocument, empeDocument);
     if (recognized === undefined) opaque = true;
     const material = recognized ?? `opaque:${methodId}`;
     const signature = `${controller}|${material}`;
@@ -433,11 +527,7 @@ function securityCore(doc: DIDDocument): SecurityCore {
     }
     registeredById.set(methodId, signature);
     materialByFragment.set(methodId, material);
-    const identity = `${methodId}|${controller}|${material}`;
-    if (seen.has(identity)) return;
-    seen.add(identity);
-    const pair = `${methodId}|${controller}|${material}`;
-    keys.set(pair, (keys.get(pair) ?? 0) + 1);
+    keys.add(`${methodId}|${controller}|${material}`);
   };
 
   for (const vm of doc.verificationMethod ?? []) register(vm);
@@ -514,7 +604,9 @@ export function compareCores(
   const localDeactivated = deactivatedOf(local);
   const upstreamDeactivated = deactivatedOf(upstream);
   if (localDeactivated !== upstreamDeactivated) return "mismatch";
-  if (localDeactivated && upstreamDeactivated) return "match";
+  if (localDeactivated && upstreamDeactivated && !localDoc && !upstreamDoc) {
+    return "match";
+  }
   if (!localDoc || !upstreamDoc) return "mismatch";
   if (localDoc.id !== upstreamDoc.id) return "mismatch";
 
@@ -524,9 +616,7 @@ export function compareCores(
     localCore.invalid ||
     upstreamCore.invalid ||
     localCore.opaque ||
-    upstreamCore.opaque ||
-    localCore.keys.size === 0 ||
-    upstreamCore.keys.size === 0
+    upstreamCore.opaque
   ) {
     return "incomparable";
   }
@@ -537,10 +627,19 @@ export function compareCores(
   ) {
     return "mismatch";
   }
-  if (localCore.keys.size !== upstreamCore.keys.size) return "mismatch";
-  for (const [pair, count] of localCore.keys) {
-    if (upstreamCore.keys.get(pair) !== count) return "mismatch";
+  if ((localCore.keys.size === 0) !== (upstreamCore.keys.size === 0)) {
+    return "mismatch";
   }
+  if (
+    localCore.keys.size === 0 &&
+    localCore.rootController === "[]" &&
+    localCore.alsoKnownAs === "[]" &&
+    localCore.services === "[]"
+  ) {
+    return "incomparable";
+  }
+  if (localCore.keys.size !== upstreamCore.keys.size) return "mismatch";
+  if (!setsEqual(localCore.keys, upstreamCore.keys)) return "mismatch";
   // Matching key material is not proof of matching authorization. When only
   // one provider expresses verification relationships, the result is partial
   // and therefore incomparable rather than a full match.

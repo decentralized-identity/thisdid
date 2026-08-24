@@ -297,6 +297,93 @@ describe("compareCores", () => {
     ).toBe("mismatch");
   });
 
+  it("normalizes DID Core service type and endpoint scalar/set forms", () => {
+    const vm = {
+      id: `${DID}#a`,
+      controller: DID,
+      type: "Multikey",
+      publicKeyMultibase: "zKeyOne",
+    };
+    const service = {
+      id: `${DID}#inbox`,
+      type: "DIDCommMessaging",
+      serviceEndpoint: "https://subject.example/inbox",
+    };
+    const local = result({
+      id: DID,
+      verificationMethod: [vm],
+      service: [service],
+    });
+    const upstream = result({
+      id: DID,
+      verificationMethod: [vm],
+      service: [
+        {
+          ...service,
+          type: ["LinkedDomains", "DIDCommMessaging"],
+          serviceEndpoint: ["https://subject.example/inbox"],
+        },
+      ],
+    });
+    expect(
+      compareCores(
+        local,
+        result({
+          id: DID,
+          verificationMethod: [vm],
+          service: [{ ...service, type: ["DIDCommMessaging"] }],
+        }),
+      ),
+    ).toBe("match");
+    expect(compareCores(local, upstream)).toBe("mismatch");
+    expect(
+      compareCores(
+        upstream,
+        result({
+          id: DID,
+          verificationMethod: [vm],
+          service: [
+            {
+              ...service,
+              type: ["DIDCommMessaging", "LinkedDomains"],
+              serviceEndpoint: ["https://subject.example/inbox"],
+            },
+          ],
+        }),
+      ),
+    ).toBe("match");
+  });
+
+  it("matches meaningful keyless documents but not empty documents", () => {
+    const serviceOnly = {
+      id: DID,
+      service: [
+        {
+          id: `${DID}#inbox`,
+          type: "DIDCommMessaging",
+          serviceEndpoint: "https://subject.example/inbox",
+        },
+      ],
+    };
+    expect(compareCores(result(serviceOnly), result(serviceOnly))).toBe(
+      "match",
+    );
+    expect(
+      compareCores(
+        result(serviceOnly),
+        result({
+          ...serviceOnly,
+          verificationMethod: [
+            { id: `${DID}#a`, publicKeyMultibase: "zKeyOne" },
+          ],
+        }),
+      ),
+    ).toBe("mismatch");
+    expect(compareCores(result({ id: DID }), result({ id: DID }))).toBe(
+      "incomparable",
+    );
+  });
+
   it("does not confuse a foreign relationship reference with a self reference", () => {
     const vm = {
       id: `${DID}#a`,
@@ -354,6 +441,42 @@ describe("compareCores", () => {
     expect(compareCores(result({ id: DID }), result(null, true))).toBe(
       "mismatch",
     );
+    const one = result(
+      {
+        id: DID,
+        verificationMethod: [{ id: `${DID}#a`, publicKeyMultibase: "zOne" }],
+      },
+      true,
+    );
+    const two = result(
+      {
+        id: DID,
+        verificationMethod: [{ id: `${DID}#a`, publicKeyMultibase: "zTwo" }],
+      },
+      true,
+    );
+    expect(compareCores(one, two)).toBe("mismatch");
+  });
+});
+
+describe("compareCores Empe compressed secp256k1 normalization", () => {
+  it("accepts valid chain-shaped compressed points only for did:empe", () => {
+    const empeDid = "did:empe:testnet:0069308b00b31a437e2e34908ed5f40d";
+    const compressed = "A/Uu9uzP0eVvRvUOjtGiZJp6bbJNWzi5t//LjwQql3aT";
+    const document = (id: string) =>
+      result({
+        id,
+        verificationMethod: [
+          {
+            id: `${id}#key-1`,
+            controller: id,
+            type: "JsonWebKey2020",
+            publicKeyJwk: { kty: "EC", crv: "secp256k1", x: compressed },
+          },
+        ],
+      });
+    expect(compareCores(document(empeDid), document(empeDid))).toBe("match");
+    expect(compareCores(document(DID), document(DID))).toBe("incomparable");
   });
 });
 
