@@ -39,6 +39,10 @@ authoritative specifications and projects:
   registry for extension parameters and metadata used by DID resolution implementations.
 - **[Decentralized Identifier Extensions](https://www.w3.org/TR/did-extensions/)** — the W3C index
   for DID document properties, resolution extensions, and DID methods.
+- **[DID Methods](https://www.w3.org/TR/did-extensions-methods/)** — the W3C registry of known DID
+  methods (the extensions document holding the method table itself). Every method profile in the
+  [ThisDID Directory](https://thisdid.com/directory) links to this registry as its cross-check
+  reference.
 - **[DID Specification Registries](https://www.w3.org/TR/did-spec-registries/)** — the W3C registry
   of known DID ecosystem properties, values, parameters, representations, and DID methods.
 - **[DIF Universal Resolver](https://github.com/decentralized-identity/universal-resolver)** — the
