@@ -180,6 +180,24 @@ export async function fetchUpstream(
         failure: { error: "invalidDidDocument", status: res.status },
       };
     }
+    const deactivated =
+      body.didDocumentMetadata?.deactivated === true || error === "deactivated";
+    if (deactivated) {
+      return {
+        ok: true,
+        result: {
+          didResolutionMetadata: {
+            contentType: "application/did+ld+json",
+            ...resolutionMetadata,
+          },
+          didDocument,
+          didDocumentMetadata: {
+            ...(body.didDocumentMetadata ?? {}),
+            deactivated: true,
+          },
+        },
+      };
+    }
     if (!res.ok || !didDocument || error) {
       return {
         ok: false,

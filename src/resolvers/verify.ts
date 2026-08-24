@@ -13,19 +13,18 @@
  *     set of key values it authorizes — references and embedded methods are
  *     resolved to the same form, so a key that is authentication-capable on
  *     one side but only keyAgreement-capable on the other is a mismatch.
- *     Purposes are compared ONLY when the upstream document expresses at
- *     least one relationship property: some upstream drivers (e.g. Godiddy's
- *     Transmute-based did:jwk driver) emit bare `verificationMethod` with no
- *     relationships at all, and a verifier that is silent on purposes has no
- *     opinion to disagree with — key material, controllers, id, and
- *     deactivation are still fully verified,
+ *     A provider that is silent on purposes yields `incomparable`, never a
+ *     full match: matching key material alone does not prove authorization,
+ *   - root DID controllers, alsoKnownAs assertions, and service definitions,
+ *   - complete absolute verification-method/reference identity (relative
+ *     fragments are resolved against the subject; foreign DID URLs remain
+ *     foreign),
  *   - deactivation status.
  *
- * Cosmetic differences (`@context`, property order, fragment naming, whether
- * a relationship embeds its method or references it, extra metadata) are not
- * mismatches. A core mismatch is served conservatively from the upstream and
- * logged loudly with both documents for adjudication — the upstream is the
- * safe default while the new driver is unproven, not ground truth.
+ * Representation-only differences (`@context`, property order, whether a
+ * relationship embeds its method or references it, extra non-core metadata)
+ * are not mismatches. A core mismatch is served conservatively from the
+ * vetted upstream and logged with both documents for adjudication.
  *
  * Comparison is intentionally value-based per key-material field; a provider
  * expressing the same key in a different (non-normalized) encoding reads as a
@@ -163,6 +162,26 @@ function canonicalJwk(jwk: Record<string, unknown>): string {
   return entries.join("|");
 }
 
+function validPublicJwk(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const jwk = value as Record<string, unknown>;
+  if (jwk.d !== undefined || typeof jwk.kty !== "string") return false;
+  if (jwk.kty === "OKP") {
+    return typeof jwk.crv === "string" && typeof jwk.x === "string";
+  }
+  if (jwk.kty === "EC") {
+    return (
+      typeof jwk.crv === "string" &&
+      typeof jwk.x === "string" &&
+      typeof jwk.y === "string"
+    );
+  }
+  if (jwk.kty === "RSA") {
+    return typeof jwk.n === "string" && typeof jwk.e === "string";
+  }
+  return false;
+}
+
 /**
  * Iden3StateInfo2023 carries NO public key — its security material is the
  * on-chain identity state itself. Canonicalize the state-bearing fields so
@@ -250,6 +269,27 @@ function keyMaterial(
   return undefined;
 }
 
+function hasValidMaterial(
+  vm: Record<string, unknown>,
+  tezosDocument: boolean,
+): boolean {
+  if (vm.type === "Iden3StateInfo2023") return true;
+  if (tezosDocument && TZ_ACCOUNT_ANCHORED_VM_TYPES.has(vm.type as string)) {
+    return typeof vm.blockchainAccountId === "string";
+  }
+  const cryptographic = [
+    typeof vm.publicKeyMultibase === "string",
+    typeof vm.publicKeyBase58 === "string",
+    vm.publicKeyJwk !== undefined,
+  ].filter(Boolean).length;
+  const account = typeof vm.blockchainAccountId === "string";
+  return (
+    cryptographic <= 1 &&
+    (cryptographic === 1 || account) &&
+    (vm.publicKeyJwk === undefined || validPublicJwk(vm.publicKeyJwk))
+  );
+}
+
 const RELATIONSHIPS = [
   "authentication",
   "assertionMethod",
@@ -259,26 +299,69 @@ const RELATIONSHIPS = [
 ] as const;
 type Relationship = (typeof RELATIONSHIPS)[number];
 
-/** Fragment of a DID URL — providers agree on fragments, not always on form. */
-function fragmentOf(id: unknown): string {
-  if (typeof id !== "string") return "";
-  const hash = id.indexOf("#");
-  return hash >= 0 ? id.slice(hash + 1) : id;
+/** Resolve a relative fragment against the subject; preserve foreign DID URLs. */
+function normalizeMethodId(id: unknown, docId: string): string | undefined {
+  if (typeof id !== "string" || !id) return undefined;
+  if (id.startsWith("#")) return `${docId}${id}`;
+  return id.startsWith("did:") ? id : undefined;
 }
 
-/** Controller relative to the subject, so `controller: <doc id>` ≡ omitted. */
-function controllerOf(vm: Record<string, unknown>, docId: string): string {
+/** Verification-method controller is REQUIRED by DID Core. */
+function controllerOf(
+  vm: Record<string, unknown>,
+  docId: string,
+): string | undefined {
   const controller = vm.controller;
   if (typeof controller === "string") {
     return controller === docId ? "self" : controller;
   }
-  if (Array.isArray(controller)) {
-    return controller
-      .map((c) => (c === docId ? "self" : String(c)))
-      .sort()
-      .join(",");
+  return undefined;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+      .join(",")}}`;
   }
-  return "self";
+  return JSON.stringify(value) ?? "undefined";
+}
+
+function normalizedStringSet(value: unknown): string | undefined {
+  if (value === undefined) return "[]";
+  const entries = typeof value === "string" ? [value] : value;
+  if (!Array.isArray(entries) || entries.some((v) => typeof v !== "string")) {
+    return undefined;
+  }
+  return stableJson([...new Set(entries)].sort());
+}
+
+function normalizedServices(value: unknown, docId: string): string | undefined {
+  if (value === undefined) return "[]";
+  if (!Array.isArray(value)) return undefined;
+  const ids = new Set<string>();
+  const services: string[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return undefined;
+    }
+    const service = entry as Record<string, unknown>;
+    const serviceId = normalizeMethodId(service.id, docId);
+    if (
+      !serviceId ||
+      typeof service.type !== "string" ||
+      !service.type ||
+      service.serviceEndpoint === undefined ||
+      ids.has(serviceId)
+    ) {
+      return undefined;
+    }
+    ids.add(serviceId);
+    services.push(stableJson({ ...service, id: serviceId }));
+  }
+  return stableJson(services.sort());
 }
 
 interface SecurityCore {
@@ -288,6 +371,11 @@ interface SecurityCore {
   relationships: Record<Relationship, Set<string>>;
   /** True when any verification method carried no comparable material. */
   opaque: boolean;
+  /** True when the DID document is structurally unsafe to compare. */
+  invalid: boolean;
+  rootController: string;
+  alsoKnownAs: string;
+  services: string;
 }
 
 function relationshipEntries(
@@ -313,23 +401,42 @@ function securityCore(doc: DIDDocument): SecurityCore {
   const tezosDocument =
     typeof docId === "string" && docId.startsWith("did:tz:");
   const materialByFragment = new Map<string, string>();
+  const registeredById = new Map<string, string>();
   const seen = new Set<string>();
   const keys = new Map<string, number>();
   let opaque = false;
+  let invalid = false;
 
   const register = (value: unknown): void => {
     if (!value || typeof value !== "object") return;
     const vm = value as Record<string, unknown>;
-    const fragment = fragmentOf(vm.id);
+    const methodId = normalizeMethodId(vm.id, docId);
+    const controller = controllerOf(vm, docId);
+    if (
+      !methodId ||
+      !controller ||
+      typeof vm.type !== "string" ||
+      !vm.type ||
+      !hasValidMaterial(vm, tezosDocument)
+    ) {
+      invalid = true;
+      return;
+    }
     const recognized = keyMaterial(vm, tezosDocument);
     if (recognized === undefined) opaque = true;
-    const material = recognized ?? `opaque:${fragment}`;
-    materialByFragment.set(fragment, material);
-    const controller = controllerOf(vm, docId);
-    const identity = `${fragment}|${controller}|${material}`;
+    const material = recognized ?? `opaque:${methodId}`;
+    const signature = `${controller}|${material}`;
+    const prior = registeredById.get(methodId);
+    if (prior) {
+      if (prior !== signature) invalid = true;
+      return;
+    }
+    registeredById.set(methodId, signature);
+    materialByFragment.set(methodId, material);
+    const identity = `${methodId}|${controller}|${material}`;
     if (seen.has(identity)) return;
     seen.add(identity);
-    const pair = `${controller}|${material}`;
+    const pair = `${methodId}|${controller}|${material}`;
     keys.set(pair, (keys.get(pair) ?? 0) + 1);
   };
 
@@ -344,15 +451,37 @@ function securityCore(doc: DIDDocument): SecurityCore {
   for (const rel of RELATIONSHIPS) {
     const authorized = new Set<string>();
     for (const entry of relationshipEntries(doc, rel)) {
-      const fragment =
-        typeof entry === "string" ? fragmentOf(entry) : fragmentOf(entry.id);
-      // A dangling reference keeps its fragment so both sides must dangle
-      // identically to match.
-      authorized.add(materialByFragment.get(fragment) ?? `ref:${fragment}`);
+      const methodId = normalizeMethodId(
+        typeof entry === "string" ? entry : entry.id,
+        docId,
+      );
+      if (!methodId) {
+        invalid = true;
+        continue;
+      }
+      authorized.add(materialByFragment.get(methodId) ?? `ref:${methodId}`);
     }
     relationships[rel] = authorized;
   }
-  return { keys, relationships, opaque };
+  const rootController = normalizedStringSet(doc.controller);
+  const alsoKnownAs = normalizedStringSet(doc.alsoKnownAs);
+  const services = normalizedServices(doc.service, docId);
+  if (
+    rootController === undefined ||
+    alsoKnownAs === undefined ||
+    services === undefined
+  ) {
+    invalid = true;
+  }
+  return {
+    keys,
+    relationships,
+    opaque,
+    invalid,
+    rootController: rootController ?? "invalid",
+    alsoKnownAs: alsoKnownAs ?? "invalid",
+    services: services ?? "invalid",
+  };
 }
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
@@ -382,22 +511,42 @@ export function compareCores(
 ): "match" | "mismatch" | "incomparable" {
   const localDoc = local.didDocument;
   const upstreamDoc = upstream.didDocument;
+  const localDeactivated = deactivatedOf(local);
+  const upstreamDeactivated = deactivatedOf(upstream);
+  if (localDeactivated !== upstreamDeactivated) return "mismatch";
+  if (localDeactivated && upstreamDeactivated) return "match";
   if (!localDoc || !upstreamDoc) return "mismatch";
   if (localDoc.id !== upstreamDoc.id) return "mismatch";
-  if (deactivatedOf(local) !== deactivatedOf(upstream)) return "mismatch";
 
   const localCore = securityCore(localDoc);
   const upstreamCore = securityCore(upstreamDoc);
-  if (localCore.opaque || upstreamCore.opaque) return "incomparable";
+  if (
+    localCore.invalid ||
+    upstreamCore.invalid ||
+    localCore.opaque ||
+    upstreamCore.opaque ||
+    localCore.keys.size === 0 ||
+    upstreamCore.keys.size === 0
+  ) {
+    return "incomparable";
+  }
+  if (
+    localCore.rootController !== upstreamCore.rootController ||
+    localCore.alsoKnownAs !== upstreamCore.alsoKnownAs ||
+    localCore.services !== upstreamCore.services
+  ) {
+    return "mismatch";
+  }
   if (localCore.keys.size !== upstreamCore.keys.size) return "mismatch";
   for (const [pair, count] of localCore.keys) {
     if (upstreamCore.keys.get(pair) !== count) return "mismatch";
   }
-  // Purposes are compared only when the verifier has an opinion on them: an
-  // upstream driver that emits no relationship properties at all (e.g.
-  // Godiddy's Transmute-based did:jwk) is silent on purposes, not in
-  // disagreement — the reverse (local silent, upstream expressing) still
-  // mismatches through the empty-vs-non-empty set comparison below.
+  // Matching key material is not proof of matching authorization. When only
+  // one provider expresses verification relationships, the result is partial
+  // and therefore incomparable rather than a full match.
+  if (expressesPurposes(localDoc) !== expressesPurposes(upstreamDoc)) {
+    return "incomparable";
+  }
   if (expressesPurposes(upstreamDoc)) {
     for (const rel of RELATIONSHIPS) {
       if (

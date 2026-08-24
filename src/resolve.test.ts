@@ -113,7 +113,7 @@ describe("resolveDid", () => {
     ).toBe("unsupportedDidMethod");
   });
 
-  it("preserves meaningful upstream errors and attempt diagnostics", async () => {
+  it("preserves and stops on an authoritative deactivated outcome", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -132,11 +132,7 @@ describe("resolveDid", () => {
     );
     const result = await resolveDid("did:algo:abc", env);
     expect(result.didResolutionMetadata.error).toBe("deactivated");
-    expect(result.didResolutionMetadata.attempted).toEqual([
-      "goplausible",
-      "godiddy",
-      "archon",
-    ]);
+    expect(result.didResolutionMetadata.attempted).toEqual(["goplausible"]);
     expect(result.didDocumentMetadata).toEqual({ deactivated: true });
   });
 
@@ -383,7 +379,14 @@ describe("probation verification", () => {
   const DID = "did:webvh:QmTestScid1234:probation.example";
   const doc = (key: string) => ({
     id: DID,
-    verificationMethod: [{ id: `${DID}#atproto`, publicKeyMultibase: key }],
+    verificationMethod: [
+      {
+        id: `${DID}#atproto`,
+        controller: DID,
+        type: "Multikey",
+        publicKeyMultibase: key,
+      },
+    ],
   });
 
   it("badges a core match and serves the edge result", async () => {
@@ -392,10 +395,7 @@ describe("probation verification", () => {
       vi.fn(async () =>
         Response.json({
           didResolutionMetadata: {},
-          didDocument: {
-            ...doc("zSameKey"),
-            alsoKnownAs: ["at://bsky.app"], // cosmetic difference only
-          },
+          didDocument: doc("zSameKey"),
           didDocumentMetadata: {},
         }),
       ),
@@ -440,6 +440,36 @@ describe("probation verification", () => {
       provider: "godiddy",
       reason: "coreMismatch",
     });
+  });
+
+  it("treats an authoritative deactivation as a probation conflict", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            didResolutionMetadata: { error: "deactivated" },
+            didDocument: null,
+            didDocumentMetadata: { deactivated: true },
+          },
+          { status: 410 },
+        ),
+      ),
+    );
+    const onMismatch = vi.fn();
+    const probationEnv = {
+      ...env,
+      DRIVER_WEBVH: fakeDriver("webvh", doc("zLocalKey")),
+    } as Env;
+    const result = await resolveDid(DID, probationEnv, { onMismatch });
+    expect(result.didDocument).toBeNull();
+    expect(result.didDocumentMetadata.deactivated).toBe(true);
+    expect(result.didResolutionMetadata.verification).toEqual({
+      status: "mismatch",
+      provider: "godiddy",
+      reason: "coreMismatch",
+    });
+    expect(onMismatch).toHaveBeenCalledOnce();
   });
 
   it("serves the edge result unbadged when the upstream is unavailable", async () => {
@@ -520,7 +550,12 @@ describe("probation verification", () => {
     const plcDoc = {
       id: did,
       verificationMethod: [
-        { id: `${did}#atproto`, publicKeyMultibase: "zPlcKey" },
+        {
+          id: `${did}#atproto`,
+          controller: did,
+          type: "Multikey",
+          publicKeyMultibase: "zPlcKey",
+        },
       ],
     };
     vi.stubGlobal(

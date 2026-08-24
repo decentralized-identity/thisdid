@@ -5,10 +5,24 @@ import type { DIDResolutionResult } from "did-resolver";
 function result(
   doc: Record<string, unknown> | null,
   deactivated = false,
+  addRequiredControllers = true,
 ): DIDResolutionResult {
+  const normalized =
+    doc && addRequiredControllers
+      ? {
+          ...doc,
+          verificationMethod: Array.isArray(doc.verificationMethod)
+            ? doc.verificationMethod.map((vm) =>
+                vm && typeof vm === "object"
+                  ? { type: "Multikey", controller: doc.id, ...vm }
+                  : vm,
+              )
+            : doc.verificationMethod,
+        }
+      : doc;
   return {
     didResolutionMetadata: {},
-    didDocument: doc as DIDResolutionResult["didDocument"],
+    didDocument: normalized as DIDResolutionResult["didDocument"],
     didDocumentMetadata: deactivated ? { deactivated: true } : {},
   };
 }
@@ -16,7 +30,7 @@ function result(
 const DID = "did:plc:z72i7hdynmk6r22z27h6tvur";
 
 describe("compareCores", () => {
-  it("matches identical cores despite cosmetic differences", () => {
+  it("matches identical cores despite representation ordering differences", () => {
     const local = result({
       id: DID,
       verificationMethod: [
@@ -27,11 +41,10 @@ describe("compareCores", () => {
     const upstream = result({
       "@context": ["https://www.w3.org/ns/did/v1", "https://extra.example"],
       id: DID,
-      alsoKnownAs: ["at://bsky.app"],
       verificationMethod: [
-        // Different order, different ids, extra properties — same key material.
+        // Different order and extra properties — same identifiers/material.
         {
-          id: `${DID}#other`,
+          id: `${DID}#b`,
           type: "Multikey",
           publicKeyMultibase: "zKeyTwo",
           extra: true,
@@ -99,6 +112,7 @@ describe("compareCores", () => {
   it("matches an embedded relationship method against listed + referenced", () => {
     const agreement = {
       id: `${DID}#x25519`,
+      controller: DID,
       type: "X25519KeyAgreementKey2019",
       publicKeyBase58: "AgreementKey",
     };
@@ -135,18 +149,22 @@ describe("compareCores", () => {
     expect(compareCores(local, upstream)).toBe("mismatch");
   });
 
-  it("mismatches on a controller change, treating self as omittable", () => {
+  it("rejects a missing verification-method controller as incomparable", () => {
     const local = result({
       id: DID,
       verificationMethod: [
         { id: `${DID}#a`, controller: DID, publicKeyMultibase: "zKeyOne" },
       ],
     });
-    const sameImplicit = result({
-      id: DID,
-      verificationMethod: [{ id: `${DID}#a`, publicKeyMultibase: "zKeyOne" }],
-    });
-    expect(compareCores(local, sameImplicit)).toBe("match");
+    const missing = result(
+      {
+        id: DID,
+        verificationMethod: [{ id: `${DID}#a`, publicKeyMultibase: "zKeyOne" }],
+      },
+      false,
+      false,
+    );
+    expect(compareCores(local, missing)).toBe("incomparable");
     const foreign = result({
       id: DID,
       verificationMethod: [
@@ -160,7 +178,7 @@ describe("compareCores", () => {
     expect(compareCores(local, foreign)).toBe("mismatch");
   });
 
-  it("treats a purpose-silent upstream as having no opinion on relationships", () => {
+  it("treats a purpose-silent upstream as only partially comparable", () => {
     // Live regression: Godiddy's Transmute-based did:jwk driver returns only
     // `verificationMethod` — no relationship properties, relative `#0` id —
     // while the local driver emits the spec's five relationships. Silence on
@@ -186,7 +204,7 @@ describe("compareCores", () => {
       id: DID,
       verificationMethod: [{ id: "#0", controller: DID, publicKeyJwk: jwk }],
     });
-    expect(compareCores(local, upstream)).toBe("match");
+    expect(compareCores(local, upstream)).toBe("incomparable");
     // Key material is still fully verified against a purpose-silent upstream.
     const rotated = result({
       id: DID,
@@ -197,7 +215,7 @@ describe("compareCores", () => {
     expect(compareCores(local, rotated)).toBe("mismatch");
   });
 
-  it("mismatches when the local document omits purposes the upstream expresses", () => {
+  it("is incomparable when only one document expresses purposes", () => {
     const vm = { id: `${DID}#a`, publicKeyMultibase: "zKeyOne" };
     const local = result({ id: DID, verificationMethod: [vm] });
     const upstream = result({
@@ -205,7 +223,7 @@ describe("compareCores", () => {
       verificationMethod: [vm],
       authentication: [`${DID}#a`],
     });
-    expect(compareCores(local, upstream)).toBe("mismatch");
+    expect(compareCores(local, upstream)).toBe("incomparable");
   });
 
   it("compares JWK material by canonical public members", () => {
@@ -230,6 +248,113 @@ describe("compareCores", () => {
     });
     expect(compareCores(local, upstream)).toBe("match");
   });
+
+  it("mismatches on root controller, aliases, or service endpoints", () => {
+    const vm = {
+      id: `${DID}#a`,
+      controller: DID,
+      publicKeyMultibase: "zKeyOne",
+    };
+    const base = {
+      id: DID,
+      controller: DID,
+      alsoKnownAs: ["https://subject.example"],
+      service: [
+        {
+          id: `${DID}#inbox`,
+          type: "DIDCommMessaging",
+          serviceEndpoint: "https://subject.example/inbox",
+        },
+      ],
+      verificationMethod: [vm],
+    };
+    expect(
+      compareCores(
+        result(base),
+        result({ ...base, controller: "did:example:attacker" }),
+      ),
+    ).toBe("mismatch");
+    expect(
+      compareCores(
+        result(base),
+        result({ ...base, alsoKnownAs: ["https://attacker.example"] }),
+      ),
+    ).toBe("mismatch");
+    expect(
+      compareCores(
+        result(base),
+        result({
+          ...base,
+          service: [
+            {
+              id: `${DID}#inbox`,
+              type: "DIDCommMessaging",
+              serviceEndpoint: "https://attacker.example/inbox",
+            },
+          ],
+        }),
+      ),
+    ).toBe("mismatch");
+  });
+
+  it("does not confuse a foreign relationship reference with a self reference", () => {
+    const vm = {
+      id: `${DID}#a`,
+      controller: DID,
+      publicKeyMultibase: "zKeyOne",
+    };
+    const local = result({
+      id: DID,
+      verificationMethod: [vm],
+      authentication: ["did:plc:attacker#a"],
+    });
+    const upstream = result({
+      id: DID,
+      verificationMethod: [vm],
+      authentication: [`${DID}#a`],
+    });
+    expect(compareCores(local, upstream)).toBe("mismatch");
+  });
+
+  it("never matches two active documents with no comparable security material", () => {
+    expect(compareCores(result({ id: DID }), result({ id: DID }))).toBe(
+      "incomparable",
+    );
+  });
+
+  it("rejects conflicting or incomplete verification material", () => {
+    const valid = result({
+      id: DID,
+      verificationMethod: [
+        {
+          id: `${DID}#a`,
+          controller: DID,
+          type: "Multikey",
+          publicKeyMultibase: "zKeyOne",
+        },
+      ],
+    });
+    const conflicting = result({
+      id: DID,
+      verificationMethod: [
+        {
+          id: `${DID}#a`,
+          controller: DID,
+          type: "Multikey",
+          publicKeyMultibase: "zKeyOne",
+          publicKeyJwk: { kty: "EC" },
+        },
+      ],
+    });
+    expect(compareCores(valid, conflicting)).toBe("incomparable");
+  });
+
+  it("compares deactivated outcomes even when both documents are null", () => {
+    expect(compareCores(result(null, true), result(null, true))).toBe("match");
+    expect(compareCores(result({ id: DID }), result(null, true))).toBe(
+      "mismatch",
+    );
+  });
 });
 
 describe("compareCores Ed25519 encoding normalization", () => {
@@ -248,7 +373,7 @@ describe("compareCores Ed25519 encoding normalization", () => {
       id: did,
       verificationMethod: [
         {
-          id: `${did}#other`,
+          id: `${did}#key1`,
           type: "JsonWebKey2020",
           publicKeyJwk: { kty: "OKP", crv: "Ed25519", x: JWK_X },
         },
@@ -259,7 +384,7 @@ describe("compareCores Ed25519 encoding normalization", () => {
       id: did,
       verificationMethod: [
         {
-          id: `${did}#other`,
+          id: `${did}#key1`,
           type: "JsonWebKey2020",
           publicKeyJwk: {
             kty: "OKP",

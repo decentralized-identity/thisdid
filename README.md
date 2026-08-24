@@ -343,8 +343,10 @@ Newly added TS Universal Resolver drivers (currently `webvh`, `plc`, `ebsi`, `ne
 badge and run under a guarantee mechanism **wherever an independent verifier exists**: when a
 capable upstream is configured for the method, every ThisDID resolution is executed **in parallel**
 with that redundant upstream, and the two documents' security core (document
-`id`, the set of public verification keys — or, for keyless methods like iden3/polygonid, the
-on-chain identity state itself — and deactivation status) is compared in the mother Worker.
+`id`, root controllers, aliases, services, complete verification-method IDs,
+the set of public verification keys — or, for keyless methods like iden3/polygonid, the
+on-chain identity state itself — authorization relationships, and deactivation status) is compared
+in the mother Worker.
 Methods no upstream anywhere can currently resolve (`polygonid`, `xrpl`, `dht`) are **local-authoritative**:
 their results are honestly stamped `verification: { status: "unverified", reason:
 "upstreamUnsupported" }` rather than being double-checked, until an independent verifier becomes
@@ -363,9 +365,13 @@ available:
   to disagree with, and the guarantee never becomes a new point of failure.
 - **Incomparable material** — a document carries a verification method whose material the
   comparator does not understand → served unbadged (`status: "unverified"`, reason
-  `unverifiableMaterial`), never a fabricated match or mismatch. Keyless methods the comparator
-  DOES understand are compared by their real security state: iden3/polygonid documents compare
-  the on-chain identity state, GIST root, State contract, and proof — not just key sets.
+  `unverifiableMaterial`), never a fabricated match or mismatch. The same conservative result
+  applies to structurally invalid documents, active documents with no comparable security
+  material, and purpose-silent providers: matching keys without matching authorization is not a
+  full match. Keyless methods the comparator DOES understand are compared by their real security
+  state: iden3/polygonid documents compare the on-chain identity state, GIST root, State contract,
+  and proof — not just key sets. Deactivated outcomes remain semantic verifier results even when
+  their DID document is null, so active-versus-deactivated is recorded as a hard mismatch.
 
 The verifier is chosen **capability- and health-aware** (`UPSTREAM_METHOD_SUPPORT` in
 [`src/resolvers/registry.ts`](src/resolvers/registry.ts)): only an upstream known to resolve the

@@ -73,7 +73,8 @@ async function runStep(
   try {
     if (step === "local") {
       const r = await resolveLocal(did, env, signal);
-      return r.didDocument && !r.didResolutionMetadata.error
+      const deactivated = r.didDocumentMetadata?.deactivated === true;
+      return (r.didDocument && !r.didResolutionMetadata.error) || deactivated
         ? { step, result: r }
         : {
             step,
