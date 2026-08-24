@@ -12,7 +12,7 @@ byte encoding.
 `near-api-js`, whose chain includes the native `secp256k1` addon and `elliptic@6.6.1` — flagged
 for **CVE-2025-14505** (nonce truncation in ECDSA signing; low severity, and **no fixed release
 exists**). DID resolution never signs anything, so the entire cryptographic chain is dead weight:
-resolution is two JSON-RPC queries. This package reimplements the method cleanly for edge/Worker
+resolution is two JSON-RPC queries. This package reimplements the method cleanly for the Workers
 runtimes.
 
 **Exit criteria (vendoring convention):** this package is custodial. When upstream publishes a

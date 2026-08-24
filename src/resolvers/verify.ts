@@ -201,8 +201,38 @@ function iden3StateMaterial(vm: Record<string, unknown>): string {
  * comparing opaque methods by fragment alone would let two documents with
  * different security state read as a match.
  */
-function keyMaterial(vm: Record<string, unknown>): string | undefined {
+/**
+ * Tezos account-anchored verification method types: in did:tz the CAIP-10
+ * address IS the key commitment (a BLAKE2b-20 digest of the public key),
+ * and providers legitimately differ in whether they ALSO enrich the method
+ * with the revealed key (ThisDID's driver does, after re-deriving the
+ * address from it; didkit-based upstreams serve the bare derivation).
+ * Inside a did:tz document these types compare on the account anchor so an
+ * enriched document and a bare derivation of the same account match.
+ *
+ * DELIBERATELY SCOPED to did:tz documents: `EcdsaSecp256k1RecoveryMethod2020`
+ * also appears in other methods (ethr and friends), where supplied key
+ * material must keep being compared as key material — an account-id
+ * coincidence there must never mask differing keys.
+ */
+const TZ_ACCOUNT_ANCHORED_VM_TYPES = new Set([
+  "Ed25519PublicKeyBLAKE2BDigestSize20Base58CheckEncoded2021",
+  "EcdsaSecp256k1RecoveryMethod2020",
+  "P256PublicKeyBLAKE2BDigestSize20Base58CheckEncoded2021",
+]);
+
+function keyMaterial(
+  vm: Record<string, unknown>,
+  tezosDocument: boolean,
+): string | undefined {
   if (vm.type === "Iden3StateInfo2023") return iden3StateMaterial(vm);
+  if (
+    tezosDocument &&
+    TZ_ACCOUNT_ANCHORED_VM_TYPES.has(vm.type as string) &&
+    typeof vm.blockchainAccountId === "string"
+  ) {
+    return `caip10:${vm.blockchainAccountId}`;
+  }
   const ed25519 = ed25519Canonical(vm);
   if (ed25519) return ed25519;
   if (typeof vm.publicKeyMultibase === "string") {
@@ -280,6 +310,8 @@ function relationshipEntries(
  */
 function securityCore(doc: DIDDocument): SecurityCore {
   const docId = doc.id;
+  const tezosDocument =
+    typeof docId === "string" && docId.startsWith("did:tz:");
   const materialByFragment = new Map<string, string>();
   const seen = new Set<string>();
   const keys = new Map<string, number>();
@@ -289,7 +321,7 @@ function securityCore(doc: DIDDocument): SecurityCore {
     if (!value || typeof value !== "object") return;
     const vm = value as Record<string, unknown>;
     const fragment = fragmentOf(vm.id);
-    const recognized = keyMaterial(vm);
+    const recognized = keyMaterial(vm, tezosDocument);
     if (recognized === undefined) opaque = true;
     const material = recognized ?? `opaque:${fragment}`;
     materialByFragment.set(fragment, material);

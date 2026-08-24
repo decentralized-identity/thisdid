@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-driver-tz",
+  "main": "index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // No secrets required: layer-1 derivation is offline; key discovery reads
+  // the public TzKT indexer. Optional overrides: TZ_TZKT_MAINNET_URL /
+  // TZ_TZKT_SHADOWNET_URL (Ghostnet was terminated in 2026 — Shadownet is
+  // the current testnet).
+}

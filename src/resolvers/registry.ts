@@ -27,6 +27,12 @@ export const ROUTE_CHAINS: Record<string, Step[]> = {
   // Algorand-anchored methods: GoPlausible first, then godiddy, then archon.
   algo: ["goplausible", "godiddy", "archon"],
   nfd: ["goplausible", "godiddy", "archon"],
+  // Wave-5 chain methods: archon is the only upstream that resolves them
+  // (resolution-verified 2026-08-24) and doubles as the probation verifier,
+  // so it outranks godiddy in the fallback order.
+  iota: ["local", "archon", "godiddy"],
+  tz: ["local", "archon", "godiddy"],
+  empe: ["local", "archon", "godiddy"],
 };
 
 export function chainFor(method: string): Step[] {
@@ -83,6 +89,11 @@ export const UPSTREAM_METHOD_SUPPORT: Partial<
     "sol",
     // resolution-verified 2026-08-21 (HCS testnet DID answered live).
     "hedera",
+    // resolution-verified 2026-08-24 (live documents answered for all
+    // three; did:dht answered 501 and did:ion 500, so neither is listed).
+    "iota",
+    "tz",
+    "empe",
   ]),
   goplausible: new Set(["algo", "nfd"]),
 };

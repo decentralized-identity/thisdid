@@ -4,15 +4,15 @@
 [DIF](https://identity.foundation/) Universal DID Resolver: one endpoint that resolves any
 Decentralized Identifier and returns a unified, DID Core- and DIF-conformant resolution result.
 
-A smart **routing engine** matches every DID to the appropriate method driver: **nineteen
-methods resolve at the edge** through isolated TypeScript DID Resolver Workers, and the long tail
-is routed to redundant upstream Universal Resolvers with failover. Newly added edge drivers run
+A smart **routing engine** matches every DID to the appropriate method driver: **twenty-four
+methods resolve inside ThisDID itself** through isolated TypeScript DID Resolver Workers, and the long tail
+is routed to redundant upstream Universal Resolvers with failover. Newly added TS Universal Resolver drivers run
 under a **verification guarantee** — wherever an independent upstream can resolve the method,
 every resolution is double-checked in parallel against it until the driver's live match-rate
 earns its graduation (methods no upstream serves are honestly stamped `unverified`). A connected **probe
 sub-worker** health-checks every route with real canary DID resolutions every five minutes, feeding the
 engine live per-resolver health (surfaced at [`/status`](https://thisdid.com/status)). The same
-edge Worker serves the landing SPA and the JSON resolver API from a single origin via content
+gateway Worker serves the landing SPA and the JSON resolver API from a single origin via content
 negotiation.
 
 This repository is a **[Decentralized Identity Foundation (DIF)](https://identity.foundation/)**
@@ -82,7 +82,7 @@ deployment problems, and ThisDID deliberately uses both:
 | Resolver flavor                        | DIF project                                                                          | How it runs                                                                                                                             | Strength                                                                              | How ThisDID uses it                                                                                                                     |
 | -------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **Container-based Universal Resolver** | [`universal-resolver`](https://github.com/decentralized-identity/universal-resolver) | A driver-based framework commonly deployed with method drivers in separate containers behind the DIF Universal Resolver HTTP interface. | Broad, language-independent DID method coverage and independently maintained drivers. | ThisDID distributes requests across compatible public Universal Resolver implementations through its smart routing and failover engine. |
-| **TypeScript DID Resolver**            | [`did-resolver`](https://github.com/decentralized-identity/did-resolver)             | An embeddable TypeScript resolver core combined directly with compatible JavaScript/TypeScript method packages.                         | Small, application-native integration with no container hop for compatible drivers.   | ThisDID embeds the core in isolated private driver Workers for fast, low-latency edge resolution.                                       |
+| **TypeScript DID Resolver**            | [`did-resolver`](https://github.com/decentralized-identity/did-resolver)             | An embeddable TypeScript resolver core combined directly with compatible JavaScript/TypeScript method packages.                         | Small, application-native integration with no container hop for compatible drivers.   | ThisDID embeds the core in isolated private driver Workers for fast, low-latency in-gateway resolution.                                 |
 
 These are complementary rather than competing resolver designs. The TypeScript path gives ThisDID
 a fast embedded resolver for package-backed methods; the container-based ecosystem supplies broad
@@ -91,7 +91,7 @@ bundle or run every method driver.
 
 ```text
                                   ┌────────────────────────────────────┐
-                                  │          ThisDID edge API          │
+                                  │         ThisDID gateway API        │
  DID request ──► parse method ──► │ health-aware smart routing engine  │
                                   └──────────────┬─────────────────────┘
                                                  │
@@ -147,10 +147,10 @@ metadata apply regardless of which resolver flavor succeeds.
 
         DRIVER_WEB   DRIVER_KEY   DRIVER_PKH   DRIVER_PEER   DRIVER_ETHR
         DRIVER_WEBVH   DRIVER_PLC   DRIVER_EBSI   DRIVER_NEAR   DRIVER_JWK
-        … (abbreviated — 19 bindings total, one per driver in the table below)
+        … (abbreviated — 24 bindings total, one per driver in the table below)
              │            │             │             │
              ▼            ▼             ▼             ▼
-        nineteen independently deployed private driver Workers (src/driver-workers/)
+        twenty-four independently deployed private driver Workers (src/driver-workers/)
 
 ┌──────────────── thisdid-probe (probe/, connected sub-worker) ────────────────┐
 │  cron `*/5 * * * *` →  one canary DID resolution round per route every 5 min │
@@ -165,14 +165,14 @@ metadata apply regardless of which resolver flavor succeeds.
 | `src/driver-workers/`   | Private Tier 1 Worker entrypoints; each directly consumes one published or vendored resolver package.                                                                                                                                                                                                                       |
 | `web/`                  | The landing-page SPA (Vite + React + TypeScript). Builds to `web/dist`.                                                                                                                                                                                                                                                     |
 | `vendor/did-resolver`   | DIF [`did-resolver`](https://github.com/GoPlausible/did-resolver) core, pinned as a **git submodule**.                                                                                                                                                                                                                      |
-| `vendor/*-did-resolver` | ThisDID-custodied `@thisdid/*` driver packages (webvh, plc, near, jwk, cheqd, dns, ens, cid, sol, iden3, hedera, xrpl — plus the parked ion driver); each documents its trust model and exit criteria in its own README.                                                                                                    |
+| `vendor/*-did-resolver` | ThisDID-custodied `@thisdid/*` driver packages (webvh, plc, near, jwk, cheqd, dns, ens, cid, ion, sol, iden3, hedera, xrpl, iota, empe, dht, tz); each documents its trust model and exit criteria in its own README.                                                                                                       |
 | `probe/`                | The **thisdid-probe** sub-worker — cron-driven resolver health prober feeding the routing engine (own `wrangler.jsonc`).                                                                                                                                                                                                    |
 | `directory/`            | The **thisdid-directory** worker — the public DID method directory at [thisdid.com/directory](https://thisdid.com/directory): curated per-method research + live measured scores from the shared analytics, with a daily DIF registry sync (Universal Resolver compose catalog + DID Methods WG recommended/endorsed sets). |
 | `wrangler.jsonc`        | Worker + static-assets config.                                                                                                                                                                                                                                                                                              |
 
 ### Isolated TypeScript driver Workers
 
-The mother Worker does not bundle the nineteen driver packages. Each one is built and
+The mother Worker does not bundle the twenty-four driver packages. Each one is built and
 deployed as its own private Cloudflare Worker, with `workers.dev` and preview URLs disabled. The
 mother invokes only the selected method Worker through a Service Binding; Cloudflare starts or
 reuses that deployed isolate on demand.
@@ -192,12 +192,17 @@ reuses that deployed isolate on demand.
 | `did:dns`       | `DRIVER_DNS`       | `thisdid-driver-dns`       | `@thisdid/dns-did-resolver@1.0.0` (vendored)                                | DNS-over-HTTPS + offline did:key                                                                       | `DOH_URL` var (Cloudflare default)                             |
 | `did:ens`       | `DRIVER_ENS`       | `thisdid-driver-ens`       | `@thisdid/ens-did-resolver@1.0.0` (vendored, ethers v6)                     | ENS via Ethereum JSON-RPC                                                                              | Mainnet RPC Worker secret                                      |
 | `did:near`      | `DRIVER_NEAR`      | `thisdid-driver-near`      | `@thisdid/near-did-resolver@1.0.0` (vendored)                               | NEAR JSON-RPC                                                                                          | RPC endpoint vars; optional registry contract vars             |
-| `did:cid`       | `DRIVER_CID`       | `thisdid-driver-cid`       | `@thisdid/cid-did-resolver@1.0.0` (vendored, chain-verifying)               | Archon Gatekeeper event chain, every operation signature re-verified at the edge                       | `CID_GATEKEEPER_URL` var (Archon default)                      |
+| `did:cid`       | `DRIVER_CID`       | `thisdid-driver-cid`       | `@thisdid/cid-did-resolver@1.0.0` (vendored, chain-verifying)               | Archon Gatekeeper event chain, every operation signature re-verified by ThisDID itself                 | `CID_GATEKEEPER_URL` var (Archon default)                      |
 | `did:sol`       | `DRIVER_SOL`       | `thisdid-driver-sol`       | `@thisdid/sol-did-resolver@1.0.0` (vendored, clean-room)                    | Both sol-did programs in one Solana RPC round-trip; generative fallback                                | `SOL_RPC_{MAINNET,DEVNET,TESTNET}_URL` secrets                 |
 | `did:iden3`     | `DRIVER_IDEN3`     | `thisdid-driver-iden3`     | `@thisdid/iden3-did-resolver@1.0.0` (vendored, clean-room)                  | iden3 State contract over EVM RPC (`eth_call`)                                                         | `IDEN3_RPC_POLYGON_{MAIN,AMOY}_URL` secrets                    |
 | `did:polygonid` | `DRIVER_POLYGONID` | `thisdid-driver-polygonid` | same `@thisdid/iden3-did-resolver` (ID type-byte enforced)                  | Privado ID on the same State-contract engine                                                           | `POLYGONID_RPC_POLYGON_{MAIN,AMOY}_URL` secrets                |
 | `did:hedera`    | `DRIVER_HEDERA`    | `thisdid-driver-hedera`    | `@thisdid/hedera-did-resolver@1.0.0` (vendored, clean-room)                 | HCS topic events via public mirror REST — every message Ed25519-verified; bounded, fail-closed history | Keyless; optional `HEDERA_MIRROR_{MAINNET,TESTNET}_URL` vars   |
 | `did:xrpl`      | `DRIVER_XRPL`      | `thisdid-driver-xrpl`      | `@thisdid/xrpl-did-resolver@1.0.0` (vendored, clean-room)                   | Native XLS-40 `DID` ledger entries via one `ledger_entry` call; authored documents usability-validated | Keyless; optional `XRPL_RPC_{MAINNET,TESTNET,DEVNET}_URL` vars |
+| `did:iota`      | `DRIVER_IOTA`      | `thisdid-driver-iota`      | `@thisdid/iota-did-resolver@1.0.0` (vendored, clean-room)                   | Identity Move objects via one `iota_getObject` call, chain-identifier-asserted, unpacked offline       | Keyless; optional `IOTA_RPC_{MAINNET,TESTNET,DEVNET}_URL` vars |
+| `did:empe`      | `DRIVER_EMPE`      | `thisdid-driver-empe`      | `@thisdid/empe-did-resolver@1.0.0` (vendored, clean-room)                   | Empeiria `x/diddoc` via one GET `abci_query`, protobuf-decoded offline (no public mainnet yet)         | Keyless; `EMPE_RPC_{MAINNET,TESTNET}_URL` vars                 |
+| `did:dht`       | `DRIVER_DHT`       | `thisdid-driver-dht`       | `@thisdid/dht-did-resolver@1.0.0` (vendored, clean-room)                    | BEP44-signed DNS packets via a Pkarr relay — every payload Ed25519-verified against the DID's own key  | Keyless; optional `DHT_RELAY_URLS` var                         |
+| `did:tz`        | `DRIVER_TZ`        | `thisdid-driver-tz`        | `@thisdid/tz-did-resolver@1.0.0` (vendored, clean-room)                     | Tezos layer-1 derivation, offline; revealed keys included only after BLAKE2b re-derivation via TzKT    | Keyless; optional `TZ_TZKT_{MAINNET,SHADOWNET}_URL` vars       |
+| `did:ion`       | `DRIVER_ION`       | `thisdid-driver-ion`       | `@thisdid/ion-did-resolver@1.0.0` (vendored, clean-room)                    | Long-form Sidetree DIDs fully verified offline; short-form `notConfigured` (no public ION node exists) | Optional `ION_RESOLUTION_ENDPOINT` var (deliberately unset)    |
 
 Every driver Worker registers a DIF `getResolver()` package directly, and the ThisDID-custodied
 `@thisdid/*` packages live vendored under `vendor/`. Two families:
@@ -222,7 +227,23 @@ Every driver Worker registers a DIF `getResolver()` package directly, and the Th
   [`@thisdid/xrpl-did-resolver`](vendor/xrpl-did-resolver/README.md) (to our knowledge the
   first published resolver for native XLS-40 DIDs; authored on-ledger documents pass a strict
   usability validation — own-DID ids, resolved references, exactly one encoding-validated
-  public key per method, private JWK members rejected — before being served).
+  public key per method, private JWK members rejected — before being served),
+  [`@thisdid/iota-did-resolver`](vendor/iota-did-resolver/README.md) (IOTA Rebased Identity
+  Move objects unpacked offline, package-allowlisted, with the spec's chain-identifier
+  assertion — the official bindings are WASM-heavy for workerd),
+  [`@thisdid/empe-did-resolver`](vendor/empe-did-resolver/README.md) (a hand-rolled protobuf
+  decode of Empeiria's `x/diddoc` query, field numbers taken from the chain's own codec — the
+  official packages pull cosmjs/protobufjs/typeorm),
+  [`@thisdid/dht-did-resolver`](vendor/dht-did-resolver/README.md) (every Pkarr relay payload
+  Ed25519-verified against the DID's own identity key before its DNS records are reconstructed
+  — a relay can withhold but never forge),
+  [`@thisdid/tz-did-resolver`](vendor/tz-did-resolver/README.md) (Tezos layer-1 derivation per
+  the frozen-but-complete Spruce spec, with TzKT-discovered keys included only after BLAKE2b
+  re-derivation of the address), and
+  [`@thisdid/ion-did-resolver`](vendor/ion-did-resolver/README.md) (long-form Sidetree DIDs
+  verified fully offline — suffix and delta hashes over canonicalized create data; short-form
+  deliberately reports `notConfigured` since no public ION node exists, and the chain falls
+  through to upstreams).
 
 Per the vendoring convention every vendored package records its method scope, trust model,
 fail-closed behavior, test-vector provenance, and exit criteria back to upstream in its README.
@@ -230,7 +251,7 @@ Drivers report `notConfigured` for missing per-network configuration (the mother
 transport-class failure and continues the chain) and method-specific fail-closed codes — e.g.
 hedera's `resourceLimitExceeded` — rather than composing from partial data.
 
-All nineteen Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
+All twenty-four Workers use the vendored DIF TypeScript `did-resolver` core and the same versioned
 internal request/response contract. The mother retains generic DID validation, timeouts,
 returned-document ID validation, health-aware fallback, public metadata, rate limiting, and
 analytics. A driver never chooses another provider or records analytics itself.
@@ -293,14 +314,14 @@ did:iden3:…                          any other method (did:web, did:indy, …)
    404 notFound                        404 notFound
 ```
 
-| Method                                                                                                                                  | Chain (in order)                               |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `sol`, `polygonid`, `hedera`, `xrpl` | **TypeScript DID Resolver** → Godiddy → Archon |
-| `iden3`, `cid`                                                                                                                          | **TypeScript DID Resolver** → Archon → Godiddy |
-| `algo`, `nfd`                                                                                                                           | **GoPlausible** → Godiddy → Archon             |
-| _all others_ (long tail)                                                                                                                | Godiddy → Archon (no local driver)             |
+| Method                                                                                                                                                | Chain (in order)                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `web`, `key`, `pkh`, `peer`, `ethr`, `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `sol`, `polygonid`, `hedera`, `xrpl`, `dht`, `ion` | **TypeScript DID Resolver** → Godiddy → Archon |
+| `iden3`, `cid`, `iota`, `tz`, `empe`                                                                                                                  | **TypeScript DID Resolver** → Archon → Godiddy |
+| `algo`, `nfd`                                                                                                                                         | **GoPlausible** → Godiddy → Archon             |
+| _all others_ (long tail)                                                                                                                              | Godiddy → Archon (no local driver)             |
 
-The first two rows are the nineteen methods with implemented local TypeScript drivers (this table
+The first two rows are the twenty-four methods with implemented local TypeScript drivers (this table
 mirrors `LOCAL_DRIVER_METHODS` and `ROUTE_CHAINS` in the source). For every other advertised
 method, the `local` step reports `notConfigured` and the mother continues to its configured
 upstream providers. A method in the broader catalog describes a routing policy, not a guarantee
@@ -314,18 +335,18 @@ was resolved. Change a method's routing by editing `ROUTE_CHAINS` in the registr
 
 #### Probation double-checking (new-driver guarantee)
 
-Newly added edge drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `cid`, `sol`, `iden3`, `polygonid`, `hedera`, `xrpl`) carry a **New · under test**
+Newly added TS Universal Resolver drivers (currently `webvh`, `plc`, `ebsi`, `near`, `jwk`, `cheqd`, `dns`, `ens`, `cid`, `sol`, `iden3`, `polygonid`, `hedera`, `xrpl`, `iota`, `empe`, `dht`, `tz`, `ion`) carry a **New · under test**
 badge and run under a guarantee mechanism **wherever an independent verifier exists**: when a
-capable upstream is configured for the method, every edge resolution is executed **in parallel**
+capable upstream is configured for the method, every ThisDID resolution is executed **in parallel**
 with that redundant upstream, and the two documents' security core (document
 `id`, the set of public verification keys — or, for keyless methods like iden3/polygonid, the
 on-chain identity state itself — and deactivation status) is compared in the mother Worker.
-Methods no upstream anywhere can currently resolve (`polygonid`, `xrpl`) are **local-authoritative**:
+Methods no upstream anywhere can currently resolve (`polygonid`, `xrpl`, `dht`) are **local-authoritative**:
 their results are honestly stamped `verification: { status: "unverified", reason:
 "upstreamUnsupported" }` rather than being double-checked, until an independent verifier becomes
 available:
 
-- **Core match** → the edge result is served, stamped
+- **Core match** → the ThisDID result is served, stamped
   `didResolutionMetadata.verification: { status: "match", provider }` and shown in the UI as a
   bold green **Double-checked by <Provider>** badge (and in the analytics live feed).
 - **Core mismatch** (both sides resolved, documents disagree) → the upstream's answer is served
@@ -333,7 +354,7 @@ available:
   `verification_mismatches` table
   ([`migrations/0003_verification.sql`](migrations/0003_verification.sql)) for adjudication.
 - **Upstream cannot answer** — transport failure, throttled quota (`upstreamRateLimited`),
-  unsupported method, or a failed resolution (e.g. `notFound`) → the edge result is served
+  unsupported method, or a failed resolution (e.g. `notFound`) → the ThisDID result is served
   unbadged (`status: "unverified"`, reason recorded). A verifier with no answer has no opinion
   to disagree with, and the guarantee never becomes a new point of failure.
 - **Incomparable material** — a document carries a verification method whose material the
@@ -347,13 +368,13 @@ The verifier is chosen **capability- and health-aware** (`UPSTREAM_METHOD_SUPPOR
 method, and not currently tripped `down` by the probes, is consulted (e.g. `did:plc` verifies
 against Archon — the only upstream that speaks it; `did:jwk` against Godiddy — Archon's jwk
 driver is broken). When no capable verifier exists or every capable one is down, the redundant
-call is skipped entirely — the edge result is served at full edge latency with the `unverified`
+call is skipped entirely — the ThisDID result is served at full speed with the `unverified`
 stamp.
 
 Per-method match/mismatch/unverified counts appear on [`/analytics`](https://thisdid.com/analytics)
 — they are the graduation criteria: once a method sustains a high match-rate over real traffic,
 it is removed from `PROBATION_METHODS` ([`src/methods.ts`](src/methods.ts)) and resolves at pure
-edge latency with no redundant upstream call. NEAR implicit accounts are exempt (deterministic,
+gateway latency with no redundant upstream call. NEAR implicit accounts are exempt (deterministic,
 and unresolvable by upstreams).
 
 #### Resolver health probes (`thisdid-probe`)
@@ -363,8 +384,11 @@ route with **real canary DID resolutions** — not TCP checks — **every five m
 (cron `*/5 * * * *`). One canary per authoritative route, each bounded by the same 8s timeout as
 live traffic: a resolution-verified canary per TypeScript driver (`web`, `key`, `pkh`, `peer`,
 `webvh`, `plc`, `ebsi`, `jwk`, `cheqd`, `dns`, `cid`, `sol`, `iden3`, `polygonid`, `hedera`,
-`xrpl`, and two for `near` — an offline implicit account plus a live mainnet RPC account; the
-ens canary is enabled with `ENS_CANARY_DID` once its RPC secret is configured), `did:algo` +
+`xrpl`, `iota`, `empe`, `tz`, an offline long-form `ion`, and two for `near` — an offline
+implicit account plus a live mainnet RPC account; the ens canary is enabled with
+`ENS_CANARY_DID` once its RPC secret is configured, and `dht` has no default canary — no
+stable public did:dht record has survived TBD's shutdown, so `DHT_CANARY_DID` arms one once a
+continuously republished record exists), `did:algo` +
 `did:nfd` via GoPlausible, and `did:iden3` + `did:cid` via Archon (its Universal Resolver and
 its cid-only Gatekeeper fold into the same `archon` health key).
 **Godiddy is the one exception**: its public resolver API is quota-throttled, so a canary
@@ -422,7 +446,7 @@ npm run install:vendor # initializes submodules, then installs the pnpm-locked v
 socket npm install     # installs the root Worker + web workspace (links the vendored packages);
                        # plain `npm install` works too — Socket gating is the recommended default
 npm run build          # builds the vendored packages + the SPA
-npm run drivers:check  # bundles all nineteen isolated drivers without deploying
+npm run drivers:check  # bundles all twenty-four isolated drivers without deploying
 npm run check          # Worker + web typechecks, all tests, and production builds
 ```
 
@@ -445,9 +469,9 @@ application's dependency graph.
 ### Develop
 
 ```bash
-npm run dev            # mother Worker + nineteen bound driver Workers + Vite SPA
+npm run dev            # mother Worker + twenty-four bound driver Workers + Vite SPA
 npm run dev:worker     # mother Worker only (drivers must already be running)
-npm run dev:drivers    # nineteen discoverable local driver processes on ports 8791–8809
+npm run dev:drivers    # twenty-four discoverable local driver processes on ports 8791–8809 and 8811–8815
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
 npm test               # root Worker + probe + web test suites (per-package: cd vendor/<pkg> && pnpm test)
 ```
@@ -462,7 +486,7 @@ Alchemy URLs.
 
 ```bash
 npm run build          # → all vendored package libs + web/dist
-npm run deploy:drivers # deploy nineteen isolated driver Workers first
+npm run deploy:drivers # deploy twenty-four isolated driver Workers first
 npm run deploy         # build, deploy the directory worker, then the mother Worker
 npm run deploy:all     # deploy drivers, then probe, then mother Worker
 npm run deploy:probe   # deploys the thisdid-probe sub-worker (starts the health cron)
@@ -505,7 +529,7 @@ Errors follow the DIF binding: `invalidDid` → 400, `notFound` → 404, `unsupp
 canonicalized to the published spec's camelCase (providers on the newer problem-details draft
 emit uppercase types such as `METHOD_NOT_SUPPORTED`), and failed resolutions carry sanitized
 per-step `attempts` diagnostics — including the local drivers' own messages — so the API is
-self-diagnosing. Resolution and MCP routes can also return 429 when the Cloudflare edge rate
+self-diagnosing. Resolution and MCP routes can also return 429 when the Cloudflare rate
 limiter is configured.
 
 `POST /mcp` requires `Content-Type: application/json` and accepts request bodies up to 64 KiB.
@@ -608,7 +632,7 @@ cp .dev.vars.example .dev.vars
 Without a `GODIDDY_API_KEY`, the Godiddy step is skipped (401) and the chain falls through to the
 next resolver, so resolution still works for methods Archon or ThisDID can serve.
 
-The mother and probe Workers bind privately to all nineteen driver services declared in their
+The mother and probe Workers bind privately to all twenty-four driver services declared in their
 respective `services` arrays. Per-driver configuration (each on that driver Worker's own config —
 `--config src/driver-workers/<method>/wrangler.jsonc`):
 
@@ -627,6 +651,11 @@ respective `services` arrays. Per-driver configuration (each on that driver Work
 | `cid`                                       | Optional var                     | `CID_GATEKEEPER_URL` (Archon Gatekeeper default built in)                                                                          |
 | `hedera`                                    | Optional vars                    | `HEDERA_MIRROR_MAINNET_URL` / `HEDERA_MIRROR_TESTNET_URL` (public mirror defaults built in — keyless)                              |
 | `xrpl`                                      | Optional vars                    | `XRPL_RPC_MAINNET_URL` / `XRPL_RPC_TESTNET_URL` / `XRPL_RPC_DEVNET_URL` (public endpoint defaults built in — keyless)              |
+| `iota`                                      | Optional vars                    | `IOTA_RPC_MAINNET_URL` / `IOTA_RPC_TESTNET_URL` / `IOTA_RPC_DEVNET_URL` (public fullnode defaults built in — keyless)              |
+| `empe`                                      | Vars, per enabled network        | `EMPE_RPC_TESTNET_URL` (public default built in); `EMPE_RPC_MAINNET_URL` the day Empeiria's mainnet launches (fails closed until)  |
+| `dht`                                       | Optional var                     | `DHT_RELAY_URLS` (comma-separated Pkarr relays; `relay.pkarr.org` default built in — keyless, payloads self-verifying)             |
+| `tz`                                        | Optional vars                    | `TZ_TZKT_MAINNET_URL` / `TZ_TZKT_SHADOWNET_URL` (public TzKT defaults built in — keyless; derivation itself is offline)            |
+| `ion`                                       | Optional var                     | `ION_RESOLUTION_ENDPOINT` (deliberately unset — long-form is offline; short-form falls through to upstreams until a node exists)   |
 | `web`, `key`, `pkh`, `peer`, `webvh`, `jwk` | None                             | Deterministic or credential-free HTTPS — deploy and go                                                                             |
 
 Store every required secret with `wrangler secret put` on the owning driver Worker, e.g.:

@@ -126,7 +126,7 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15.5 }}>
             Routed to the {view.resolver}
-            {view.route === "local" ? " (Typescript edge)" : ""}
+            {view.route === "local" ? " (TS Universal Resolver driver)" : ""}
           </div>
           <div style={{ fontSize: 13.5, color: "var(--dim)", marginTop: 3 }}>
             The rules engine matched {view.methodTag} to its conformant driver
@@ -178,7 +178,7 @@ export function Results({ view, tab, setTab, copy, copied }: Props) {
               {(view.verification.provider ?? "upstream").replace(/^./, (c) =>
                 c.toUpperCase(),
               )}{" "}
-              — edge verification mismatch
+              — ThisDID verification mismatch
             </div>
           )}
           {view.verification?.status === "unverified" && (
@@ -426,7 +426,10 @@ function Overview({
               { label: "Resolved by", value: view.resolver },
               {
                 label: "Route",
-                value: view.route === "local" ? "Edge driver" : "Upstream",
+                value:
+                  view.route === "local"
+                    ? "TS Universal Resolver driver"
+                    : "Upstream",
               },
               { label: "Latency", value: view.duration },
             ].map((row) => (

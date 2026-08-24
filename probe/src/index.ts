@@ -49,6 +49,8 @@ interface ProbeEnv extends DriverBindings {
   ETHR_CANARY_DID?: string;
   /** Optional stable ens DID; enable only after the ens driver RPC secret is configured. */
   ENS_CANARY_DID?: string;
+  /** Optional stable did:dht; enable only once a continuously republished record exists. */
+  DHT_CANARY_DID?: string;
   DB?: D1Database;
   STATS_KV?: KVNamespace;
 }
@@ -129,6 +131,35 @@ const CANARIES: { step: Step; did: string }[] = [
   {
     step: "local",
     did: "did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE",
+  },
+  // did:iota — a production Identity object on Rebased mainnet (Turingcerts'
+  // domain-linkage DID), read from the public fullnode (keyless).
+  {
+    step: "local",
+    did: "did:iota:0x0c6e3b00bfe019452ffee1b5c7f5e6d2e09705cb6a354d22fd853450494a697c",
+  },
+  // did:empe — the catalog example on the Empeiria testnet, read via GET
+  // abci_query from the public Tendermint RPC (keyless).
+  {
+    step: "local",
+    did: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
+  },
+  // did:tz — Tezos Foundation Baker 1 (tz3, revealed since 2023): layer-1
+  // derivation plus BLAKE2b-verified key discovery through TzKT (keyless).
+  {
+    step: "local",
+    did: "did:tz:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq",
+  },
+  // did:dht has NO default canary: nobody republishes a stable public
+  // did:dht record since TBD's shutdown, so any fixed DID would read the
+  // DHT's honest notFound as an outage. Enable one with DHT_CANARY_DID once
+  // a republished record exists (same pattern as ETHR_CANARY_DID).
+  // did:ion LONG-FORM — offline, deterministic, fully verified in-driver
+  // (deploy/bundle check). Short-form has no configured endpoint by design:
+  // the routing chain serves it via upstreams, so it is not a local canary.
+  {
+    step: "local",
+    did: "did:ion:EiBwLUL07Ku-N8ZBODHk2jV2uCRWO6SyLhGZimHbqiTa3A:eyJkZWx0YSI6eyJwYXRjaGVzIjpbeyJhY3Rpb24iOiJyZXBsYWNlIiwiZG9jdW1lbnQiOnsicHVibGljS2V5cyI6W3siaWQiOiJzaWcta2V5IiwicHVibGljS2V5SndrIjp7ImNydiI6InNlY3AyNTZrMSIsImt0eSI6IkVDIiwieCI6IllzQ2dSdHJNNkczZEEwUEcwOGZIbkNJSXVnMmNuUEpLYlFSdElkSWZrUGMiLCJ5IjoiYllQMnB2OHQtR1pPeDdnRXF4Tml6SlZBUGtOMDBZR2VDRUM5aW9nWGdBMCJ9LCJwdXJwb3NlcyI6WyJhdXRoZW50aWNhdGlvbiIsImFzc2VydGlvbk1ldGhvZCJdLCJ0eXBlIjoiRWNkc2FTZWNwMjU2azFWZXJpZmljYXRpb25LZXkyMDE5In1dLCJzZXJ2aWNlcyI6W3siaWQiOiJzaXRlIiwic2VydmljZUVuZHBvaW50IjoiaHR0cHM6Ly90aGlzZGlkLmNvbSIsInR5cGUiOiJMaW5rZWREb21haW5zIn1dfX1dLCJ1cGRhdGVDb21taXRtZW50IjoiRWlDaHp6MG0wOC1yemFzUnlWOXF2QXdVVEswYnZLVURaWlpjUmhDN0ZvRzdCZyJ9LCJzdWZmaXhEYXRhIjp7ImRlbHRhSGFzaCI6IkVpQnlWREdZRlpLaEtObm1MZ25hdW5LWGIySjVUWFhLSUJ4di1lcFdsV1FEOVEiLCJyZWNvdmVyeUNvbW1pdG1lbnQiOiJFaURtMThmeHIzWVZnTGRxZ0xRcElocDQ2TkZneDVIZ1Y2WTMzbFA5Q2Q5VVhnIn19",
   },
   // The network-backed ens canary is enabled with ENS_CANARY_DID once the ens
   // driver's RPC secret is configured (same pattern as ETHR_CANARY_DID).
@@ -361,6 +392,9 @@ async function runRound(env: ProbeEnv): Promise<void> {
       : []),
     ...(env.ENS_CANARY_DID
       ? [{ step: "local" as const, did: env.ENS_CANARY_DID }]
+      : []),
+    ...(env.DHT_CANARY_DID
+      ? [{ step: "local" as const, did: env.DHT_CANARY_DID }]
       : []),
   ];
   const results = await Promise.all(canaries.map((c) => probeOne(c, env)));

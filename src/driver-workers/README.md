@@ -10,8 +10,7 @@ public routes. They do not select fallbacks or record analytics.
 
 ## Workers
 
-All nineteen active drivers (the `ion/` directory also exists but is **parked** — built and
-tested, deliberately unbound and unrouted until a non-resolver short-form endpoint exists):
+All twenty-four active drivers:
 
 | Binding            | Worker name                | Resolver package                                       | Configuration                                     |
 | ------------------ | -------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
@@ -34,6 +33,11 @@ tested, deliberately unbound and unrouted until a non-resolver short-form endpoi
 | `DRIVER_POLYGONID` | `thisdid-driver-polygonid` | same `@thisdid/iden3-did-resolver` package             | Secrets per enabled network (`POLYGONID_RPC_*`)   |
 | `DRIVER_HEDERA`    | `thisdid-driver-hedera`    | `@thisdid/hedera-did-resolver@1.0.0` (clean-room)      | None (keyless; optional `HEDERA_MIRROR_*` vars)   |
 | `DRIVER_XRPL`      | `thisdid-driver-xrpl`      | `@thisdid/xrpl-did-resolver@1.0.0` (clean-room)        | None (keyless; optional `XRPL_RPC_*` vars)        |
+| `DRIVER_IOTA`      | `thisdid-driver-iota`      | `@thisdid/iota-did-resolver@1.0.0` (clean-room)        | None (keyless; optional `IOTA_RPC_*` vars)        |
+| `DRIVER_EMPE`      | `thisdid-driver-empe`      | `@thisdid/empe-did-resolver@1.0.0` (clean-room)        | Vars per network (`EMPE_RPC_*`; no mainnet yet)   |
+| `DRIVER_DHT`       | `thisdid-driver-dht`       | `@thisdid/dht-did-resolver@1.0.0` (clean-room)         | None (keyless; optional `DHT_RELAY_URLS` var)     |
+| `DRIVER_TZ`        | `thisdid-driver-tz`        | `@thisdid/tz-did-resolver@1.0.0` (clean-room)          | None (keyless; optional `TZ_TZKT_*` vars)         |
+| `DRIVER_ION`       | `thisdid-driver-ion`       | `@thisdid/ion-did-resolver@1.0.0` (clean-room)         | Optional `ION_RESOLUTION_ENDPOINT` (unset)        |
 
 Every entrypoint registers a DIF `getResolver()` package directly. Six consume published npm
 packages; the rest consume ThisDID-custodied `@thisdid/*` packages vendored under `vendor/`, in
@@ -51,7 +55,14 @@ two families:
   State-contract reads, serving `polygonid` too with ID type-byte enforcement), `hedera`
   (every publicly-writable HCS topic event Ed25519-verified against the DID root key; bounded,
   **fail-closed** event history), and `xrpl` (native XLS-40 ledger entries; authored on-ledger
-  documents pass strict usability validation before being served). Each vendored package
+  documents pass strict usability validation before being served), `iota` (Rebased Identity
+  Move objects unpacked offline, package-allowlisted, chain-identifier-asserted), `empe`
+  (hand-rolled protobuf decode of Empeiria's `x/diddoc` query — no cosmjs/protobufjs), `dht`
+  (every Pkarr relay payload Ed25519-verified against the DID's own identity key before its DNS
+  records are reconstructed), `tz` (Tezos layer-1 derivation with TzKT-discovered keys included
+  only after BLAKE2b re-derivation of the address), and `ion` (long-form Sidetree DIDs verified
+  fully offline; short-form deliberately `notConfigured` — no public ION node exists, so the
+  mother's chain falls through to upstreams). Each vendored package
   documents its trust model, fail-closed behavior, test-vector provenance, and exit criteria in
   its own README under [`vendor/`](../../vendor/).
 
@@ -77,7 +88,7 @@ two families:
 
 ## Deployment order
 
-Run `npm run drivers:check` (dry-run bundles all nineteen), then deploy the drivers before the
+Run `npm run drivers:check` (dry-run bundles all twenty-four), then deploy the drivers before the
 mother Worker:
 
 ```sh
@@ -91,13 +102,14 @@ Publishing, deployment, commits, and pushes remain explicit maintainer actions.
 
 ## Local development
 
-`npm run dev` starts the nineteen driver processes, the mother Worker, and the Vite SPA
+`npm run dev` starts the twenty-four driver processes, the mother Worker, and the Vite SPA
 together. Wrangler discovers the driver processes by their configured service names and connects
 the mother's Service Bindings at `http://localhost:8787`; nothing is deployed.
-`npm run dev:drivers` (ports 8791–8809) and `npm run dev:worker` are also available when
+`npm run dev:drivers` (ports 8791–8809 and 8811–8815; 8810 belongs to `dev:directory`) and
+`npm run dev:worker` are also available when
 separate terminals are preferable.
 
 For local network-backed resolution, copy `.dev.vars.example` to `.dev.vars` inside each
 secret-requiring driver directory (`ethr`, `ens`, `sol`, `iden3`, `polygonid`) and insert the
-full provider URLs. The keyless drivers (`hedera`, `xrpl`) and the offline drivers (`key`,
-`pkh`, `peer`, `jwk`) need no local secrets.
+full provider URLs. The keyless drivers (`hedera`, `xrpl`, `iota`, `empe`, `dht`, `tz`) and the offline drivers
+(`key`, `pkh`, `peer`, `jwk`, and long-form `ion`) need no local secrets.

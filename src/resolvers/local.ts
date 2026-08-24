@@ -63,6 +63,14 @@ function bindingFor(
       return env.DRIVER_HEDERA;
     case "xrpl":
       return env.DRIVER_XRPL;
+    case "iota":
+      return env.DRIVER_IOTA;
+    case "empe":
+      return env.DRIVER_EMPE;
+    case "dht":
+      return env.DRIVER_DHT;
+    case "tz":
+      return env.DRIVER_TZ;
     default:
       return undefined;
   }

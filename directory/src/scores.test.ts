@@ -57,13 +57,16 @@ describe("profile assembly", () => {
     expect(byId.get("web")?.status).toBe("edge");
     expect(byId.get("xrpl")?.status).toBe("edge");
     expect(byId.get("btcr")?.status).toBe("upstream");
-    expect(byId.get("ion")?.status).toBe("parked");
     expect(byId.get("kilt")?.status).toBe("no-go");
     expect(byId.get("algo")?.status).toBe("excluded");
     // Directory-only ids exist without a routing chain.
     expect(byId.get("sov")?.status).toBe("no-go");
     expect(byId.get("sov")?.chain).toEqual([]);
-    expect(byId.get("iota")?.status).toBe("bench");
+    // Wave 5 promoted these from bench/parked to edge drivers.
+    for (const id of ["iota", "dht", "tz", "empe", "ion"]) {
+      expect(byId.get(id)?.status).toBe("edge");
+      expect(byId.get(id)?.probation).toBe(true);
+    }
   });
 
   it("keeps real routing chains, even for no-go catalog members", () => {

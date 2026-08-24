@@ -141,7 +141,7 @@ export const FEATURED_METHODS: MethodMeta[] = [
     id: "cid",
     glyph: "I",
     probation: true,
-    desc: "Content-addressed Archon identities, chain-verified at the edge",
+    desc: "Content-addressed Archon identities, chain-verified by ThisDID itself",
     network: "IPFS (Archon)",
     example:
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
@@ -194,6 +194,53 @@ export const FEATURED_METHODS: MethodMeta[] = [
     desc: "Native XLS-40 DIDs, read from the XRP Ledger itself",
     network: "XRP Ledger",
     example: "did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE",
+    local: true,
+  },
+
+  {
+    id: "iota",
+    glyph: "T",
+    probation: true,
+    desc: "Identity Move objects on IOTA Rebased, unpacked and verified",
+    network: "IOTA Rebased",
+    example:
+      "did:iota:0x0c6e3b00bfe019452ffee1b5c7f5e6d2e09705cb6a354d22fd853450494a697c",
+    local: true,
+  },
+  {
+    id: "dht",
+    glyph: "M",
+    probation: true,
+    desc: "Ed25519-signed DNS packets in BitTorrent's Mainline DHT",
+    network: "Mainline DHT · Pkarr",
+    example: "did:dht:i9xkp8ddcbcg8jwq54ox699wuzxyifsqx4jru45zodqu453ksz6y",
+    local: true,
+  },
+  {
+    id: "tz",
+    glyph: "Z",
+    probation: true,
+    desc: "Tezos accounts, derived offline with verified key discovery",
+    network: "Tezos",
+    example: "did:tz:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq",
+    local: true,
+  },
+  {
+    id: "empe",
+    glyph: "F",
+    probation: true,
+    desc: "Empeiria EVDI chain documents, protobuf-decoded from RPC",
+    network: "Empeiria (EVDI)",
+    example: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
+    local: true,
+  },
+  {
+    id: "ion",
+    glyph: "O",
+    probation: true,
+    desc: "Sidetree DIDs anchored to Bitcoin; long-form verified offline",
+    network: "Bitcoin · ION (Sidetree)",
+    example: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
     local: true,
   },
 ];
@@ -270,6 +317,9 @@ export const ALL_METHODS: string[] = [
   "empe",
   "hedera",
   "xrpl",
+  "iota",
+  "dht",
+  "tz",
   "nfd",
   "bluchain",
   "webplus",
@@ -301,6 +351,11 @@ export const LOCAL_DRIVER_METHODS = [
   "polygonid",
   "hedera",
   "xrpl",
+  "iota",
+  "empe",
+  "dht",
+  "tz",
+  "ion",
 ];
 
 /**
@@ -323,6 +378,11 @@ export const PROBATION_METHODS: Set<string> = new Set([
   "polygonid",
   "hedera",
   "xrpl",
+  "iota",
+  "empe",
+  "dht",
+  "tz",
+  "ion",
 ]);
 
 /** True when ThisDID advertises a resolution route for the method. */
@@ -334,10 +394,6 @@ export function isSupportedMethod(method: string): boolean {
 const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
-  // ion is upstream-routed for now: the built driver (vendor/ion-did-resolver
-  // + src/driver-workers/ion) is parked until a non-resolver short-form
-  // endpoint exists — see .notes/typescript-did-resolver-driver-tiers.md.
-  ion: "Bitcoin · ION (Sidetree)",
 };
 
 const NETWORKS: Record<string, string> = {

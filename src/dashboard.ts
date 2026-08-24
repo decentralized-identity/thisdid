@@ -366,7 +366,7 @@ export function renderDashboard(): string {
   }
 
   function verifyPanel(list){
-    if(!list.length) return '<div class="empty">No probation resolutions in this window yet. New drivers (webvh, plc, ebsi, near) are double-checked against a redundant upstream on every edge resolution.</div>';
+    if(!list.length) return '<div class="empty">No probation resolutions in this window yet. New drivers (webvh, plc, ebsi, near) are double-checked against a redundant upstream on every ThisDID resolution.</div>';
     return list.map(function(v){
       var total=v.match+v.mismatch+v.unverified;
       var rate=total?Math.round(v.match/total*1000)/10:0;

@@ -1,0 +1,42 @@
+{
+  "name": "@thisdid/empe-did-resolver",
+  "version": "1.0.0",
+  "description": "did:empe resolver for the DIF did-resolver interface — Empeiria x/diddoc documents read straight from Tendermint RPC abci_query and protobuf-decoded offline.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "did-resolver": ">=4.1.0"
+  },
+  "dependencies": {
+    "did-resolver": "^4.1.0"
+  }
+}

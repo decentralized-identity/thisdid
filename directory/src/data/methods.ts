@@ -32,7 +32,7 @@ export const CURATED: Record<string, CuratedMethod> = {
   web: {
     summary: "Domain-anchored DIDs resolved from /.well-known over HTTPS.",
     research:
-      "The workhorse of the DID ecosystem: the identifier is a domain, the document a file the domain serves. ThisDID runs the standard published driver in an isolated edge Worker.",
+      "The workhorse of the DID ecosystem: the identifier is a domain, the document a file the domain serves. ThisDID runs the standard published driver in an isolated Worker of its own.",
     links: [
       {
         label: "did:web method spec",
@@ -48,7 +48,7 @@ export const CURATED: Record<string, CuratedMethod> = {
   key: {
     summary: "Deterministic, fully offline DIDs derived from a public key.",
     research:
-      "No network, no registry: the identifier IS the key, multicodec-encoded. Resolution is pure computation at the edge.",
+      "No network, no registry: the identifier IS the key, multicodec-encoded. Resolution is pure computation inside ThisDID.",
     links: [
       {
         label: "did:key method spec",
@@ -61,7 +61,7 @@ export const CURATED: Record<string, CuratedMethod> = {
     summary:
       "CAIP-10 blockchain-account DIDs — one identifier per on-chain account.",
     research:
-      "Wraps any CAIP-10 account (Ethereum, Solana, Tezos, Bitcoin, …) as a deterministic DID. Offline resolution at the edge.",
+      "Wraps any CAIP-10 account (Ethereum, Solana, Tezos, Bitcoin, …) as a deterministic DID. Offline resolution inside ThisDID.",
     links: [
       {
         label: "did:pkh method spec",
@@ -95,7 +95,7 @@ export const CURATED: Record<string, CuratedMethod> = {
   webvh: {
     summary: "did:web hardened with a verifiable, hash-linked key history.",
     research:
-      "Each document version is entry-hashed and proof-signed in a did.jsonl log; the ThisDID wrapper adds a WebCrypto Ed25519 proof verifier so history is verified at the edge, not trusted. A DIF Recommended method.",
+      "Each document version is entry-hashed and proof-signed in a did.jsonl log; the ThisDID wrapper adds a WebCrypto Ed25519 proof verifier so history is verified by ThisDID, not trusted. A DIF Recommended method.",
     links: [
       { label: "did:webvh spec", url: "https://identity.foundation/didwebvh/" },
       {
@@ -193,7 +193,8 @@ export const CURATED: Record<string, CuratedMethod> = {
     lastReviewed: "2026-08-23",
   },
   cid: {
-    summary: "Content-addressed Archon identities, chain-verified at the edge.",
+    summary:
+      "Content-addressed Archon identities, chain-verified by ThisDID itself.",
     research:
       "A resolution-only Gatekeeper: instead of trusting a resolver's answer, the driver fetches the DID's full signed operation chain and re-verifies every operation (CIDv1 linkage + secp256k1 signatures) before composing the document — the Gatekeeper is a courier, not an authority. A DIF Recommended method.",
     links: [
@@ -284,26 +285,87 @@ export const CURATED: Record<string, CuratedMethod> = {
     lastReviewed: "2026-08-23",
   },
 
-  // ── Parked ────────────────────────────────────────────────────────────────
   ion: {
-    status: "parked",
-    statusReason:
-      "Driver built and tested; unbound until a non-resolver short-form endpoint exists.",
     summary:
-      "Sidetree on Bitcoin — long-form DIDs verifiable offline, network dormant.",
+      "Sidetree on Bitcoin — long-form DIDs fully verified offline; short-form via upstreams.",
     research:
-      "ThisDID's driver verifies long-form did:ion entirely offline (suffix and delta hashes over canonicalized create data — no network needed), but short-form resolution requires a Sidetree node, and the public ION network has been dormant since 2023 (the reference repo untouched since August 2023; Microsoft and TBD both exited). Self-hosting an ION node against hosted Bitcoin RPC is the only real path to short-form support, so the driver is parked and did:ion serves via upstream routing meanwhile.",
+      "ThisDID's driver verifies long-form did:ion entirely offline (suffix and delta hashes over canonicalized create data — no network needed) and was activated in wave 5 after being parked one wave. Short-form resolution requires an anchored-state Sidetree node: the historical public gateways (Microsoft's ion.msidentity.com, TBD's ion.tbd.engineering) are both dead (re-confirmed 24 Aug 2026), so the driver deliberately ships with NO short-form endpoint — short-form reports notConfigured and the routing chain falls through to upstreams that still advertise ion. Set ION_RESOLUTION_ENDPOINT the day a legitimate Sidetree node exists.",
     links: [
       {
         label: "ION repo (dormant)",
         url: "https://github.com/decentralized-identity/ion",
       },
       {
-        label: "parked driver",
+        label: "vendored package",
         url: `${REPO}/tree/main/vendor/ion-did-resolver`,
       },
     ],
-    lastReviewed: "2026-08-23",
+    lastReviewed: "2026-08-24",
+  },
+  iota: {
+    summary:
+      "Identity Move objects on IOTA Rebased, read from the fullnode and unpacked offline.",
+    research:
+      "IOTA Identity moved to shared Move objects on IOTA Rebased (MoveVM, Sui-style JSON-RPC) and is in active development (v1.9.x, Aug 2026). Resolution is one iota_getObject call: the driver allowlists the published identity packages per network, asserts each endpoint's chain identifier against the DID's network, unpacks the byte-packed document (DID magic, version, encoding, u16 length) and substitutes the spec's did:0:0 placeholder — validated byte-for-byte against production mainnet Identities (including Turingcerts' domain-linkage DID) before implementation. Archon resolves the method too and serves as probation verifier.",
+    links: [
+      { label: "IOTA Identity", url: "https://github.com/iotaledger/identity" },
+      {
+        label: "IOTA DID method spec v2.0",
+        url: "https://docs.iota.org/developer/iota-identity/references/iota-did-method-spec",
+      },
+      {
+        label: "vendored package",
+        url: `${REPO}/tree/main/vendor/iota-did-resolver`,
+      },
+    ],
+    lastReviewed: "2026-08-24",
+  },
+  dht: {
+    summary:
+      "Ed25519-signed DNS packets in BitTorrent's Mainline DHT, verified against the DID's own key.",
+    research:
+      "The DID's suffix IS the Ed25519 identity key: one Pkarr relay GET returns a BEP44 mutable item whose signature the driver verifies against that key before reconstructing the document from its DNS records — a relay can withhold but never forge. The spec (DIF, W3C-registered) is complete and the Mainline + Pkarr rails are live, but records expire without republishing and the method's main publisher ecosystem (TBD's Web5) shut down, so real population is sparse: an absent record answers notFound, deliberately not the spec's identity-key-only fallback, which would resurrect expired or deactivated DIDs. No upstream anywhere resolves did:dht (Archon answers 501), so results are honestly stamped unverified.",
+    links: [
+      { label: "did:dht spec", url: "https://did-dht.com/" },
+      { label: "Pkarr", url: "https://github.com/pubky/pkarr" },
+      {
+        label: "vendored package",
+        url: `${REPO}/tree/main/vendor/dht-did-resolver`,
+      },
+    ],
+    lastReviewed: "2026-08-24",
+  },
+  tz: {
+    summary:
+      "Tezos accounts derived offline per the Spruce spec, with BLAKE2b-verified key discovery.",
+    research:
+      "did:tz layer-1 derivation is pure address math (tz1/tz2/tz3 → Ed25519/secp256k1/P-256 method types with a CAIP-10 account id), so every valid account resolves offline. The driver then enriches from the chain: one TzKT call discovers the revealed public key, included only after re-deriving the address from it (BLAKE2b-20) — a lying indexer cannot plant a key. Networks are pinned by live-read chain ids: mainnet and Shadownet (Ghostnet was terminated in 2026). Spruce's reference repo froze in 2021 but the spec's derivation layer is complete; KT1 smart-contract DIDs (TZIP-19 manager views, unused in the wild) report notConfigured. Archon resolves the method too and serves as probation verifier.",
+    links: [
+      {
+        label: "Tezos DID method (Spruce)",
+        url: "https://github.com/spruceid/did-tezos",
+      },
+      { label: "TzKT indexer", url: "https://tzkt.io/" },
+      {
+        label: "vendored package",
+        url: `${REPO}/tree/main/vendor/tz-did-resolver`,
+      },
+    ],
+    lastReviewed: "2026-08-24",
+  },
+  empe: {
+    summary:
+      "Empeiria EVDI chain documents, protobuf-decoded offline from one Tendermint abci_query.",
+    research:
+      "Empeiria's Cosmos-SDK chain stores DID documents in its x/diddoc module. The driver hand-encodes the query request, GETs abci_query on the public testnet RPC (path /empe.diddoc.Query/DidDocument) and decodes the protobuf answer offline with field numbers taken from the chain's own codec — validated byte-for-byte against the live testnet. Empeiria has no public mainnet yet (verified 24 Aug 2026): mainnet DIDs report notConfigured until real endpoints exist. The official @empe packages pull cosmjs/protobufjs/typeorm and are unusable in a Worker, hence the clean room. Archon resolves the method too and serves as probation verifier.",
+    links: [
+      { label: "Empeiria", url: "https://github.com/empe-io" },
+      {
+        label: "vendored package",
+        url: `${REPO}/tree/main/vendor/empe-did-resolver`,
+      },
+    ],
+    lastReviewed: "2026-08-24",
   },
 
   // ── Maintainer-excluded (served elsewhere) ────────────────────────────────
@@ -423,47 +485,6 @@ export const CURATED: Record<string, CuratedMethod> = {
     lastReviewed: "2026-08-21",
   },
 
-  // ── Bench: candidates, not promoted ───────────────────────────────────────
-  empe: {
-    status: "bench",
-    statusReason: "Real DIF v4 package, but niche and bundles node-fetch.",
-    summary:
-      "Empeiria chain DIDs — a real resolver package exists; adoption is niche.",
-    lastReviewed: "2026-08-21",
-  },
-  iota: {
-    status: "bench",
-    statusReason:
-      "WASM-heavy bindings; post-Rebase plain-RPC read path unproven.",
-    summary:
-      "IOTA Identity DIDs — actively developed with EU-ecosystem adoption, judged too risky for a wave slot.",
-    research:
-      "IOTA Identity is alive and has EU-ecosystem traction, but the official bindings are WASM-heavy for the Workers runtime and the post-Rebase plain-RPC read path is unproven. Revisit if IOTA ships a light resolution path.",
-    links: [
-      { label: "IOTA Identity", url: "https://github.com/iotaledger/identity" },
-    ],
-    lastReviewed: "2026-08-21",
-  },
-  dht: {
-    status: "bench",
-    statusReason:
-      "Substrate alive (Pkarr), but method adoption collapsed with TBD's shutdown.",
-    summary:
-      "BitTorrent-DHT DIDs — technically the easiest driver on the board, with no measurable adoption.",
-    research:
-      "Self-certifying ed25519 keys plus one relay GET — the easiest possible driver. The Pkarr substrate remains alive (Pubky/Synonym), but adoption of the did:dht METHOD itself collapsed with TBD's shutdown. Promoted only on evidence of real usage.",
-    links: [{ label: "did:dht spec", url: "https://did-dht.com/" }],
-    lastReviewed: "2026-08-21",
-  },
-  tz: {
-    status: "bench",
-    statusReason:
-      "Solid Spruce implementation; lower current ecosystem activity.",
-    summary:
-      "Tezos DIDs via Spruce's did-tezos — implementable, awaiting an activity signal.",
-    lastReviewed: "2026-08-21",
-  },
-
   // ── Long tail (upstream-routed) ───────────────────────────────────────────
   btcr: {
     summary:
@@ -524,7 +545,7 @@ export const CURATED: Record<string, CuratedMethod> = {
 };
 
 /** Directory-only ids (not in the routing catalog) that still get profiles. */
-const EXTRA_IDS = ["sov", "iota", "dht", "tz"];
+const EXTRA_IDS = ["sov"];
 
 const FEATURED = new Map(FEATURED_METHODS.map((m) => [m.id, m]));
 const LOCAL = new Set<string>(LOCAL_DRIVER_METHODS);

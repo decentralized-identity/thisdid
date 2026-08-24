@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "thisdid-driver-dht",
+  "main": "index.ts",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // No secrets required: resolution reads the public Pkarr relay and every
+  // record is Ed25519-verified against the DID's own identity key.
+  // Optional override: DHT_RELAY_URLS (comma-separated relay base URLs).
+}

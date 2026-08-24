@@ -80,7 +80,7 @@ export function HowItWorks() {
     >
       <div style={{ maxWidth: 760, marginBottom: 34 }}>
         <div style={eyebrow("var(--accent)")}>How ThisDID resolves</div>
-        <h2 style={h2}>Two resolver flavors. One intelligent edge.</h2>
+        <h2 style={h2}>Two resolver flavors. One intelligent gateway.</h2>
         <p style={lead}>
           The DIF ecosystem offers a container-based Universal Resolver and an
           embeddable TypeScript DID Resolver. ThisDID combines both: fast
@@ -133,7 +133,7 @@ export function HowItWorks() {
             library is embedded directly with compatible TypeScript method
             packages. ThisDID runs each package in its own private driver
             Worker, keeping startup, dependencies, RPC configuration, and
-            failures isolated while providing a low-latency path at the edge.
+            failures isolated while providing a low-latency path in the gateway.
           </p>
           <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
             {[
@@ -199,7 +199,7 @@ export function HowItWorks() {
             allowing many independently implemented DID methods to share one
             interoperable HTTP interface. ThisDID supports these deployments as
             distributed upstream resolution capacity instead of bundling every
-            container and driver into its edge Worker.
+            container and driver into its own gateway Worker.
           </p>
           <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
             {[
@@ -586,9 +586,9 @@ export function ResolverProviders() {
         <div style={eyebrow("var(--res-b)")}>Resolver providers</div>
         <h2 style={h2}>Redundant routes, trusted partners.</h2>
         <p style={lead}>
-          When ThisDID can’t resolve a method via Typescript edge resolver, it
-          routes to these conformant Universal Resolvers — in a method-specific
-          order, with automatic fallback.
+          When ThisDID can’t resolve a method via its TS Universal Resolver
+          drivers, it routes to these conformant Universal Resolvers — in a
+          method-specific order, with automatic fallback.
         </p>
       </div>
       <div
@@ -699,7 +699,7 @@ export function ResolverProviders() {
 }
 
 const NET_STATS = [
-  { value: "42", label: "Edge regions" },
+  { value: "42", label: "Gateway regions" },
   { value: "3", label: "Failover providers" },
   { value: "Live", label: "Route health probes" },
   { value: "DIF", label: "Resolution result shape" },
@@ -738,7 +738,7 @@ export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
             Globally distributed. Always compliant.
           </h2>
           <p style={{ ...lead, margin: "0 0 24px", maxWidth: 520 }}>
-            ThisDID runs at the edge worldwide and returns DID resolution
+            The ThisDID gateway runs worldwide and returns DID resolution
             results with explicit routing, timing and failure metadata.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

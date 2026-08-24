@@ -1,0 +1,43 @@
+{
+  "name": "@thisdid/tz-did-resolver",
+  "version": "1.0.0",
+  "description": "did:tz resolver for the DIF did-resolver interface \u2014 Tezos layer-1 derivation per the Spruce spec, with BLAKE2b-verified public-key discovery via TzKT.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "did-resolver": ">=4.1.0"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "did-resolver": "^4.1.0"
+  }
+}

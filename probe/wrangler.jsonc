@@ -43,6 +43,11 @@
     { "binding": "DRIVER_POLYGONID", "service": "thisdid-driver-polygonid" },
     { "binding": "DRIVER_HEDERA", "service": "thisdid-driver-hedera" },
     { "binding": "DRIVER_XRPL", "service": "thisdid-driver-xrpl" },
+    { "binding": "DRIVER_IOTA", "service": "thisdid-driver-iota" },
+    { "binding": "DRIVER_EMPE", "service": "thisdid-driver-empe" },
+    { "binding": "DRIVER_DHT", "service": "thisdid-driver-dht" },
+    { "binding": "DRIVER_TZ", "service": "thisdid-driver-tz" },
+    { "binding": "DRIVER_ION", "service": "thisdid-driver-ion" },
   ],
   // Connected to the main resolver Worker through its D1 database + KV
   // namespace (same ids as ../wrangler.jsonc): probes are appended to D1,

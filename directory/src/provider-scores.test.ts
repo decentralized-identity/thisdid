@@ -131,7 +131,12 @@ describe("provider profiles", () => {
   it("derives method lists from the engine config", () => {
     const byId = new Map(PROVIDERS.map((p) => [p.id, p]));
     expect(byId.get("thisdid")?.methods).toContain("xrpl");
-    expect(byId.get("thisdid")?.methods).toHaveLength(19);
+    expect(byId.get("thisdid")?.methods).toContain("iota");
+    expect(byId.get("thisdid")?.methods).toContain("dht");
+    expect(byId.get("thisdid")?.methods).toContain("tz");
+    expect(byId.get("thisdid")?.methods).toContain("empe");
+    expect(byId.get("thisdid")?.methods).toContain("ion");
+    expect(byId.get("thisdid")?.methods).toHaveLength(24);
     expect(byId.get("goplausible")?.methods).toEqual(["algo", "nfd"]);
     expect(byId.get("archon")?.methods).toContain("hedera");
     expect(byId.get("godiddy")?.methods).toContain("jwk");

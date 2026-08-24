@@ -303,6 +303,62 @@ describe("Ed25519 decoder input bound", () => {
   });
 });
 
+describe("compareCores account-anchored (Tezos-style) methods", () => {
+  const TZ_DID = "did:tz:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq";
+  const tzVm = (extra: Record<string, unknown> = {}) => ({
+    id: `${TZ_DID}#blockchainAccountId`,
+    type: "P256PublicKeyBLAKE2BDigestSize20Base58CheckEncoded2021",
+    controller: TZ_DID,
+    blockchainAccountId: `tezos:NetXdQprcVkpaWU:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq`,
+    ...extra,
+  });
+  const tzResult = (vm: Record<string, unknown>) =>
+    result({
+      id: TZ_DID,
+      verificationMethod: [vm],
+      authentication: [`${TZ_DID}#blockchainAccountId`],
+    });
+
+  it("matches a key-enriched document against a bare derivation", () => {
+    const enriched = tzVm({
+      publicKeyBase58:
+        "p2pk66G3vbHoscNYJdgQU72xSkrCWzoXNnFwroADcRTUtrHDvwnUNyW",
+    });
+    expect(compareCores(tzResult(enriched), tzResult(tzVm()))).toBe("match");
+  });
+
+  it("mismatches when the account anchors differ", () => {
+    const other = tzVm({
+      blockchainAccountId:
+        "tezos:NetXdQprcVkpaWU:tz1S7GgVV4FPEGUVzepKBwx22DyNikdpa4X6",
+    });
+    expect(compareCores(tzResult(tzVm()), tzResult(other))).toBe("mismatch");
+  });
+
+  it("keeps comparing key material outside did:tz — same anchor never masks a rotated key", () => {
+    // EcdsaSecp256k1RecoveryMethod2020 is used far beyond Tezos; the anchor
+    // normalization is scoped to did:tz documents, so elsewhere two methods
+    // sharing a blockchainAccountId but carrying DIFFERENT keys must
+    // mismatch on the keys.
+    const ETHR_DID = "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a";
+    const ethrVm = (publicKeyBase58: string) => ({
+      id: `${ETHR_DID}#controller`,
+      type: "EcdsaSecp256k1RecoveryMethod2020",
+      controller: ETHR_DID,
+      blockchainAccountId: `eip155:1:0xb9c5714089478a327f09197987f16f9e5d936e8a`,
+      publicKeyBase58,
+    });
+    const ethrResult = (vm: Record<string, unknown>) =>
+      result({ id: ETHR_DID, verificationMethod: [vm] });
+    expect(
+      compareCores(ethrResult(ethrVm("KeyOne")), ethrResult(ethrVm("KeyTwo"))),
+    ).toBe("mismatch");
+    expect(
+      compareCores(ethrResult(ethrVm("KeyOne")), ethrResult(ethrVm("KeyOne"))),
+    ).toBe("match");
+  });
+});
+
 describe("compareCores Iden3StateInfo2023 state comparison", () => {
   const IDEN3_DID =
     "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw";

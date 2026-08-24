@@ -39,7 +39,7 @@ export function renderResearch(text: string): string {
 }
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  edge: { label: "Edge driver", cls: "edge" },
+  edge: { label: "TS Universal Resolver driver", cls: "edge" },
   upstream: { label: "Upstream routed", cls: "upstream" },
   parked: { label: "Parked", cls: "parked" },
   "no-go": { label: "No-go", cls: "nogo" },
@@ -242,7 +242,7 @@ ${scoreBits(s)}
     : "vendored snapshot";
   const body = `${nav("home")}
 <p class="sub">Curated research and live, measured popularity/availability for ${profiles.length}
-DID methods — the ones <a href="/">ThisDID</a> resolves at the edge, the long
+DID methods — the ones <a href="/">ThisDID</a> resolves itself, the long
 tail it routes upstream, and the ones the research says are gone. Live numbers come from the
 resolver's own <a href="/analytics">analytics</a> and health probes.
 DIF registry sync: ${esc(synced)}.</p>
@@ -250,7 +250,7 @@ DIF registry sync: ${esc(synced)}.</p>
 <input id="q" type="search" placeholder="Filter methods…" autocomplete="off"/>
 <div class="seg">
 <button class="range-btn on" data-f="all">All</button>
-<button class="range-btn" data-f="edge">Edge drivers</button>
+<button class="range-btn" data-f="edge">TS Universal Resolver drivers</button>
 <button class="range-btn" data-f="upstream">Upstream</button>
 <button class="range-btn" data-f="no-go">No-go</button>
 <button class="range-btn" data-f="parked">Parked / bench</button>
@@ -329,7 +329,7 @@ ${badges(p)}
 <div class="panel"><h2>Live scores</h2>
 ${meterRow("Popularity", s?.popularity ?? null, "")}
 ${meterRow("Availability", s?.availability ?? null, "%")}
-${meterRow("Edge canary 24h", s?.canary24h ?? null, "%")}
+${meterRow("ThisDID canary 24h", s?.canary24h ?? null, "%")}
 <div class="scores" style="margin-top:6px"><span>
 resolutions: 24h <b>${s?.resolutions24h ?? 0}</b> · 7d <b>${s?.resolutions7d ?? 0}</b> ·
 30d <b>${s?.resolutions30d ?? 0}</b> · from
@@ -340,7 +340,7 @@ ${
     ? `<div class="panel"><h2>Probation verification</h2>${
         p.probationVerifiers?.length
           ? `<p class="sub" style="margin:0 0 10px">New driver under the verification
-guarantee: edge resolutions are double-checked in parallel against an independent upstream —
+guarantee: ThisDID resolutions are double-checked in parallel against an independent upstream —
 for ${esc(p.name)}, ${esc(p.probationVerifiers.join(" and "))} — until the live match-rate
 earns graduation.</p>
 ${
@@ -439,7 +439,7 @@ methods <b>${p.methods.length}</b></span></div>
     })
     .join("");
   const body = `${nav("providers")}
-<p class="sub">The resolver providers behind ThisDID's routing chains — the edge driver fleet and
+<p class="sub">The resolver providers behind ThisDID's routing chains — the TS Universal Resolver driver fleet and
 the redundant upstreams — with live availability, a measured <b>reliability</b> composite
 (success consistency, stability, latency discipline, throttle behavior, verification
 agreement), and each provider's share of routed traffic. Numbers come from the engine's own

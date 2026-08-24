@@ -3,13 +3,16 @@ import axios from "axios";
 
 import cheqdWorker from "./cheqd";
 import cidWorker from "./cid";
+import dhtWorker from "./dht";
 import dnsWorker from "./dns";
 import ebsiWorker from "./ebsi";
+import empeWorker from "./empe";
 import ensWorker from "./ens";
 import ethrWorker from "./ethr";
 import hederaWorker from "./hedera";
 import iden3Worker from "./iden3";
 import ionWorker from "./ion";
+import iotaWorker from "./iota";
 import jwkWorker from "./jwk";
 import keyWorker from "./key";
 import nearWorker from "./near";
@@ -18,11 +21,14 @@ import pkhWorker from "./pkh";
 import plcWorker from "./plc";
 import polygonidWorker from "./polygonid";
 import solWorker from "./sol";
+import tzWorker from "./tz";
 import webWorker from "./web";
 import webvhWorker from "./webvh";
 import xrplWorker from "./xrpl";
 import type { DriverResponseV1 } from "./contract";
 import { createDriverWorker } from "./runtime";
+import { hasLocalDriver } from "../resolvers/local";
+import { LOCAL_DRIVER_METHODS } from "../methods";
 import {
   ARCHON_NODE_DID,
   FIXTURE,
@@ -56,6 +62,20 @@ import {
   RAW_STATE_RETURN as IDEN3_RAW_STATE,
   REFERENCE_DOCUMENT as IDEN3_REFERENCE_DOCUMENT,
 } from "../../vendor/iden3-did-resolver/src/__tests__/fixture";
+import {
+  IOTA_MAINNET_CHAIN_ID,
+  IOTA_VM_DID,
+  IOTA_VM_OBJECT,
+} from "../../vendor/iota-did-resolver/src/__tests__/fixture";
+import {
+  EMPE_OK_RESPONSE,
+  EMPE_TESTNET_DID,
+} from "../../vendor/empe-did-resolver/src/__tests__/fixture";
+import {
+  PKARR_LIVE_KEY,
+  PKARR_LIVE_PAYLOAD,
+} from "../../vendor/dht-did-resolver/src/__tests__/fixture";
+import { TZ_REVEALED } from "../../vendor/tz-did-resolver/src/__tests__/fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -569,6 +589,121 @@ describe("Tier 1 driver Workers", () => {
     expect(body.result.didDocument).toEqual(XRPL_REFERENCE_DOCUMENT);
   });
 
+  it("resolves did:iota from a mainnet Identity Move object", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe("https://api.mainnet.iota.cafe");
+        const rpc = JSON.parse(String(init?.body)) as { method: string };
+        return Response.json({
+          jsonrpc: "2.0",
+          id: 1,
+          result:
+            rpc.method === "iota_getChainIdentifier"
+              ? IOTA_MAINNET_CHAIN_ID
+              : IOTA_VM_OBJECT,
+        });
+      }),
+    );
+    const body = await resolve(iotaWorker, IOTA_VM_DID);
+    expect(body.driver).toMatchObject({
+      method: "iota",
+      packageName: "@thisdid/iota-did-resolver",
+    });
+    expect(body.result.didDocument?.id).toBe(IOTA_VM_DID);
+    expect(
+      body.result.didDocument?.verificationMethod?.[0].publicKeyJwk?.crv,
+    ).toBe("Ed25519");
+    expect(body.result.didDocumentMetadata).toMatchObject({
+      network: "iota",
+      deactivated: false,
+    });
+  });
+
+  it("resolves did:empe from the testnet diddoc module", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        expect(url).toContain("https://rpc-testnet.empe.io/abci_query");
+        expect(url).toContain("empe.diddoc.Query/DidDocument");
+        return Response.json({ result: { response: EMPE_OK_RESPONSE } });
+      }),
+    );
+    const body = await resolve(empeWorker, EMPE_TESTNET_DID);
+    expect(body.driver).toMatchObject({
+      method: "empe",
+      packageName: "@thisdid/empe-did-resolver",
+    });
+    expect(body.result.didDocument?.id).toBe(EMPE_TESTNET_DID);
+    expect(body.result.didDocument?.verificationMethod).toHaveLength(2);
+  });
+
+  it("fails closed for did:empe mainnet until endpoints exist", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = await resolve(empeWorker, `did:empe:${"a".repeat(40)}`);
+    expect(body.result.didResolutionMetadata.error).toBe("notConfigured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("answers did:dht notFound on the relay's 404 and honors overrides", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toBe(`https://relay.example/${PKARR_LIVE_KEY}`);
+        return new Response("no record", { status: 404 });
+      }),
+    );
+    const body = await resolve(dhtWorker, `did:dht:${PKARR_LIVE_KEY}`, {
+      DHT_RELAY_URLS: "https://relay.example",
+    });
+    expect(body.driver).toMatchObject({
+      method: "dht",
+      packageName: "@thisdid/dht-did-resolver",
+    });
+    expect(body.result.didResolutionMetadata.error).toBe("notFound");
+  });
+
+  it("signature-verifies did:dht payloads before serving them", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(PKARR_LIVE_PAYLOAD.slice().buffer as ArrayBuffer),
+      ),
+    );
+    const body = await resolve(dhtWorker, `did:dht:${PKARR_LIVE_KEY}`);
+    // The live Pkarr record verifies but holds no _did root record.
+    expect(body.result.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(body.result.didResolutionMetadata.message).toContain("root record");
+  });
+
+  it("resolves did:tz with BLAKE2b-verified key discovery", async () => {
+    const { address, publicKey } = TZ_REVEALED.tz3;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toContain(
+          `https://api.tzkt.io/v1/accounts/${address}`,
+        );
+        return Response.json({ publicKey, revealed: true });
+      }),
+    );
+    const body = await resolve(tzWorker, `did:tz:${address}`);
+    expect(body.driver).toMatchObject({
+      method: "tz",
+      packageName: "@thisdid/tz-did-resolver",
+    });
+    const vm = body.result.didDocument
+      ?.verificationMethod?.[0] as unknown as Record<string, unknown>;
+    expect(vm.type).toBe(
+      "P256PublicKeyBLAKE2BDigestSize20Base58CheckEncoded2021",
+    );
+    expect(vm.publicKeyBase58).toBe(publicKey);
+    expect(body.result.didDocumentMetadata.keyDiscovery).toBe("verified");
+  });
+
   it("fails closed when the iden3 network RPC secret is absent", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -595,5 +730,33 @@ describe("Tier 1 driver Workers", () => {
     const body = await resolve(nearWorker, "did:near:alice.near");
     expect(body.result.didResolutionMetadata.error).toBe("internalError");
     expect(body.result.didDocument).toBeNull();
+  });
+});
+
+describe("mother dispatch parity", () => {
+  it("maps every LOCAL_DRIVER_METHODS entry to its DRIVER_* binding", () => {
+    // All DriverBindings members are optional, so a method added to the list
+    // without a dispatch case in bindingFor() is invisible to typechecking —
+    // it would silently report notConfigured in production. The recording
+    // proxy proves each method reaches exactly its conventional binding.
+    for (const method of LOCAL_DRIVER_METHODS) {
+      const accessed: string[] = [];
+      const env = new Proxy(
+        {},
+        {
+          get: (_target, property) => {
+            accessed.push(String(property));
+            return { fetch: async () => new Response() };
+          },
+        },
+      );
+      expect(
+        hasLocalDriver(method, env as never),
+        `no bindingFor() dispatch case for \`${method}\``,
+      ).toBe(true);
+      expect(accessed, `unexpected binding lookup for \`${method}\``).toEqual([
+        `DRIVER_${method.toUpperCase()}`,
+      ]);
+    }
   });
 });

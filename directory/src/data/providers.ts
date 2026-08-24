@@ -13,13 +13,13 @@ export const PROVIDERS: ProviderProfile[] = [
   {
     id: "thisdid",
     tag: "ThisDID",
-    name: "ThisDID edge drivers",
+    name: "TS Universal Resolver drivers",
     kind: "TypeScript DID Resolver fleet",
     operator: "DIF / GoPlausible (maintainer)",
     baseUrl: "https://thisdid.com/1.0/identifiers/",
     auth: "Open — no key",
     summary:
-      "Nineteen isolated TypeScript driver Workers resolving at the edge — the first hop of every routing chain, probation-verified against redundant upstreams while new.",
+      "Twenty-four isolated TypeScript driver Workers — the first hop of every routing chain, probation-verified against redundant upstreams while new.",
     methods: sorted(LOCAL_DRIVER_METHODS),
     links: [
       { label: "Resolver", url: "https://thisdid.com" },
@@ -70,7 +70,7 @@ export const PROVIDERS: ProviderProfile[] = [
     baseUrl: "https://resolver.archon.technology/1.0/identifiers/",
     auth: "Open — no key",
     summary:
-      "A full Universal Resolver deployment plus the cid-only Gatekeeper API — the probation verifier for several ThisDID edge drivers (iden3, cid, sol, hedera among them).",
+      "A full Universal Resolver deployment plus the cid-only Gatekeeper API — the probation verifier for several TS Universal Resolver drivers (iden3, cid, sol, hedera among them).",
     methods: sorted(UPSTREAM_METHOD_SUPPORT.archon ?? []),
     links: [
       { label: "Archon", url: "https://archon.technology" },

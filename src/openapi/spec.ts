@@ -10,7 +10,7 @@ export function openApiSpec(origin: string) {
       description:
         "ThisDID is a W3C DID Core-conformant DIF Universal DID Resolver. It implements the DIF " +
         "Universal Resolver HTTP binding (`GET /1.0/identifiers/{did}`) with smart routing: each method " +
-        "is resolved through an ordered fallback chain of ThisDID Typescript edge drivers plus the " +
+        "is resolved through an ordered fallback chain of TS Universal Resolver drivers plus the " +
         "Godiddy, GoPlausible, and Archon Universal Resolvers. ThisDID was built and donated to DIF " +
         "by GoPlausible, which continues to maintain it. Additional resolver integrations are welcome.",
       license: { name: "Apache-2.0" },
@@ -79,7 +79,7 @@ export function openApiSpec(origin: string) {
             },
             "429": {
               description:
-                "Edge resolution rate limit exceeded (`error: rateLimitExceeded`).",
+                "Gateway rate limit exceeded (`error: rateLimitExceeded`).",
             },
             "501": {
               description:
@@ -271,7 +271,7 @@ export function openApiSpec(origin: string) {
             },
             "413": { description: "Request body exceeds 64 KiB." },
             "415": { description: "Content-Type is not `application/json`." },
-            "429": { description: "Edge rate limit exceeded." },
+            "429": { description: "Gateway rate limit exceeded." },
           },
         },
       },
@@ -304,7 +304,7 @@ export function openApiSpec(origin: string) {
                 verification: {
                   type: "object",
                   description:
-                    "Probation double-check outcome for new edge drivers: the edge result was compared against a redundant upstream.",
+                    "Probation double-check outcome for new TS Universal Resolver drivers: the ThisDID result was compared against a redundant upstream.",
                   properties: {
                     status: {
                       type: "string",

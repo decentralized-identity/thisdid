@@ -22,6 +22,10 @@ export interface DriverBindings {
   DRIVER_POLYGONID?: DriverServiceBinding;
   DRIVER_HEDERA?: DriverServiceBinding;
   DRIVER_XRPL?: DriverServiceBinding;
+  DRIVER_IOTA?: DriverServiceBinding;
+  DRIVER_EMPE?: DriverServiceBinding;
+  DRIVER_DHT?: DriverServiceBinding;
+  DRIVER_TZ?: DriverServiceBinding;
 }
 
 /** Worker bindings (see wrangler.jsonc). */
