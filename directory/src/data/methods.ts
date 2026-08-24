@@ -23,8 +23,8 @@ import type { CuratedMethod, DifRegistry, MethodProfile } from "../types";
 
 const REPO = "https://github.com/decentralized-identity/thisdid";
 const W3C_EXTENSIONS = {
-  label: "W3C DID Extensions registry",
-  url: "https://www.w3.org/TR/did-extensions/",
+  label: "W3C DID Methods registry",
+  url: "https://www.w3.org/TR/did-extensions-methods/",
 };
 
 export const CURATED: Record<string, CuratedMethod> = {
