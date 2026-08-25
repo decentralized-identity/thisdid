@@ -76,15 +76,6 @@ function resolutionResponse(result: ThisDidResolution) {
   });
 }
 
-/** Percent-decode without throwing on malformed input. */
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
-}
-
 /** Log a resolution to D1 without blocking the response. Never throws. */
 function track(
   c: Context<{ Bindings: Env }>,
@@ -97,7 +88,10 @@ function track(
     c.executionCtx.waitUntil(
       recordResolution(c.env, {
         did,
-        method: did.split(":")[1]?.toLowerCase() ?? "",
+        // Cap the derived method: for a malformed DID `did.split(":")[1]` can be
+        // an arbitrarily long attacker-chosen blob, which would otherwise bloat
+        // the row and the DISTINCT-method cardinality behind /data.
+        method: (did.split(":")[1]?.toLowerCase() ?? "").slice(0, 40),
         route: m.route ?? null,
         provider: m.provider ?? null,
         resolver: m.resolver ?? null,
@@ -151,13 +145,16 @@ async function limited(
   c: Context<{ Bindings: Env }>,
 ): Promise<Response | null> {
   if (!c.env.RESOLUTION_RATE_LIMITER) return null;
-  const auth = c.req.header("authorization");
-  const identity = auth ?? c.req.header("cf-connecting-ip") ?? "anonymous";
+  // Bucket strictly by the Cloudflare-set connecting IP. The client-supplied
+  // Authorization header must NEVER influence the key: it is attacker-chosen,
+  // so keying on it lets a caller mint an unlimited stream of fresh buckets
+  // (a new bearer value per request) and bypass the limit entirely.
+  const identity = c.req.header("cf-connecting-ip") ?? "anonymous";
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(identity),
   );
-  const key = `${auth ? "auth" : "client"}:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const key = `client:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   const { success } = await c.env.RESOLUTION_RATE_LIMITER.limit({ key });
   return success
     ? null
@@ -175,7 +172,10 @@ async function limited(
 app.get("/1.0/identifiers/:did{.+}", async (c) => {
   const blocked = await limited(c);
   if (blocked) return blocked;
-  const did = safeDecode(c.req.param("did"));
+  // Hono already percent-decodes the route param exactly once; decoding again
+  // would corrupt any DID whose identifier legitimately contains a `%XX`
+  // (e.g. `did:web:example.com%3A3000`, a host with a port).
+  const did = c.req.param("did");
   if (did.length > 4096)
     return c.json(
       {
@@ -385,7 +385,10 @@ app.get("/:did{did:.+}", async (c) => {
   if (wantsJson(c.req.header("accept"))) {
     const blocked = await limited(c);
     if (blocked) return blocked;
-    const did = safeDecode(c.req.param("did"));
+    // Hono already percent-decodes the route param exactly once; decoding again
+    // would corrupt any DID whose identifier legitimately contains a `%XX`
+    // (e.g. `did:web:example.com%3A3000`, a host with a port).
+    const did = c.req.param("did");
     if (did.length > 4096)
       return c.json(
         {

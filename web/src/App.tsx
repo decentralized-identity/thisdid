@@ -11,6 +11,7 @@ import {
 } from "./components/Sections";
 import { LiveStats } from "./components/LiveStats";
 import { ScanModal } from "./components/ScanModal";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { resolveDid, validateDid, type ResolveOk } from "./lib/api";
 import { fetchStats, type LiveStatsData } from "./lib/stats";
 import { useCopy, useTheme } from "./hooks";
@@ -104,9 +105,15 @@ export function App() {
 
   // Resolve a `/did:...` deep link on first load.
   useEffect(() => {
-    const path = decodeURIComponent(
-      window.location.pathname.replace(/^\//, ""),
-    );
+    const raw = window.location.pathname.replace(/^\//, "");
+    // Decode defensively: a malformed percent-sequence in the URL (e.g. a lone
+    // `%`) makes decodeURIComponent throw, which would otherwise blank the app.
+    let path = raw;
+    try {
+      path = decodeURIComponent(raw);
+    } catch {
+      // Keep the raw path; the server validates the DID authoritatively.
+    }
     // The URL is an external system; defer its stateful resolution until after the effect setup.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (path.toLowerCase().startsWith("did:")) void runResolve(path);
@@ -181,13 +188,15 @@ export function App() {
 
       <div ref={resultsRef} />
       {result && (
-        <Results
-          view={result.view}
-          tab={tab}
-          setTab={setTab}
-          copy={copy}
-          copied={copied}
-        />
+        <ErrorBoundary key={result.view.did}>
+          <Results
+            view={result.view}
+            tab={tab}
+            setTab={setTab}
+            copy={copy}
+            copied={copied}
+          />
+        </ErrorBoundary>
       )}
 
       <HowItWorks />

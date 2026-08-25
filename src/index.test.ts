@@ -107,31 +107,40 @@ describe("HTTP binding", () => {
     expect(response.status).toBe(413);
   });
 
-  it("rate-limits root DID deep links and hashes limiter identities", async () => {
-    let key = "";
+  it("rate-limits by client IP regardless of a spoofable Authorization header", async () => {
+    const keys: string[] = [];
     const limitedEnv = {
       ...env,
       RESOLUTION_RATE_LIMITER: {
         limit: async ({ key: value }: { key: string }) => {
-          key = value;
+          keys.push(value);
           return { success: false };
         },
       },
     };
-    const response = await app.request(
-      "/did:web:example.com",
-      {
-        headers: {
-          accept: "application/json",
-          authorization: "Bearer secret-token",
+    const call = (authorization: string) =>
+      app.request(
+        "/did:web:example.com",
+        {
+          headers: {
+            accept: "application/json",
+            "cf-connecting-ip": "203.0.113.7",
+            authorization,
+          },
         },
-      },
-      limitedEnv,
-      ctx,
-    );
-    expect(response.status).toBe(429);
-    expect(key).toMatch(/^auth:[a-f0-9]{64}$/);
-    expect(key).not.toContain("secret-token");
+        limitedEnv,
+        ctx,
+      );
+    const first = await call("Bearer secret-token");
+    const second = await call("Bearer a-different-token");
+    expect(first.status).toBe(429);
+    expect(second.status).toBe(429);
+    // The identity is the hashed IP, never the raw header value.
+    expect(keys[0]).toMatch(/^client:[a-f0-9]{64}$/);
+    expect(keys[0]).not.toContain("secret-token");
+    // A rotated Authorization header must land in the SAME bucket — otherwise
+    // an attacker mints unlimited fresh buckets and bypasses the limit.
+    expect(keys[1]).toBe(keys[0]);
   });
 
   it("enforces the configured edge limiter", async () => {

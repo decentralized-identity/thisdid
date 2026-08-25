@@ -188,6 +188,9 @@ const CANARIES: { step: Step; did: string }[] = [
 /** Same wall-clock bound as a live routing step (STEP_TIMEOUT_MS in src/resolve.ts). */
 const PROBE_TIMEOUT_MS = 8000;
 const RETENTION_MS = 30 * 24 * 3600 * 1000;
+/** Resolution events and mismatch evidence are kept longer than raw probes but
+ * are still pruned so the main Worker's tables cannot grow without bound. */
+const RESOLUTION_RETENTION_MS = 90 * 24 * 3600 * 1000;
 const DEFAULT_GODIDDY_HEALTH = "https://api.godiddy.com/health";
 
 // Health-fold tuning: latency EWMA reacts in ~3 rounds, success rate in ~7;
@@ -469,15 +472,39 @@ async function runRound(env: ProbeEnv): Promise<void> {
 
 async function prune(env: ProbeEnv): Promise<void> {
   if (!env.DB) return;
+  const db = env.DB;
   try {
-    await ensureSchema(env.DB);
-    await env.DB.prepare("DELETE FROM probes WHERE ts < ?")
-      .bind(Date.now() - RETENTION_MS)
-      .run();
+    await ensureSchema(db);
   } catch (err) {
     console.error(
       JSON.stringify({ event: "probe.prune_error", error: String(err) }),
     );
+    return;
+  }
+  // Each table is deleted independently: `resolutions` and
+  // `verification_mismatches` are owned by the main Worker's runtime schema and
+  // may not exist yet on a fresh environment, so a missing one must not block
+  // pruning the others. Without this the main-Worker tables grow forever
+  // (their rows are attacker-drivable — see the /data cardinality note).
+  const deletes: [string, number][] = [
+    ["DELETE FROM probes WHERE ts < ?", Date.now() - RETENTION_MS],
+    [
+      "DELETE FROM resolutions WHERE ts < ?",
+      Date.now() - RESOLUTION_RETENTION_MS,
+    ],
+    [
+      "DELETE FROM verification_mismatches WHERE ts < ?",
+      Date.now() - RESOLUTION_RETENTION_MS,
+    ],
+  ];
+  for (const [sql, cutoff] of deletes) {
+    try {
+      await db.prepare(sql).bind(cutoff).run();
+    } catch (err) {
+      console.error(
+        JSON.stringify({ event: "probe.prune_error", error: String(err) }),
+      );
+    }
   }
 }
 

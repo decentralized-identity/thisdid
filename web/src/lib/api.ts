@@ -88,6 +88,18 @@ const REL_DEFS: { key: keyof DIDDocument; accent: boolean }[] = [
 const asArray = <T>(value: T | T[] | null | undefined): T[] =>
   value == null ? [] : Array.isArray(value) ? value : [value];
 
+/** Coerce an untrusted document field to a display string. DID documents are
+ * attacker-controlled, so a field the UI renders directly (service `type`,
+ * controller, created/updated) must never reach React as an object — that
+ * throws "Objects are not valid as a React child" and unmounts the subtree. */
+const asText = (value: unknown, fallback = "—"): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return fallback;
+};
+
 const refId = (x: unknown): string => {
   if (typeof x === "string") return x;
   if (!x || typeof x !== "object") return "";
@@ -347,7 +359,9 @@ export function buildView(
     const endpoint = endpointStr(s.serviceEndpoint);
     return {
       frag: s.id ? frag(s.id) : `#service-${index + 1}`,
-      type: Array.isArray(s.type) ? s.type.join(", ") : (s.type ?? "Service"),
+      type: Array.isArray(s.type)
+        ? s.type.filter((t) => typeof t === "string").join(", ") || "Service"
+        : asText(s.type, "Service"),
       endpoint,
       href: safeExternalUrl(endpoint),
     };
@@ -355,9 +369,9 @@ export function buildView(
 
   // Only a DECLARED controller is shown; an absent one means the subject
   // controls itself, which must not render as if the document declared it.
-  const controller = Array.isArray(doc.controller)
-    ? doc.controller[0]
-    : doc.controller;
+  const controller = asText(
+    Array.isArray(doc.controller) ? doc.controller[0] : doc.controller,
+  );
   const json = JSON.stringify(doc, null, 2);
 
   const healthRows: HealthRow[] = [
@@ -376,9 +390,9 @@ export function buildView(
     duration: (meta.durationMs ?? 0) + " ms",
     route: meta.route ?? "upstream",
     ...(meta.verification ? { verification: meta.verification } : {}),
-    controllerShort: truncate(controller ?? "—"),
-    created: dm.created ?? "—",
-    updated: dm.updated ?? "—",
+    controllerShort: truncate(controller),
+    created: asText(dm.created),
+    updated: asText(dm.updated),
     deactivated: dm.deactivated ? "Yes" : "No",
     vmCount: vms.length,
     byteSize: new Blob([json]).size + " bytes",

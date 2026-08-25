@@ -460,11 +460,14 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
         `SELECT date(ts/1000,'unixepoch') d, COUNT(*) c FROM resolutions WHERE ${calClauses.join(" AND ")} GROUP BY d`,
       )
       .bind(...calBinds),
+    // Bound both option lists: `method` is derived from attacker-controlled
+    // DIDs (unbounded distinct values), so an unbounded SELECT would bloat every
+    // /data response, its KV cache entry, and the dashboard <select>.
     db.prepare(
-      "SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k",
+      "SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k LIMIT 500",
     ),
     db.prepare(
-      "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k",
+      "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k LIMIT 500",
     ),
     group("method"),
     group("provider", "NOT_FOUND"),
