@@ -180,13 +180,15 @@ export function getResolver(options?: DnsResolverOptions): ResolverRegistry {
           if (typeof ctx === "string") contexts.add(ctx);
         }
         const idMap = new Map<string, string>();
-        let imported = 0;
         const importMethod = (vm: VerificationMethod): string => {
           const known = idMap.get(vm.id);
           if (known) return known;
-          const newId =
-            imported === 0 ? `${did}#${keyId}` : `${did}#${keyId}-${imported}`;
-          imported++;
+          // Use the did:key's own multibase fragment as the id fragment, matching
+          // the Danube Tech reference driver and the did:dns spec example
+          // (e.g. `#z6Mk…`) — not a positional `#keyN`.
+          const hash = vm.id.indexOf("#");
+          const fragment = hash >= 0 ? vm.id.slice(hash + 1) : keyId;
+          const newId = `${did}#${fragment}`;
           idMap.set(vm.id, newId);
           verificationMethod.push({ ...vm, id: newId, controller: did });
           return newId;

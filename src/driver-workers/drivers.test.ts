@@ -361,8 +361,10 @@ describe("Tier 1 driver Workers", () => {
       packageName: "@thisdid/dns-did-resolver",
     });
     expect(body.result.didDocument?.id).toBe(did);
+    // The VM fragment is the did:key's own multibase, matching the Danube Tech
+    // reference driver and the did:dns spec example (not a positional #key1).
     expect(body.result.didDocument?.verificationMethod?.[0]?.id).toBe(
-      `${did}#key1`,
+      `${did}#z6MkjvBkt8ETnxXGBFPSGgYKb43q7oNHLX8BiYSPcXVG6gY6`,
     );
   });
 
