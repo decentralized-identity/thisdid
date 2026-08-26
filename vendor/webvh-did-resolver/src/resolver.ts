@@ -149,17 +149,16 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
     if (typeof meta.error === "string") return errorResult(classify(meta));
     if (!result.doc) return errorResult({ error: "notFound" });
 
+    // Forward the full metadata the didwebvh-ts core produces (versionId,
+    // created, updated, deactivated PLUS webvh-native fields: scid, witness,
+    // watchers, updateKeys, portable, previousLogEntryHash, latestVersionId,
+    // …), matching what every other universal resolver returns for did:webvh
+    // (Godiddy and the DIF resolver wrap the same core and emit this verbatim).
+    // On this success path meta carries no `error`/`problemDetails`.
     return {
       didResolutionMetadata: { contentType: "application/did+ld+json" },
       didDocument: result.doc as unknown as DIDDocument,
-      didDocumentMetadata: {
-        ...(typeof meta.created === "string" ? { created: meta.created } : {}),
-        ...(typeof meta.updated === "string" ? { updated: meta.updated } : {}),
-        ...(typeof meta.versionId === "string"
-          ? { versionId: meta.versionId }
-          : {}),
-        ...(meta.deactivated === true ? { deactivated: true } : {}),
-      },
+      didDocumentMetadata: { ...meta },
     };
   };
 

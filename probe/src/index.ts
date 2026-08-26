@@ -189,8 +189,10 @@ const CANARIES: { step: Step; did: string }[] = [
 const PROBE_TIMEOUT_MS = 8000;
 const RETENTION_MS = 30 * 24 * 3600 * 1000;
 /** Resolution events and mismatch evidence are kept longer than raw probes but
- * are still pruned so the main Worker's tables cannot grow without bound. */
-const RESOLUTION_RETENTION_MS = 90 * 24 * 3600 * 1000;
+ * are still pruned so the main Worker's tables cannot grow without bound. 400
+ * days keeps the dashboard's year-to-date/annual ranges intact while capping
+ * growth; tune here if a longer or shorter horizon is wanted. */
+const RESOLUTION_RETENTION_MS = 400 * 24 * 3600 * 1000;
 const DEFAULT_GODIDDY_HEALTH = "https://api.godiddy.com/health";
 
 // Health-fold tuning: latency EWMA reacts in ~3 rounds, success rate in ~7;
