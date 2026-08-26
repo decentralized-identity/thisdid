@@ -103,6 +103,19 @@ export function App() {
     }
   }, []);
 
+  // Clear button: reset the page to its initial state and drop the result.
+  const onClear = useCallback(() => {
+    request.current?.abort();
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    setQuery("");
+    setError("");
+    setResult(null);
+    setResolving(false);
+    setProgress(0);
+    setTab("overview");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+
   // Resolve a `/did:...` deep link on first load.
   useEffect(() => {
     const raw = window.location.pathname.replace(/^\//, "");
@@ -168,12 +181,15 @@ export function App() {
         />
       )}
 
+      <LiveStats stats={stats} loading={statsPending} />
+
       <Hero
         query={query}
         setQuery={(v) => {
           setQuery(v);
           setError("");
         }}
+        onClear={onClear}
         onResolve={() => void runResolve(query)}
         onExample={(did) => void runResolve(did)}
         resolving={resolving}
@@ -183,8 +199,6 @@ export function App() {
         dark={resolved === "dark"}
         stats={stats}
       />
-
-      <LiveStats stats={stats} loading={statsPending} />
 
       <div ref={resultsRef} />
       {result && (

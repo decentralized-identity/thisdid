@@ -42,6 +42,7 @@ const EXAMPLES = [
 interface Props {
   query: string;
   setQuery: (v: string) => void;
+  onClear: () => void;
   onResolve: () => void;
   onExample: (did: string) => void;
   resolving: boolean;
@@ -55,6 +56,7 @@ interface Props {
 export function Hero({
   query,
   setQuery,
+  onClear,
   onResolve,
   onExample,
   resolving,
@@ -101,7 +103,7 @@ export function Hero({
       style={{
         maxWidth: 1240,
         margin: "0 auto",
-        padding: "48px 26px 24px",
+        padding: "14px 26px 24px",
         display: "grid",
         gridTemplateColumns: "1.02fr 1fr",
         gap: 40,
@@ -220,7 +222,7 @@ export function Hero({
             />
             {query && (
               <button
-                onClick={() => setQuery("")}
+                onClick={onClear}
                 title="Clear"
                 style={{
                   width: 34,
