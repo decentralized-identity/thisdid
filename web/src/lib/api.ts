@@ -47,6 +47,11 @@ export interface ResultView {
   relList: RelRow[];
   svcList: SvcRow[];
   healthRows: HealthRow[];
+  /** `didResolutionMetadata` flattened to [key, value] rows for the UI. */
+  resolutionMeta: [string, string][];
+  /** `didDocumentMetadata` flattened to [key, value] rows for the UI. */
+  documentMeta: [string, string][];
+  /** Pretty-printed full resolution envelope (didResolutionMetadata + didDocument + didDocumentMetadata). */
   json: string;
 }
 
@@ -99,6 +104,21 @@ const asText = (value: unknown, fallback = "—"): string => {
   }
   return fallback;
 };
+
+/** Flatten a metadata object into displayable [key, value] rows; nested
+ * objects/arrays (e.g. webvh `witness`, the `verification`/`attempts` fields)
+ * are shown as compact JSON so nothing is dropped. */
+const metaRows = (
+  obj: Record<string, unknown> | undefined,
+): [string, string][] =>
+  Object.entries(obj ?? {}).map(([k, v]) => [
+    k,
+    typeof v === "string"
+      ? v
+      : typeof v === "number" || typeof v === "boolean" || v == null
+        ? String(v)
+        : JSON.stringify(v),
+  ]);
 
 const refId = (x: unknown): string => {
   if (typeof x === "string") return x;
@@ -372,7 +392,9 @@ export function buildView(
   const controller = asText(
     Array.isArray(doc.controller) ? doc.controller[0] : doc.controller,
   );
-  const json = JSON.stringify(doc, null, 2);
+  // The JSON view shows the FULL resolution envelope, not just the document,
+  // so didResolutionMetadata and didDocumentMetadata are visible/copyable.
+  const json = JSON.stringify(resolution, null, 2);
 
   const healthRows: HealthRow[] = [
     { label: "Verification methods", value: String(vms.length) },
@@ -396,6 +418,8 @@ export function buildView(
     deactivated: dm.deactivated ? "Yes" : "No",
     vmCount: vms.length,
     byteSize: new Blob([json]).size + " bytes",
+    resolutionMeta: metaRows(meta as Record<string, unknown>),
+    documentMeta: metaRows(dm as Record<string, unknown>),
     vmList,
     relList,
     svcList,

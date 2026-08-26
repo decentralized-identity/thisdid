@@ -878,7 +878,70 @@ function Overview({
           )}
         </div>
       </div>
+
+      <MetaSection title="Resolution Metadata" rows={view.resolutionMeta} />
+      <MetaSection title="Document Metadata" rows={view.documentMeta} />
     </div>
+  );
+}
+
+/** A collapsible metadata block (collapsed by default) for the resolution
+ * envelope's didResolutionMetadata / didDocumentMetadata. */
+function MetaSection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: [string, string][];
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <details style={{ ...card, padding: "14px 20px" }}>
+      <summary
+        style={{
+          cursor: "pointer",
+          userSelect: "none",
+          fontWeight: 700,
+          fontSize: 15,
+          display: "list-item",
+        }}
+      >
+        {title}
+        <span
+          style={{
+            marginLeft: 10,
+            fontSize: 12,
+            fontWeight: 400,
+            color: "var(--faint)",
+            fontFamily: "'IBM Plex Mono'",
+          }}
+        >
+          {rows.length} field{rows.length === 1 ? "" : "s"}
+        </span>
+      </summary>
+      <div
+        style={{
+          marginTop: 14,
+          fontFamily: "'IBM Plex Mono'",
+          fontSize: 12.5,
+          lineHeight: 1.85,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ color: "var(--j-key)", minWidth: 132 }}>{k}</span>
+            <span
+              style={{ color: "var(--dim)", wordBreak: "break-all", flex: 1 }}
+            >
+              {v}
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -1134,15 +1197,7 @@ function QrPanel({ did, method }: { did: string; method: string }) {
 }
 
 function JsonPanel({ view }: { view: ResultView }) {
-  const meta: [string, string][] = [
-    ["contentType", "application/did+ld+json"],
-    ["resolver", view.resolver],
-    ["route", view.route],
-    ["pattern", "^did:" + view.method + ":"],
-    ["duration", view.duration],
-    ["retrieved", view.created],
-    ["deactivated", view.deactivated === "Yes" ? "true" : "false"],
-  ];
+  const meta = view.resolutionMeta;
   return (
     <div
       style={{
@@ -1174,7 +1229,7 @@ function JsonPanel({ view }: { view: ResultView }) {
             marginLeft: 8,
           }}
         >
-          did-document.json · application/did+ld+json
+          did-resolution.json · application/ld+json
         </span>
         <span
           style={{
