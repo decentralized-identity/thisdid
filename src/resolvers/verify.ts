@@ -6,16 +6,23 @@
  *
  *   - document `id` equality,
  *   - the set of (absolute method ID, controller, public key value) triples
- *     across all verification methods — two distinct methods carrying the
- *     same key stay two entries, and an ID or controller change is a core
- *     change,
+ *     across all verification methods. The upstream is the source of truth:
+ *     EVERY upstream triple must appear in the local document (a missing one
+ *     is a mismatch). The local document MAY carry ADDITIONAL triples the
+ *     upstream lacks — those extras are neither verified nor blamed (the
+ *     upstream cannot vouch for what it did not return), so a local SUPERSET
+ *     of the upstream's keys still verifies. An ID or controller change on a
+ *     shared key is a core change (the triple no longer matches). The check is
+ *     a subset, not exact equality: the key *count* is intentionally not
+ *     compared.
  *   - each verification relationship (`authentication`, `assertionMethod`,
  *     `keyAgreement`, `capabilityInvocation`, `capabilityDelegation`) as the
- *     set of key values it authorizes — references and embedded methods are
- *     resolved to the same form, so a key that is authentication-capable on
- *     one side but only keyAgreement-capable on the other is a mismatch.
- *     A provider that is silent on purposes yields `incomparable`, never a
- *     full match: matching key material alone does not prove authorization,
+ *     set of key values it authorizes — likewise subset-checked: every key the
+ *     upstream authorizes for a purpose must also be authorized by the local
+ *     document; extra local authorizations are permitted. References and
+ *     embedded methods resolve to the same form. A provider silent on purposes
+ *     yields `incomparable`, never a full match: matching key material alone
+ *     does not prove authorization,
  *   - root DID controllers, alsoKnownAs assertions, and service definitions,
  *   - complete absolute verification-method/reference identity (relative
  *     fragments are resolved against the subject; foreign DID URLs remain
@@ -573,9 +580,9 @@ function securityCore(doc: DIDDocument): SecurityCore {
   };
 }
 
-function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const value of a) if (!b.has(value)) return false;
+/** True when every element of `subset` is present in `superset` (subset ⊆ superset). */
+function isSubset(subset: Set<string>, superset: Set<string>): boolean {
+  for (const value of subset) if (!superset.has(value)) return false;
   return true;
 }
 
@@ -637,8 +644,12 @@ export function compareCores(
   ) {
     return "incomparable";
   }
-  if (localCore.keys.size !== upstreamCore.keys.size) return "mismatch";
-  if (!setsEqual(localCore.keys, upstreamCore.keys)) return "mismatch";
+  // The upstream is the source of truth: every upstream key must be present in
+  // the local document. Extra local keys (e.g. a driver that also derives the
+  // X25519 keyAgreement key, or resolves more of an account's owner keys than a
+  // reduced upstream) are unverified but NOT a mismatch — the key count is not
+  // compared, only that upstream ⊆ local.
+  if (!isSubset(upstreamCore.keys, localCore.keys)) return "mismatch";
   // Matching key material is not proof of matching authorization. When only
   // one provider expresses verification relationships, the result is partial
   // and therefore incomparable rather than a full match.
@@ -647,11 +658,10 @@ export function compareCores(
   }
   if (expressesPurposes(upstreamDoc)) {
     for (const rel of RELATIONSHIPS) {
+      // Every key the upstream authorizes for this purpose must also be
+      // authorized locally; extra local authorizations are permitted.
       if (
-        !setsEqual(
-          localCore.relationships[rel],
-          upstreamCore.relationships[rel],
-        )
+        !isSubset(upstreamCore.relationships[rel], localCore.relationships[rel])
       ) {
         return "mismatch";
       }

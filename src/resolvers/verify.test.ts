@@ -134,19 +134,57 @@ describe("compareCores", () => {
     expect(compareCores(embedded, referenced)).toBe("match");
   });
 
-  it("mismatches when duplicate methods carry the same key on one side only", () => {
-    const local = result({
+  it("accepts a local superset of keys but mismatches a key missing locally", () => {
+    const withBoth = result({
       id: DID,
       verificationMethod: [
         { id: `${DID}#a`, publicKeyMultibase: "zKeyOne" },
-        { id: `${DID}#b`, publicKeyMultibase: "zKeyOne" },
+        { id: `${DID}#b`, publicKeyMultibase: "zKeyTwo" },
       ],
     });
-    const upstream = result({
+    const withA = result({
       id: DID,
       verificationMethod: [{ id: `${DID}#a`, publicKeyMultibase: "zKeyOne" }],
     });
-    expect(compareCores(local, upstream)).toBe("mismatch");
+    // Local carries an extra key the upstream lacks — extras are not blamed.
+    expect(compareCores(withBoth, withA)).toBe("match");
+    // The upstream key is missing from the local document — a real mismatch.
+    expect(compareCores(withA, withBoth)).toBe("mismatch");
+  });
+
+  it("verifies a local superset of relationships (the did:dns / multi-owner case)", () => {
+    const ed = { id: `${DID}#a`, publicKeyMultibase: "zKeyOne" };
+    const x = {
+      id: `${DID}#x`,
+      controller: DID,
+      type: "X25519KeyAgreementKey2019",
+      publicKeyBase58: "AgreementKey",
+    };
+    // Upstream: one key, two relationships (a reduced did:dns-style driver).
+    const upstream = result({
+      id: DID,
+      verificationMethod: [ed],
+      authentication: [`${DID}#a`],
+      assertionMethod: [`${DID}#a`],
+    });
+    // Local: same key + the derived keyAgreement key, all five relationships.
+    const local = result({
+      id: DID,
+      verificationMethod: [ed, x],
+      authentication: [`${DID}#a`],
+      assertionMethod: [`${DID}#a`],
+      capabilityInvocation: [`${DID}#a`],
+      capabilityDelegation: [`${DID}#a`],
+      keyAgreement: [`${DID}#x`],
+    });
+    expect(compareCores(local, upstream)).toBe("match");
+    // Reverse: local missing the upstream's assertionMethod authorization → mismatch.
+    const localMissing = result({
+      id: DID,
+      verificationMethod: [ed],
+      authentication: [`${DID}#a`],
+    });
+    expect(compareCores(localMissing, upstream)).toBe("mismatch");
   });
 
   it("rejects a missing verification-method controller as incomparable", () => {
