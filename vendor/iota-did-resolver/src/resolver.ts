@@ -468,10 +468,11 @@ export function getResolver(options?: IotaResolverOptions): ResolverRegistry {
         didResolutionMetadata: { contentType: "application/did+ld+json" },
         didDocument: document,
         didDocumentMetadata: {
+          // Forward the full document-embedded metadata rather than hand-picking
+          // created/updated; the resolution-computed fields stay authoritative.
+          ...unpacked.meta,
           network,
           deactivated: false,
-          ...(unpacked.meta.created ? { created: unpacked.meta.created } : {}),
-          ...(unpacked.meta.updated ? { updated: unpacked.meta.updated } : {}),
           ...(canonical !== did ? { canonicalId: canonical } : {}),
         },
       };
