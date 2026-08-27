@@ -24,9 +24,14 @@ export declare class RpcTransportError extends ChainError {
  */
 export declare class RpcResponseError extends ChainError {
     readonly code: string | null;
-    /** True when the node reported the object as absent rather than erroring. */
-    readonly absent: boolean;
-    constructor(message: string, code: string | null, absent: boolean);
+    constructor(message: string, code: string | null);
+}
+/**
+ * The endpoint answered a question other than the one asked: a record whose
+ * own identifiers do not match the query. A buggy proxy or a hostile node,
+ * either way its answer is unusable.
+ */
+export declare class RpcIntegrityError extends ChainError {
 }
 export interface Coin {
     parentCoinInfo: Uint8Array;
@@ -72,6 +77,8 @@ export interface FullNodeClientOptions {
      */
     useSingletonInfo?: boolean;
 }
+/** Coin id from its three fields: `sha256(parent || puzzle_hash || amount)`. */
+export declare function coinIdFrom(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint): Uint8Array;
 export declare function coinId(coin: Coin): Uint8Array;
 export declare class FullNodeClient {
     readonly baseUrl: string;

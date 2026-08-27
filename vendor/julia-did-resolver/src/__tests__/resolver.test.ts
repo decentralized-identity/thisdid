@@ -6,6 +6,9 @@ import {
   loadFixture,
   readFixture,
 } from "./fixtures.js";
+import { coinId } from "../chain.js";
+import { formatDid } from "../identifier.js";
+import { fromHex, toHex } from "../clvm.js";
 
 /**
  * The port's correctness proof for resolution: the same recorded mainnet RPC
@@ -125,6 +128,36 @@ describe("resolution failures are honest", () => {
   });
 
   it("reports notFound when the coin is not a singleton launcher", async () => {
+    // A real coin whose id happens to be encoded as a did:julia. The record
+    // must genuinely hash to the requested id — the linkage check makes any
+    // other answer unusable — so the DID is derived from the coin.
+    const coin = {
+      parentCoinInfo: fromHex("11".repeat(32)),
+      puzzleHash: fromHex("22".repeat(32)),
+      amount: 1n,
+    };
+    const did = formatDid(coinId(coin));
+    const result = await resolve(did, {
+      transport: async () => ({
+        success: true,
+        coin_record: {
+          coin: {
+            parent_coin_info: `0x${toHex(coin.parentCoinInfo)}`,
+            puzzle_hash: `0x${toHex(coin.puzzleHash)}`,
+            amount: 1,
+          },
+          confirmed_block_index: 1,
+          spent_block_index: 2,
+          spent: true,
+          timestamp: 1,
+        },
+      }),
+    });
+    expect(result.didResolutionMetadata.error).toBe("notFound");
+    expect(result.didResolutionMetadata.errorMessage).toMatch(/launcher/);
+  });
+
+  it("refuses a record that does not hash back to the requested coin id", async () => {
     const result = await resolve(CANARIES[0].did, {
       transport: async () => ({
         success: true,
@@ -141,8 +174,8 @@ describe("resolution failures are honest", () => {
         },
       }),
     });
-    expect(result.didResolutionMetadata.error).toBe("notFound");
-    expect(result.didResolutionMetadata.errorMessage).toMatch(/launcher/);
+    expect(result.didResolutionMetadata.error).toBe("internalError");
+    expect(result.didResolutionMetadata.errorMessage).toMatch(/coin whose id/);
   });
 
   it("fails closed when the derived state cannot be verified", async () => {

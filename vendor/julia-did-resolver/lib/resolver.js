@@ -3,6 +3,24 @@ import { InvalidDidError, parseDid } from "./identifier.js";
 import { StateError, UnverifiableStateError, deriveVerifiedState, genesisPublicKey, isCurrentPuzzle, revealedKeysFromSpend, } from "./state.js";
 import { buildDocument, errorResult, resolutionResult } from "./diddoc.js";
 export const METHOD = "julia";
+/** The single representation this resolver produces. */
+export const CONTENT_TYPE = "application/did+ld+json";
+/**
+ * Whether an `accept` value asks for something this resolver can produce.
+ *
+ * Only the JSON-LD representation is produced, so anything else is refused
+ * with `representationNotSupported` rather than answered with a document the
+ * caller did not ask for. A wildcard, or the JSON-LD media type with any
+ * parameters, is accepted; `application/did+json` is NOT, because serving a
+ * JSON-LD-shaped document under that type would be the same overclaim in the
+ * other direction.
+ */
+export function producesRepresentation(accept) {
+    return accept.split(",").some((entry) => {
+        const media = entry.split(";")[0].trim().toLowerCase();
+        return (media === "*/*" || media === "application/*" || media === CONTENT_TYPE);
+    });
+}
 /**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
@@ -17,6 +35,10 @@ export const METHOD = "julia";
  * result reports in `didResolutionMetadata.contentType`.
  */
 export async function resolve(did, options = {}, resolutionOptions = {}) {
+    const accept = resolutionOptions.accept;
+    if (accept !== undefined && !producesRepresentation(accept)) {
+        return errorResult("representationNotSupported", `did:julia resolution produces ${CONTENT_TYPE} only; '${accept}' is not available`);
+    }
     for (const option of ["versionId", "versionTime"]) {
         if (resolutionOptions[option] !== undefined) {
             return errorResult("unsupportedResolutionOption", `did:julia resolution does not implement '${option}'; this resolver ` +
@@ -41,7 +63,7 @@ export async function resolve(did, options = {}, resolutionOptions = {}) {
         const parentSpend = await client.getPuzzleAndSolution(coinId(lineage.parent.coin), lineage.parent.spentBlockIndex, signal);
         const derived = deriveVerifiedState(parentSpend, lineage.parent.coin.puzzleHash, lineage.current.coin.puzzleHash, launcherId);
         const candidates = revealedKeysFromSpend(parentSpend, derived.state);
-        const genesisKey = await genesisPublicKey(client, lineage, signal);
+        const genesisKey = await genesisPublicKey(client, lineage, derived.genesisKeyHash, signal);
         if (genesisKey !== null)
             candidates.push(genesisKey);
         return resolutionResult({

@@ -9,8 +9,8 @@
  * not match is never served.
  */
 import { NIL, asInt, bytesEqual, curriedPuzzleHash, deserialize, fromHex, isAtom, isPair, atomHash, sha256tree, toHex, toList, uncurry, } from "./clvm.js";
-import { SINGLETON_LAUNCHER_PUZZLE_HASH, coinId, } from "./chain.js";
-import { candidateStates } from "./transitions.js";
+import { SINGLETON_LAUNCHER_PUZZLE_HASH, coinId, coinIdFrom, } from "./chain.js";
+import { candidateStates, nth } from "./transitions.js";
 import { sha256 } from "@noble/hashes/sha256";
 /**
  * Standard Chia `singleton_top_layer_v1_1` mod hash. The puzzle hash
@@ -26,6 +26,13 @@ export const SINGLETON_TOP_LAYER_V1_1_HASH = fromHex("7faa3253bfddd1e0decb0906b2
  * still resolves it but reports `"did:julia:currentPuzzle": false`.
  */
 export const CURRENT_JULIA_DID_PUZZLE_HASH = fromHex("86361d36c86f3eb892a39b09539fda6d424628a4c7e25d6a4375efa5c4923fa1");
+/**
+ * The current `prelauncher.clsp` compiled hash. It is only used to re-derive a
+ * launcher ID from a spend's `parent-info`; predecessor deployments used a
+ * different prelauncher, so a DID on an older puzzle simply fails to bind
+ * rather than failing to resolve (see `bindLineage`).
+ */
+export const PRELAUNCHER_PUZZLE_HASH = fromHex("0ae8147842334ad8915e35ea63ba80a96b1179c43695afd6102954cd8f9d32d9");
 export const BLS_G1_SIZE = 48;
 export class StateError extends Error {
 }
@@ -187,6 +194,37 @@ export function verifyState(state, currentCoinPuzzleHash) {
     return bytesEqual(singletonPuzzleHash(state.juliaDidPuzzleHash, state.launcherId, state.node), currentCoinPuzzleHash);
 }
 /**
+ * Re-derive a DID's launcher ID from a spend's `parent-info`, exactly as
+ * `julia_did` does on chain before it will honour a regular spend (it raises
+ * error 15 otherwise):
+ *
+ *   prelauncher puzzle hash = curry(PRELAUNCHER, genesis-key-hash)
+ *   prelauncher coin id     = coin(prelauncher-parent, that, amount)
+ *   launcher coin id        = coin(prelauncher coin id, LAUNCHER, 1)
+ *
+ * `parent-info`'s third element is the TREE HASH of the 48-octet genesis key,
+ * not the key itself — so a launcher ID that re-derives correctly also commits
+ * to the DID's genesis key. Returns null when the shape does not fit.
+ */
+export function bindLineage(parentInfo) {
+    try {
+        const prelauncherParent = requireAtom(nth(parentInfo, 1), "prelauncher parent");
+        const genesisKeyHash = requireAtom(nth(parentInfo, 2), "genesis key hash");
+        const amount = BigInt(asInt(nth(parentInfo, 3)));
+        const prelauncherPuzzleHash = curriedPuzzleHash(PRELAUNCHER_PUZZLE_HASH, [
+            genesisKeyHash,
+        ]);
+        const prelauncherId = coinIdFrom(prelauncherParent, prelauncherPuzzleHash, amount);
+        return {
+            launcherId: coinIdFrom(prelauncherId, SINGLETON_LAUNCHER_PUZZLE_HASH, 1n),
+            genesisKeyHash,
+        };
+    }
+    catch {
+        return null;
+    }
+}
+/**
  * Split a `julia_did` spend solution into its three parameters:
  * `(curried-args parent-info solution)`, nested inside the singleton top
  * layer's `(lineage-proof amount inner-solution)`.
@@ -216,6 +254,18 @@ export function deriveVerifiedState(spend, parentPuzzleHash, currentCoinPuzzleHa
     const inner = innerSolution(spend);
     const curriedArgs = inner[0];
     const operationSolution = inner.length > 2 ? inner[2] : NIL;
+    // The revealed puzzle is authenticated (it hashes to the coin's puzzle hash),
+    // and it curries in `CURRIED-ARGS-HASH`. Requiring the solution's revealed
+    // pre-spend state to match it binds that state to the coin, so a solution
+    // cannot be paired with a puzzle it does not belong to.
+    const curriedArgsHash = curriedArgsHashOf(puzzle);
+    if (curriedArgsHash !== null &&
+        !bytesEqual(sha256tree(curriedArgs), curriedArgsHash)) {
+        throw new StateError("the spend's revealed state does not match the CURRIED-ARGS-HASH its " +
+            "own puzzle commits to");
+    }
+    const bound = bindLineage(inner[1]);
+    const lineageBound = bound !== null && bytesEqual(bound.launcherId, launcherId);
     for (const candidate of candidateStates(curriedArgs, operationSolution)) {
         let state;
         try {
@@ -228,16 +278,41 @@ export function deriveVerifiedState(spend, parentPuzzleHash, currentCoinPuzzleHa
             continue;
         if (!verifyState(state, currentCoinPuzzleHash))
             continue;
+        // A current-puzzle DID MUST bind: `julia_did` itself refuses a spend whose
+        // parent-info does not re-derive the launcher ID, so a spend that fails
+        // here could never have been accepted by consensus.
+        if (!lineageBound && isCurrentPuzzle(state)) {
+            throw new StateError("the spend's parent-info does not re-derive this DID's launcher ID; " +
+                "consensus would have rejected this spend");
+        }
         return {
             state,
             previous: curriedArgs,
             operation: candidate.operation,
             source: candidate.source,
+            genesisKeyHash: lineageBound ? bound.genesisKeyHash : null,
         };
     }
     throw new UnverifiableStateError("no known did:julia state transition reproduces the current coin's " +
         "puzzle hash; the spend uses a puzzle version this resolver does not " +
         "understand");
+}
+/**
+ * `CURRIED-ARGS-HASH` from an authenticated singleton puzzle reveal: uncurry
+ * the standard singleton top layer, then its `julia_did` inner puzzle, which
+ * is curried with exactly that one argument. Returns null when the reveal is
+ * not in that shape, so an unrecognized puzzle version is not rejected on
+ * structure alone.
+ */
+function curriedArgsHashOf(puzzle) {
+    const outer = uncurry(puzzle);
+    if (outer === null || outer[1].length !== 2)
+        return null;
+    const inner = uncurry(outer[1][1]);
+    if (inner === null || inner[1].length !== 1)
+        return null;
+    const argument = inner[1][0];
+    return isAtom(argument) && argument.length === 32 ? argument : null;
 }
 /**
  * BLS public keys revealed in the most recent spend's solution.
@@ -290,7 +365,12 @@ export function revealedKeysFromSpend(spend, state) {
  * The reveal is authenticated by consensus: its tree hash must equal the
  * prelauncher coin's on-chain puzzle hash.
  */
-export async function genesisPublicKey(client, lineage, signal) {
+export async function genesisPublicKey(client, lineage, expectedKeyHash, signal) {
+    // Without a hash the DID itself commits to, a revealed key proves only that
+    // the endpoint is self-consistent — which a hostile endpoint trivially is.
+    // Offer no genesis key at all rather than an unbound one.
+    if (expectedKeyHash === null)
+        return null;
     const prelauncher = lineage.prelauncher;
     if (!prelauncher.spent)
         return null;
@@ -303,7 +383,13 @@ export async function genesisPublicKey(client, lineage, signal) {
     if (uncurried === null)
         return null;
     const keys = uncurried[1].filter((arg) => isAtom(arg) && arg.length === BLS_G1_SIZE);
-    return keys.length === 1 ? keys[0] : null;
+    if (keys.length !== 1)
+        return null;
+    if (!bytesEqual(sha256tree(keys[0]), expectedKeyHash)) {
+        throw new StateError("the prelauncher reveals a key other than the one this DID's launcher " +
+            "ID commits to");
+    }
+    return keys[0];
 }
 /** True when the state's puzzle-version slot is the current `julia_did`. */
 export function isCurrentPuzzle(state) {

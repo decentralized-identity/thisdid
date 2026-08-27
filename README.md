@@ -250,10 +250,12 @@ Every driver Worker registers a DIF `getResolver()` package directly, and the Th
   through to upstreams), and
   [`@thisdid/julia-did-resolver`](vendor/julia-did-resolver/README.md) (Chia singleton DIDs
   whose eight-slot state is derived from the most recent spend's own solution and served only
-  after it recomputes to that coin's on-chain puzzle hash — the coin commits to its state, so a
-  full node can withhold but never forge, and a spend the driver cannot reproduce fails closed
-  rather than resolving; no CLVM interpreter is involved, which no Workers runtime can host
-  consensus-exactly).
+  after it recomputes to that coin's puzzle hash, with every RPC record checked against the
+  identifier it was requested by and every spend required to re-derive the DID's launcher ID —
+  so the identifier binds the launcher, the prelauncher, and the genesis key, while the endpoint
+  remains trusted for current state absent block-level proofs; a spend the driver cannot
+  reproduce fails closed rather than resolving, and no CLVM interpreter is involved, which no
+  Workers runtime can host consensus-exactly).
 
 Per the vendoring convention every vendored package records its method scope, trust model,
 fail-closed behavior, test-vector provenance, and exit criteria back to upstream in its README.

@@ -39,6 +39,28 @@ import { buildDocument, errorResult, resolutionResult } from "./diddoc.js";
 
 export const METHOD = "julia";
 
+/** The single representation this resolver produces. */
+export const CONTENT_TYPE = "application/did+ld+json";
+
+/**
+ * Whether an `accept` value asks for something this resolver can produce.
+ *
+ * Only the JSON-LD representation is produced, so anything else is refused
+ * with `representationNotSupported` rather than answered with a document the
+ * caller did not ask for. A wildcard, or the JSON-LD media type with any
+ * parameters, is accepted; `application/did+json` is NOT, because serving a
+ * JSON-LD-shaped document under that type would be the same overclaim in the
+ * other direction.
+ */
+export function producesRepresentation(accept: string): boolean {
+  return accept.split(",").some((entry) => {
+    const media = entry.split(";")[0].trim().toLowerCase();
+    return (
+      media === "*/*" || media === "application/*" || media === CONTENT_TYPE
+    );
+  });
+}
+
 export interface JuliaResolverOptions extends FullNodeClientOptions {
   /** Supply a pre-built client instead of constructing one per registry. */
   client?: FullNodeClient;
@@ -67,6 +89,13 @@ export async function resolve(
   options: JuliaResolverOptions = {},
   resolutionOptions: JuliaResolutionRequest = {},
 ): Promise<DIDResolutionResult> {
+  const accept = resolutionOptions.accept;
+  if (accept !== undefined && !producesRepresentation(accept)) {
+    return errorResult(
+      "representationNotSupported",
+      `did:julia resolution produces ${CONTENT_TYPE} only; '${accept}' is not available`,
+    );
+  }
   for (const option of ["versionId", "versionTime"] as const) {
     if (resolutionOptions[option] !== undefined) {
       return errorResult(
@@ -105,7 +134,12 @@ export async function resolve(
     );
 
     const candidates = revealedKeysFromSpend(parentSpend, derived.state);
-    const genesisKey = await genesisPublicKey(client, lineage, signal);
+    const genesisKey = await genesisPublicKey(
+      client,
+      lineage,
+      derived.genesisKeyHash,
+      signal,
+    );
     if (genesisKey !== null) candidates.push(genesisKey);
 
     return resolutionResult({

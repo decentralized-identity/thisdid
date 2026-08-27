@@ -58,25 +58,45 @@ export class RpcTransportError extends ChainError {
  */
 export class RpcResponseError extends ChainError {
   readonly code: string | null;
-  /** True when the node reported the object as absent rather than erroring. */
-  readonly absent: boolean;
-  constructor(message: string, code: string | null, absent: boolean) {
+  constructor(message: string, code: string | null) {
     super(message);
     this.code = code;
-    this.absent = absent;
   }
 }
+
+/**
+ * The endpoint answered a question other than the one asked: a record whose
+ * own identifiers do not match the query. A buggy proxy or a hostile node,
+ * either way its answer is unusable.
+ */
+export class RpcIntegrityError extends ChainError {}
 
 /**
  * Chia RPC has no machine-readable "absent" signal that every node shares. A
  * stock full node answers `{ success: true, coin_record: null }`, which needs
  * no interpretation; Coinset's gateway instead answers `success: false` with
- * `structuredError.code = "COIN_RECORD_NOT_FOUND"`. Both are recognized, and
- * anything unrecognized is treated as a real error — the safe direction, since
- * that surfaces as a transport-class failure rather than as an authoritative
- * claim that a DID does not exist.
+ * `structuredError.code = "COIN_RECORD_NOT_FOUND"`.
+ *
+ * Absence is recognized ONLY from those two shapes — a known structured code,
+ * or a message anchored to the coin record itself. A free-text search for
+ * "not found" would classify "database not found" or a proxy's "upstream
+ * service not found" as an authoritative absence, which is precisely the
+ * outage-becomes-notFound failure this taxonomy exists to prevent. Anything
+ * unrecognized is treated as a real error: the safe direction, because a
+ * transport-class failure makes a caller retry, while a wrong `notFound` is a
+ * durable claim that someone's DID does not exist.
  */
-const ABSENT_PATTERN = /not[ _-]?found/i;
+const COIN_ABSENT_CODES = new Set(["COIN_RECORD_NOT_FOUND", "COIN_NOT_FOUND"]);
+const COIN_ABSENT_MESSAGE =
+  /^\s*coin(?:[ _-]record)?\b[^:]*\bnot[ _-]?found\b/i;
+
+function reportsCoinAbsent(cause: unknown): boolean {
+  if (!(cause instanceof RpcResponseError)) return false;
+  if (cause.code !== null) return COIN_ABSENT_CODES.has(cause.code);
+  // `${method}: ${message}` — test the node's own message, not the prefix.
+  const message = cause.message.slice(cause.message.indexOf(": ") + 2);
+  return COIN_ABSENT_MESSAGE.test(message);
+}
 
 export interface Coin {
   parentCoinInfo: Uint8Array;
@@ -174,6 +194,15 @@ async function readBoundedText(
     text += decoder.decode(value, { stream: true });
   }
   return text + decoder.decode();
+}
+
+/** Coin id from its three fields: `sha256(parent || puzzle_hash || amount)`. */
+export function coinIdFrom(
+  parentCoinInfo: Uint8Array,
+  puzzleHash: Uint8Array,
+  amount: bigint,
+): Uint8Array {
+  return coinId({ parentCoinInfo, puzzleHash, amount });
 }
 
 export function coinId(coin: Coin): Uint8Array {
@@ -278,11 +307,7 @@ export class FullNodeClient {
         { code?: unknown } | undefined;
       const code =
         typeof structured?.code === "string" ? structured.code : null;
-      throw new RpcResponseError(
-        `${method}: ${message}`,
-        code,
-        ABSENT_PATTERN.test(code ?? "") || ABSENT_PATTERN.test(message),
-      );
+      throw new RpcResponseError(`${method}: ${message}`, code);
     }
     return data;
   }
@@ -303,10 +328,19 @@ export class FullNodeClient {
       // is propagated: reporting an unreachable node as `notFound` would turn
       // an outage into an authoritative — and cacheable — claim that a DID
       // does not exist.
-      if (cause instanceof RpcResponseError && cause.absent) return null;
+      if (reportsCoinAbsent(cause)) return null;
       throw cause;
     }
-    return data.coin_record ? parseCoinRecord(data.coin_record) : null;
+    if (!data.coin_record) return null;
+    const record = parseCoinRecord(data.coin_record);
+    // A coin id IS the hash of the coin's own fields, so a record that does
+    // not hash back to the requested id is an answer to a different question.
+    if (!equalBytes(coinId(record.coin), id)) {
+      throw new RpcIntegrityError(
+        `get_coin_record_by_name returned a coin whose id is not ${toHex(id)}`,
+      );
+    }
+    return record;
   }
 
   async getCoinRecordsByParentIds(
@@ -323,7 +357,16 @@ export class FullNodeClient {
     );
     const records = data.coin_records;
     if (!Array.isArray(records)) return [];
-    return records.map(parseCoinRecord);
+    const requested = new Set(parentIds.map(toHex));
+    return records.map((raw) => {
+      const record = parseCoinRecord(raw);
+      if (!requested.has(toHex(record.coin.parentCoinInfo))) {
+        throw new RpcIntegrityError(
+          "get_coin_records_by_parent_ids returned a coin with an unrequested parent",
+        );
+      }
+      return record;
+    });
   }
 
   async getPuzzleAndSolution(
@@ -337,8 +380,14 @@ export class FullNodeClient {
       signal,
     );
     const spend = asRecord(data.coin_solution, "coin_solution");
+    const coin = parseCoin(spend.coin);
+    if (!equalBytes(coinId(coin), id)) {
+      throw new RpcIntegrityError(
+        `get_puzzle_and_solution returned a spend of a coin that is not ${toHex(id)}`,
+      );
+    }
     return {
-      coin: parseCoin(spend.coin),
+      coin,
       puzzleReveal: fromHex(String(spend.puzzle_reveal)),
       solution: fromHex(String(spend.solution)),
     };

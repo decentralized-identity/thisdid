@@ -13,6 +13,19 @@
 import type { DIDResolutionOptions, DIDResolutionResult, ResolverRegistry } from "did-resolver";
 import { FullNodeClient, type FullNodeClientOptions } from "./chain.js";
 export declare const METHOD = "julia";
+/** The single representation this resolver produces. */
+export declare const CONTENT_TYPE = "application/did+ld+json";
+/**
+ * Whether an `accept` value asks for something this resolver can produce.
+ *
+ * Only the JSON-LD representation is produced, so anything else is refused
+ * with `representationNotSupported` rather than answered with a document the
+ * caller did not ask for. A wildcard, or the JSON-LD media type with any
+ * parameters, is accepted; `application/did+json` is NOT, because serving a
+ * JSON-LD-shaped document under that type would be the same overclaim in the
+ * other direction.
+ */
+export declare function producesRepresentation(accept: string): boolean;
 export interface JuliaResolverOptions extends FullNodeClientOptions {
     /** Supply a pre-built client instead of constructing one per registry. */
     client?: FullNodeClient;

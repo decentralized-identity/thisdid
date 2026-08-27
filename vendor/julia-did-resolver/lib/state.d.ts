@@ -24,6 +24,13 @@ export declare const SINGLETON_TOP_LAYER_V1_1_HASH: Uint8Array<ArrayBufferLike>;
  * still resolves it but reports `"did:julia:currentPuzzle": false`.
  */
 export declare const CURRENT_JULIA_DID_PUZZLE_HASH: Uint8Array<ArrayBufferLike>;
+/**
+ * The current `prelauncher.clsp` compiled hash. It is only used to re-derive a
+ * launcher ID from a spend's `parent-info`; predecessor deployments used a
+ * different prelauncher, so a DID on an older puzzle simply fails to bind
+ * rather than failing to resolve (see `bindLineage`).
+ */
+export declare const PRELAUNCHER_PUZZLE_HASH: Uint8Array<ArrayBufferLike>;
 export declare const BLS_G1_SIZE = 48;
 export declare class StateError extends Error {
 }
@@ -100,6 +107,23 @@ export declare function parseState(slotsNode: Node): JuliaDidState;
 export declare function singletonPuzzleHash(juliaDidPuzzleHash: Uint8Array, launcherId: Uint8Array, stateNode: Node): Uint8Array;
 /** True when the state hashes to the coin the chain actually holds. */
 export declare function verifyState(state: JuliaDidState, currentCoinPuzzleHash: Uint8Array): boolean;
+/**
+ * Re-derive a DID's launcher ID from a spend's `parent-info`, exactly as
+ * `julia_did` does on chain before it will honour a regular spend (it raises
+ * error 15 otherwise):
+ *
+ *   prelauncher puzzle hash = curry(PRELAUNCHER, genesis-key-hash)
+ *   prelauncher coin id     = coin(prelauncher-parent, that, amount)
+ *   launcher coin id        = coin(prelauncher coin id, LAUNCHER, 1)
+ *
+ * `parent-info`'s third element is the TREE HASH of the 48-octet genesis key,
+ * not the key itself — so a launcher ID that re-derives correctly also commits
+ * to the DID's genesis key. Returns null when the shape does not fit.
+ */
+export declare function bindLineage(parentInfo: Node): {
+    launcherId: Uint8Array;
+    genesisKeyHash: Uint8Array;
+} | null;
 export interface DerivedState {
     state: JuliaDidState;
     /** The spend's own pre-spend state, revealed in its solution. */
@@ -107,6 +131,12 @@ export interface DerivedState {
     /** Which transition produced the verified state. */
     operation: string;
     source: "identity" | "identified" | "exhaustive";
+    /**
+     * `sha256tree` of the DID's genesis public key, re-derived from the spend
+     * and bound to the launcher ID the DID itself encodes — null when the DID
+     * predates the current prelauncher and the binding could not be evaluated.
+     */
+    genesisKeyHash: Uint8Array | null;
 }
 /**
  * Split a `julia_did` spend solution into its three parameters:
@@ -139,7 +169,7 @@ export declare function revealedKeysFromSpend(spend: CoinSpend, state: JuliaDidS
  * The reveal is authenticated by consensus: its tree hash must equal the
  * prelauncher coin's on-chain puzzle hash.
  */
-export declare function genesisPublicKey(client: FullNodeClient, lineage: SingletonLineage, signal?: AbortSignal): Promise<Uint8Array | null>;
+export declare function genesisPublicKey(client: FullNodeClient, lineage: SingletonLineage, expectedKeyHash: Uint8Array | null, signal?: AbortSignal): Promise<Uint8Array | null>;
 /** True when the state's puzzle-version slot is the current `julia_did`. */
 export declare function isCurrentPuzzle(state: JuliaDidState): boolean;
 //# sourceMappingURL=state.d.ts.map
