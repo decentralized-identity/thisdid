@@ -1,4 +1,5 @@
 import type { LiveStatsData } from "../lib/stats";
+import { ALL_METHODS } from "../lib/methods";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -44,7 +45,7 @@ export function LiveStats({
       s: t ? `${t.successRate}%` : undefined,
       hasSub: true,
     },
-    { v: t ? fmt(t.errors) : "—", l: "Not found" },
+    { v: String(ALL_METHODS.length), l: "DID methods" },
     { v: "5", l: "Providers" },
     { v: t ? `${fmt(t.latencyAvgMs)} ms` : "—", l: "Avg latency" },
   ];

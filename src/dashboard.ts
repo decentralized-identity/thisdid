@@ -6,8 +6,12 @@
  * leaderboards and a live request feed. No third-party scripts (GDPR-friendly).
  *
  * NOTE: the inline client script deliberately avoids backticks and ${...} so it
- * can live inside this template literal untouched.
+ * can live inside this template literal untouched. The one exception is the
+ * server-side ${ALL_METHODS.length} injection in the KPI strip — a build-time
+ * constant that renders to a literal number in the shipped script.
  */
+import { ALL_METHODS } from "./methods";
+
 export function renderDashboard(): string {
   return `<!doctype html>
 <html lang="en"><head>
@@ -401,7 +405,7 @@ export function renderDashboard(): string {
 
   function render(d){
     q('setup').style.display=d.configured?'none':'block';
-    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('RESOLVED',fmt(d.totals.success),d.totals.successRate+'%')+card('NOT_FOUND',fmt(d.totals.errors))+card('Providers','4')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
+    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('RESOLVED',fmt(d.totals.success),d.totals.successRate+'%')+card('DID methods','${ALL_METHODS.length}')+card('Providers','5')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
     q('timeline').innerHTML=timeline(d.timeline);
     q('verify').innerHTML=verifyPanel(d.verification||[]);
     q('pie').innerHTML=pie(d.byProvider);

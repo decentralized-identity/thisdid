@@ -710,9 +710,9 @@ export function ResolverProviders() {
 
 const NET_STATS = [
   { value: "42", label: "Gateway regions" },
-  { value: "5", label: "Failover providers" },
+  { value: "5", label: "Trusted providers" },
   { value: "99.9%", label: "Uptime" },
-  { value: ">30", label: "Methods" },
+  { value: ">70", label: "DID methods" },
 ];
 
 export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
