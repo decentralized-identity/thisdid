@@ -157,7 +157,9 @@ describe("Tier 1 driver Workers", () => {
       scrubAlchemy(
         "server response 401 Unauthorized (https://eth-mainnet.g.alchemy.com/v2/secret-token)",
       ),
-    ).toBe("server response 401 Unauthorized (https://eth-mainnet.g.alchemy.com");
+    ).toBe(
+      "server response 401 Unauthorized (https://eth-mainnet.g.alchemy.com",
+    );
     expect(scrubAlchemy("https://Polygon-Amoy.g.Alchemy.COM/v2/key")).toBe(
       "https://Polygon-Amoy.g.Alchemy.COM",
     );
