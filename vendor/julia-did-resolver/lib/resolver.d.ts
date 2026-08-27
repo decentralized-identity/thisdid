@@ -24,14 +24,21 @@ export declare const CONTENT_TYPE = "application/did+ld+json";
  * a JSON-LD-shaped document under that media type would be the same overclaim
  * in the other direction.
  *
- * Per RFC 9110 §12.5.1 a quality of zero means "not acceptable", so it is a
- * rejection rather than a weak preference — and the MOST SPECIFIC matching
- * entry decides, so `application/did+ld+json, *\/*;q=0` is acceptable while
- * `application/did+ld+json;q=0, *\/*` is not. Precedence is exact type over
- * `type/*` over `*\/*`; among equally specific entries the highest quality
- * wins, so a contradictory header errs toward serving the caller.
+ * Follows RFC 9110 §12.5.1 in three respects:
  *
- * This is deliberately not full content negotiation — there is only one
+ *  - **Media parameters preceding `q` are part of the media range.** A range
+ *    naming a parameter the representation does not carry does not match at
+ *    all, and a matching parameter makes the range MORE specific than the bare
+ *    type — the spec's own example ranks `text/plain;format=flowed` above
+ *    `text/plain`. Parameters after `q` are accept extensions and are ignored.
+ *  - **A quality of zero means "not acceptable"**, so it is a rejection rather
+ *    than a weak preference.
+ *  - **The most specific matching range decides.** `application/did+ld+json,
+ *    *\/*;q=0` is acceptable; `application/did+ld+json;q=0, *\/*` is not.
+ *    Among equally specific ranges the highest quality wins, so a
+ *    self-contradictory header errs toward serving the caller.
+ *
+ * This is deliberately not general content negotiation — there is one
  * representation to negotiate over.
  */
 export declare function producesRepresentation(accept: string): boolean;

@@ -49,10 +49,12 @@ Not implemented, and **refused rather than faked**: version-specific resolution
 and every representation but one. `versionId` / `versionTime` return
 `unsupportedResolutionOption`, and an `accept` this resolver cannot produce
 returns the standard `representationNotSupported` rather than
-`application/did+ld+json` under another name — including an `accept` naming the
-JSON-LD type with `q=0`, which per RFC 9110 §12.5.1 means "not acceptable"
-(the most specific matching entry decides, so `application/did+ld+json, */*;q=0`
-is still served) — answering a question the caller
+`application/did+ld+json` under another name. Per RFC 9110 §12.5.1 that includes an
+`accept` naming the JSON-LD type with `q=0` ("not acceptable", not a weak
+preference) and one naming a media parameter the representation does not carry,
+such as a JSON-LD `profile` this resolver does not emit; parameters after `q`
+are accept extensions and are ignored. The most specific matching range decides,
+so `application/did+ld+json, */*;q=0` is still served — answering a question the caller
 did not ask is the one failure they cannot detect. Also not implemented: DID URL
 dereferencing, and multi-key Merkle-path replay for verification-method
 enumeration — a v1 limitation shared with the reference resolver, visible in

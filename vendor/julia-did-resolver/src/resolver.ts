@@ -43,6 +43,22 @@ export const METHOD = "julia";
 export const CONTENT_TYPE = "application/did+ld+json";
 
 /**
+ * Whether a media parameter appearing in an `accept` media range is satisfied
+ * by the representation this resolver produces.
+ *
+ * The representation is `application/did+ld+json` carrying NO parameters, so a
+ * range that names one is asking for something narrower. The single exception
+ * is a UTF-8 `charset`, which the representation genuinely satisfies (JSON is
+ * UTF-8 by definition, RFC 8259 §8.1). Everything else — a JSON-LD `profile`
+ * this resolver does not emit, a non-UTF-8 charset — makes the range
+ * non-matching rather than being quietly ignored.
+ */
+function mediaParameterSatisfied(name: string, value: string): boolean {
+  const unquoted = value.replace(/^"|"$/g, "").toLowerCase();
+  return name === "charset" && (unquoted === "utf-8" || unquoted === "utf8");
+}
+
+/**
  * Whether an `accept` value asks for something this resolver can produce.
  *
  * Only the JSON-LD representation is produced, so anything else is refused with
@@ -51,14 +67,21 @@ export const CONTENT_TYPE = "application/did+ld+json";
  * a JSON-LD-shaped document under that media type would be the same overclaim
  * in the other direction.
  *
- * Per RFC 9110 §12.5.1 a quality of zero means "not acceptable", so it is a
- * rejection rather than a weak preference — and the MOST SPECIFIC matching
- * entry decides, so `application/did+ld+json, *\/*;q=0` is acceptable while
- * `application/did+ld+json;q=0, *\/*` is not. Precedence is exact type over
- * `type/*` over `*\/*`; among equally specific entries the highest quality
- * wins, so a contradictory header errs toward serving the caller.
+ * Follows RFC 9110 §12.5.1 in three respects:
  *
- * This is deliberately not full content negotiation — there is only one
+ *  - **Media parameters preceding `q` are part of the media range.** A range
+ *    naming a parameter the representation does not carry does not match at
+ *    all, and a matching parameter makes the range MORE specific than the bare
+ *    type — the spec's own example ranks `text/plain;format=flowed` above
+ *    `text/plain`. Parameters after `q` are accept extensions and are ignored.
+ *  - **A quality of zero means "not acceptable"**, so it is a rejection rather
+ *    than a weak preference.
+ *  - **The most specific matching range decides.** `application/did+ld+json,
+ *    *\/*;q=0` is acceptable; `application/did+ld+json;q=0, *\/*` is not.
+ *    Among equally specific ranges the highest quality wins, so a
+ *    self-contradictory header errs toward serving the caller.
+ *
+ * This is deliberately not general content negotiation — there is one
  * representation to negotiate over.
  */
 export function producesRepresentation(accept: string): boolean {
@@ -69,7 +92,7 @@ export function producesRepresentation(accept: string): boolean {
   for (const entry of accept.split(",")) {
     const parts = entry.split(";");
     const media = parts[0].trim().toLowerCase();
-    const specificity =
+    let specificity =
       media === CONTENT_TYPE
         ? 3
         : media === "application/*"
@@ -80,14 +103,30 @@ export function producesRepresentation(accept: string): boolean {
     if (specificity === 0) continue;
 
     let quality = 1;
+    let seenQuality = false;
+    let matches = true;
     for (const parameter of parts.slice(1)) {
       const separator = parameter.indexOf("=");
-      if (separator < 0) continue;
-      if (parameter.slice(0, separator).trim().toLowerCase() !== "q") continue;
-      const parsed = Number.parseFloat(parameter.slice(separator + 1).trim());
-      // An unparseable quality is ignored rather than treated as a rejection.
-      if (Number.isFinite(parsed)) quality = parsed;
+      const name = (separator < 0 ? parameter : parameter.slice(0, separator))
+        .trim()
+        .toLowerCase();
+      const value = separator < 0 ? "" : parameter.slice(separator + 1).trim();
+
+      if (!seenQuality && name === "q") {
+        seenQuality = true;
+        const parsed = Number.parseFloat(value);
+        // An unparseable quality is ignored rather than read as a rejection.
+        if (Number.isFinite(parsed)) quality = parsed;
+        continue;
+      }
+      if (seenQuality) continue; // accept extension — not part of the range
+      if (!mediaParameterSatisfied(name, value)) {
+        matches = false;
+        break;
+      }
+      specificity += 1; // a satisfied parameter narrows, and so ranks higher
     }
+    if (!matches) continue;
 
     if (
       best === null ||

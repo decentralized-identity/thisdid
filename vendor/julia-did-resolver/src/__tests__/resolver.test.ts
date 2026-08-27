@@ -93,6 +93,37 @@ describe("accept negotiation follows RFC 9110 quality rules", () => {
     ["application/did+ld+json, */*;q=0", true],
     ["application/json;q=0, application/did+ld+json", true],
     ["application/did+ld+json, application/*;q=0", true],
+    // Media parameters before q are part of the range (RFC 9110 §12.5.1): a
+    // range naming a parameter the representation does not carry matches
+    // nothing, so it cannot outrank an explicit refusal of the bare type.
+    ["application/did+ld+json;profile=unsupported", false],
+    [
+      "application/did+ld+json;q=0, application/did+ld+json;profile=unsupported",
+      false,
+    ],
+    ["*/*;profile=unsupported", false],
+    ["application/*;profile=unsupported", false],
+    // ...but a range whose parameters ARE satisfied still matches, and a
+    // non-matching range does not suppress a sibling that matches.
+    ["application/did+ld+json;profile=x, application/did+ld+json", true],
+    // The representation is UTF-8 by construction, so that charset is
+    // satisfied and any other is not.
+    ["application/did+ld+json;charset=utf-8", true],
+    ['application/did+ld+json;charset="UTF-8"', true],
+    ["application/did+ld+json;charset=iso-8859-1", false],
+    // A satisfied parameter narrows the range, so it outranks the bare type —
+    // the spec ranks `text/plain;format=flowed` above `text/plain`.
+    [
+      "application/did+ld+json;charset=utf-8;q=0, application/did+ld+json",
+      false,
+    ],
+    [
+      "application/did+ld+json;charset=utf-8, application/did+ld+json;q=0",
+      true,
+    ],
+    // Parameters AFTER q are accept extensions and carry no meaning here.
+    ["application/did+ld+json;q=0.5;ext=foo", true],
+    ["application/did+ld+json;q=0;ext=foo", false],
     // A non-zero quality is a preference, not a rejection.
     ["application/did+ld+json;q=0.5", true],
     ["*/*;q=0.001", true],
