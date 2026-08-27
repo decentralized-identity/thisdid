@@ -39,12 +39,7 @@ export function LiveStats({
   const pending = loading && !t;
   const cards: { v: string; l: string; s?: string; hasSub?: boolean }[] = [
     { v: t ? fmt(t.liveTotal) : "—", l: "Total resolutions" },
-    {
-      v: t ? fmt(t.success) : "—",
-      l: "Success",
-      s: t ? `${t.successRate}%` : undefined,
-      hasSub: true,
-    },
+    { v: t ? `${t.successRate}%` : "—", l: "Success" },
     { v: String(ALL_METHODS.length), l: "DID methods" },
     { v: "5", l: "Providers" },
     { v: t ? `${fmt(t.latencyAvgMs)} ms` : "—", l: "Avg latency" },

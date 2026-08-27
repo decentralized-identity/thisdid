@@ -66,6 +66,9 @@ export interface TimelinePoint {
   t: string;
   count: number;
   success: number;
+  notFound: number;
+  failed: number;
+  /** notFound + failed (kept for back-compat). */
   errors: number;
 }
 export interface RecentRow {
@@ -97,7 +100,15 @@ export interface Stats {
     total: number;
     liveTotal: number;
     success: number;
+    /** DID correctly determined to not exist (DIF `notFound`) — a valid
+     * outcome, NOT a failure, so it is excluded from successRate. */
+    notFound: number;
+    /** Genuine resolution failures (invalidDid, unsupported, internal, timeout,
+     * rateLimited, …) — everything unanswered that is not `notFound`. */
+    failed: number;
+    /** notFound + failed (every non-success). Kept for back-compat. */
     errors: number;
+    /** success / (success + failed). notFound is not counted against it. */
     successRate: number;
     latencyTotalMs: number;
     latencyAvgMs: number;
@@ -307,6 +318,8 @@ function emptyStats(filter: StatsFilter): Stats {
       total: 0,
       liveTotal: 0,
       success: 0,
+      notFound: 0,
+      failed: 0,
       errors: 0,
       successRate: 0,
       latencyTotalMs: 0,
@@ -402,12 +415,25 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     calClauses.push("method = ?");
     calBinds.push(filter.method);
   }
-  // Failed resolutions have no provider/resolver (nobody answered), so those
-  // groupings label them explicitly as NOT_FOUND instead of a cryptic "—".
   const group = (col: string, nullLabel = "—") =>
     db
       .prepare(
         `SELECT COALESCE(${col},'${nullLabel}') k, COUNT(*) c FROM resolutions ${w.sql} GROUP BY k ORDER BY c DESC LIMIT 50`,
+      )
+      .bind(...w.binds);
+
+  // Unanswered rows have no provider/resolver. Split that bucket by outcome so
+  // a DID that legitimately does not exist (NOT_FOUND, DIF `notFound`) is never
+  // conflated with a genuine resolution error (FAILED) — the two must be
+  // distinguishable in every breakdown, not lumped under one "NOT_FOUND" label.
+  const groupAnswer = (col: string) =>
+    db
+      .prepare(
+        `SELECT CASE WHEN ${col} IS NOT NULL THEN ${col}
+                     WHEN error = 'notFound' THEN 'NOT_FOUND'
+                     ELSE 'FAILED' END k,
+                COUNT(*) c
+           FROM resolutions ${w.sql} GROUP BY k ORDER BY c DESC LIMIT 50`,
       )
       .bind(...w.binds);
 
@@ -430,6 +456,7 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
       .prepare(
         `SELECT COUNT(*) total,
                   SUM(success) ok,
+                  SUM(CASE WHEN success = 0 AND error = 'notFound' THEN 1 ELSE 0 END) nf,
                   SUM(CASE WHEN success = 1 THEN duration_ms ELSE 0 END) lat,
                   AVG(CASE WHEN success = 1 THEN duration_ms END) avg_ms
              FROM resolutions ${w.sql}`,
@@ -447,7 +474,7 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
       .bind(...w.binds),
     db
       .prepare(
-        `SELECT ${bucketExpr} t, COUNT(*) c, SUM(success) ok FROM resolutions ${w.sql} GROUP BY t ORDER BY t`,
+        `SELECT ${bucketExpr} t, COUNT(*) c, SUM(success) ok, SUM(CASE WHEN success = 0 AND error = 'notFound' THEN 1 ELSE 0 END) nf FROM resolutions ${w.sql} GROUP BY t ORDER BY t`,
       )
       .bind(...w.binds),
     db
@@ -470,19 +497,25 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
       "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k LIMIT 500",
     ),
     group("method"),
-    group("provider", "NOT_FOUND"),
-    group("resolver", "NOT_FOUND"),
+    groupAnswer("provider"),
+    groupAnswer("resolver"),
     group("country"),
   ]);
 
   const t = (totalsR.results[0] ?? {}) as {
     total: number;
     ok: number | null;
+    nf: number | null;
     lat: number | null;
     avg_ms: number | null;
   };
   const total = t.total ?? 0;
   const success = t.ok ?? 0;
+  const notFound = t.nf ?? 0;
+  // Genuine failures = everything unanswered that is not a legitimate notFound.
+  const failed = Math.max(0, total - success - notFound);
+  // Success rate ignores notFound entirely (a correct outcome, not a failure).
+  const rateDenom = success + failed;
   const toCounts = (r: typeof mR) =>
     (r.results as { k: string; c: number }[]).map((x) => ({
       key: x.k,
@@ -507,8 +540,12 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
       total,
       liveTotal: total,
       success,
+      notFound,
+      failed,
       errors: total - success,
-      successRate: total ? Math.round((success / total) * 1000) / 10 : 0,
+      successRate: rateDenom
+        ? Math.round((success / rateDenom) * 1000) / 10
+        : 0,
       latencyTotalMs: Math.round(t.lat ?? 0),
       latencyAvgMs: Math.round(t.avg_ms ?? 0),
     },
@@ -549,9 +586,19 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     })),
     timeline: {
       granularity,
-      points: (tlR.results as { t: string; c: number; ok: number }[]).map(
-        (r) => ({ t: r.t, count: r.c, success: r.ok, errors: r.c - r.ok }),
-      ),
+      points: (
+        tlR.results as { t: string; c: number; ok: number; nf: number }[]
+      ).map((r) => {
+        const nf = r.nf ?? 0;
+        return {
+          t: r.t,
+          count: r.c,
+          success: r.ok,
+          notFound: nf,
+          failed: Math.max(0, r.c - r.ok - nf),
+          errors: r.c - r.ok,
+        };
+      }),
     },
     calendar: (calR.results as { d: string; c: number }[]).map((r) => ({
       day: r.d,

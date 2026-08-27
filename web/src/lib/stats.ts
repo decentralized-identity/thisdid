@@ -6,7 +6,13 @@ export interface LiveTotals {
   total: number;
   liveTotal: number;
   success: number;
+  /** DID correctly determined absent (DIF `notFound`) — not a failure. */
+  notFound: number;
+  /** Genuine resolution failures — everything unanswered that is not notFound. */
+  failed: number;
+  /** notFound + failed (every non-success). */
   errors: number;
+  /** success / (success + failed); notFound is excluded. */
   successRate: number;
   latencyTotalMs: number;
   latencyAvgMs: number;

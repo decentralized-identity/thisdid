@@ -231,7 +231,7 @@ export function renderDashboard(): string {
 (function(){
   var state = { range:'day', country:'', method:'', tab:'method', cursor:null, paged:false };
   var last = null, lastHealth = null;
-  var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968', NOT_FOUND:'#8b8375' };
+  var PC = { ThisDID:'#d97757', GoPlausible:'#b587f0', godiddy:'#5fd0e0', archon:'#f0b968', oyd:'#5cc98a', NOT_FOUND:'#8b8375', FAILED:'#c9524a' };
   var PAL = ['#d97757','#e0724c','#cf7ea0','#b587f0','#8f8bf0','#5fd0e0','#57b96a','#f0b968','#d38f36','#a78bfa'];
   function pcolor(k){ return PC[k] || '#8b8375'; }
   function plink(p){ return '/directory/provider/'+String(p||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
@@ -277,7 +277,7 @@ export function renderDashboard(): string {
     function X(i){ return pad+(n<=1?(W-2*pad)/2:(i/(n-1))*(W-2*pad)); }
     function Y(v){ return H-pad-(v/max)*(H-2*pad); }
     var line='',err='',area='M'+X(0)+','+(H-pad)+' ',dots='';
-    pts.forEach(function(p,i){ var x=X(i),y=Y(p.count); line+=(i?'L':'M')+x+','+y+' '; err+=(i?'L':'M')+x+','+Y(p.errors)+' '; area+='L'+x+','+y+' ';
+    pts.forEach(function(p,i){ var x=X(i),y=Y(p.count); line+=(i?'L':'M')+x+','+y+' '; err+=(i?'L':'M')+x+','+Y(p.failed)+' '; area+='L'+x+','+y+' ';
       dots+='<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="#d97757"/>';
       if(n<=6) dots+='<text x="'+x+'" y="'+(y-9)+'" class="ax" style="fill:var(--text)">'+fmt(p.count)+'</text>';
     });
@@ -344,13 +344,13 @@ export function renderDashboard(): string {
       var status=rows.some(function(r){return r.status==='down';})?'down':rows.some(function(r){return r.status==='degraded';})?'degraded':rows.every(function(r){return r.status==='up';})?'up':'unknown';
       return {status:status,ewmaMs:avg(rows,'ewmaMs'),successRate:avg(rows,'successRate'),lastProbeTs:Math.max.apply(null,rows.map(function(r){return r.lastProbeTs||0;}))};
     }
-    var tiles=[['ThisDID',aggregate(local)],['GoPlausible',providers.GoPlausible],['Godiddy',providers.godiddy],['Archon',providers.archon]];
+    var tiles=[['ThisDID',aggregate(local)],['GoPlausible',providers.GoPlausible],['Godiddy',providers.godiddy],['Archon',providers.archon],['OYDID',providers.oyd,'oyd']];
     return tiles.map(function(item){
-      var key=item[0],h=item[1],status=h&&h.status?h.status:'unknown';
+      var key=item[0],h=item[1],id=item[2]||key,status=h&&h.status?h.status:'unknown';
       var latency=h&&h.ewmaMs!=null?fmt(h.ewmaMs)+' ms':'—';
       var success=h&&h.successRate!=null?Math.round(h.successRate*1000)/10+'%':'—';
       var probe=h&&h.lastProbeTs?ago(h.lastProbeTs,Date.now())+' ago':'not probed';
-      return '<a class="provider-card '+esc(status)+'" href="'+plink(key)+'" title="'+esc(key)+' in the provider directory"><div class="provider-head"><span class="provider-dot"></span><span class="provider-name">'+esc(key)+'</span><span class="provider-state">'+esc(status)+'</span></div><div class="provider-metrics"><div class="provider-metric"><span>Latency</span>'+latency+'</div><div class="provider-metric"><span>Success</span>'+success+'</div></div><div class="provider-probe">Last probe · '+esc(probe)+'</div></a>';
+      return '<a class="provider-card '+esc(status)+'" href="'+plink(id)+'" title="'+esc(key)+' in the provider directory"><div class="provider-head"><span class="provider-dot"></span><span class="provider-name">'+esc(key)+'</span><span class="provider-state">'+esc(status)+'</span></div><div class="provider-metrics"><div class="provider-metric"><span>Latency</span>'+latency+'</div><div class="provider-metric"><span>Success</span>'+success+'</div></div><div class="provider-probe">Last probe · '+esc(probe)+'</div></a>';
     }).join('');
   }
   function renderHealth(d){ lastHealth=d; q('provider-status').innerHTML=providerStatus(d); }
@@ -405,7 +405,7 @@ export function renderDashboard(): string {
 
   function render(d){
     q('setup').style.display=d.configured?'none':'block';
-    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('RESOLVED',fmt(d.totals.success),d.totals.successRate+'%')+card('DID methods','${ALL_METHODS.length}')+card('Providers','5')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
+    q('kpis').innerHTML=card('Total',fmt(d.totals.liveTotal))+card('RESOLVED',fmt(d.totals.success),d.totals.successRate+'%')+card('NOT FOUND',fmt(d.totals.notFound))+card('FAILED',fmt(d.totals.failed))+card('DID methods','${ALL_METHODS.length}')+card('Providers','5')+card('Avg latency',fmt(d.totals.latencyAvgMs)+' ms');
     q('timeline').innerHTML=timeline(d.timeline);
     q('verify').innerHTML=verifyPanel(d.verification||[]);
     q('pie').innerHTML=pie(d.byProvider);
@@ -437,7 +437,7 @@ export function renderDashboard(): string {
     return out;
   }
   function skeletons(){
-    var cards=''; for(var i=0;i<5;i++) cards+='<div class="stat">'+sk(24,'68%','margin:4px 0')+sk(10,'52%','margin-top:12px')+'</div>';
+    var cards=''; for(var i=0;i<7;i++) cards+='<div class="stat">'+sk(24,'68%','margin:4px 0')+sk(10,'52%','margin-top:12px')+'</div>';
     q('kpis').innerHTML=cards;
     q('timeline').innerHTML=sk(190);
     q('pie').innerHTML='<div class="pie-wrap"><div class="skel" style="width:140px;height:140px;border-radius:50%;flex:none"></div><div class="legend" style="flex:1;min-width:120px">'+sk(12,'78%')+sk(12,'60%','margin-top:10px')+sk(12,'68%','margin-top:10px')+'</div></div>';
