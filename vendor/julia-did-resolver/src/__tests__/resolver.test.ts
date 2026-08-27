@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolve } from "../resolver.js";
+import { producesRepresentation, resolve } from "../resolver.js";
 import {
   CANARIES,
   fixtureClient,
@@ -69,6 +69,69 @@ describe("unsupported resolution options are refused, not ignored", () => {
       { accept: "application/did+ld+json" },
     );
     expect(result.didDocument?.id).toBe(CANARIES[0].did);
+  });
+});
+
+describe("accept negotiation follows RFC 9110 quality rules", () => {
+  // [accept header, acceptable?]
+  const cases: Array<[string, boolean]> = [
+    // Only one representation exists, and it is the JSON-LD one.
+    ["application/did+ld+json", true],
+    ["*/*", true],
+    ["application/*", true],
+    ["application/did+ld+json; charset=utf-8", true],
+    // Serving a JSON-LD document as did+json would be an overclaim.
+    ["application/did+json", false],
+    ["text/html", false],
+    // q=0 means "not acceptable", not "no preference" (§12.5.1).
+    ["application/did+ld+json;q=0", false],
+    ["*/*;q=0", false],
+    ["application/*;q=0", false],
+    ["application/did+ld+json;q=0, application/did+json", false],
+    // The MOST SPECIFIC matching entry decides, so a blanket q=0 does not
+    // override an explicit acceptance of the one type produced.
+    ["application/did+ld+json, */*;q=0", true],
+    ["application/json;q=0, application/did+ld+json", true],
+    ["application/did+ld+json, application/*;q=0", true],
+    // A non-zero quality is a preference, not a rejection.
+    ["application/did+ld+json;q=0.5", true],
+    ["*/*;q=0.001", true],
+    // Degenerate input carries no preference rather than refusing service.
+    ["", true],
+    ["   ", true],
+    // An unparseable quality is ignored, not read as a rejection.
+    ["application/did+ld+json;q=banana", true],
+    ["application/did+ld+json;Q=0", false],
+  ];
+
+  for (const [accept, acceptable] of cases) {
+    it(`${acceptable ? "accepts" : "refuses"} ${JSON.stringify(accept)}`, () => {
+      expect(producesRepresentation(accept)).toBe(acceptable);
+    });
+  }
+
+  it("refuses an unproducible representation end to end", async () => {
+    const result = await resolve(
+      CANARIES[0].did,
+      { client: fixtureClient(CANARIES[0].calls) },
+      { accept: "application/did+ld+json;q=0" },
+    );
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe(
+      "representationNotSupported",
+    );
+  });
+
+  it("still resolves when the representation is acceptable", async () => {
+    const result = await resolve(
+      CANARIES[0].did,
+      { client: fixtureClient(CANARIES[0].calls) },
+      { accept: "application/did+ld+json, */*;q=0" },
+    );
+    expect(result.didDocument?.id).toBe(CANARIES[0].did);
+    expect(result.didResolutionMetadata.contentType).toBe(
+      "application/did+ld+json",
+    );
   });
 });
 

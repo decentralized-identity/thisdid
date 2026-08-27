@@ -45,20 +45,59 @@ export const CONTENT_TYPE = "application/did+ld+json";
 /**
  * Whether an `accept` value asks for something this resolver can produce.
  *
- * Only the JSON-LD representation is produced, so anything else is refused
- * with `representationNotSupported` rather than answered with a document the
- * caller did not ask for. A wildcard, or the JSON-LD media type with any
- * parameters, is accepted; `application/did+json` is NOT, because serving a
- * JSON-LD-shaped document under that type would be the same overclaim in the
- * other direction.
+ * Only the JSON-LD representation is produced, so anything else is refused with
+ * `representationNotSupported` rather than answered with a document the caller
+ * did not ask for. `application/did+json` is deliberately NOT accepted: serving
+ * a JSON-LD-shaped document under that media type would be the same overclaim
+ * in the other direction.
+ *
+ * Per RFC 9110 §12.5.1 a quality of zero means "not acceptable", so it is a
+ * rejection rather than a weak preference — and the MOST SPECIFIC matching
+ * entry decides, so `application/did+ld+json, *\/*;q=0` is acceptable while
+ * `application/did+ld+json;q=0, *\/*` is not. Precedence is exact type over
+ * `type/*` over `*\/*`; among equally specific entries the highest quality
+ * wins, so a contradictory header errs toward serving the caller.
+ *
+ * This is deliberately not full content negotiation — there is only one
+ * representation to negotiate over.
  */
 export function producesRepresentation(accept: string): boolean {
-  return accept.split(",").some((entry) => {
-    const media = entry.split(";")[0].trim().toLowerCase();
-    return (
-      media === "*/*" || media === "application/*" || media === CONTENT_TYPE
-    );
-  });
+  // An empty or whitespace-only value carries no preference, like no header.
+  if (accept.trim() === "") return true;
+
+  let best: { specificity: number; quality: number } | null = null;
+  for (const entry of accept.split(",")) {
+    const parts = entry.split(";");
+    const media = parts[0].trim().toLowerCase();
+    const specificity =
+      media === CONTENT_TYPE
+        ? 3
+        : media === "application/*"
+          ? 2
+          : media === "*/*"
+            ? 1
+            : 0;
+    if (specificity === 0) continue;
+
+    let quality = 1;
+    for (const parameter of parts.slice(1)) {
+      const separator = parameter.indexOf("=");
+      if (separator < 0) continue;
+      if (parameter.slice(0, separator).trim().toLowerCase() !== "q") continue;
+      const parsed = Number.parseFloat(parameter.slice(separator + 1).trim());
+      // An unparseable quality is ignored rather than treated as a rejection.
+      if (Number.isFinite(parsed)) quality = parsed;
+    }
+
+    if (
+      best === null ||
+      specificity > best.specificity ||
+      (specificity === best.specificity && quality > best.quality)
+    ) {
+      best = { specificity, quality };
+    }
+  }
+  return best !== null && best.quality > 0;
 }
 
 export interface JuliaResolverOptions extends FullNodeClientOptions {
