@@ -353,6 +353,31 @@ export const CURATED: Record<string, CuratedMethod> = {
     ],
     lastReviewed: "2026-08-24",
   },
+  julia: {
+    summary:
+      "Chia singleton DIDs whose state is proven by recomputing the coin's own puzzle hash.",
+    research:
+      "A did:julia identifier IS a Chia singleton launcher ID (base58, no checksum, validated by decoding to 32 octets — never by length). The driver walks the singleton's lineage to the unspent coin, then reconstructs that coin's eight-slot state and serves it only if the state recomputes to the coin's on-chain puzzle hash: the coin commits to its own state, so a full node can withhold but cannot forge. It reaches that state without a CLVM interpreter, which no Workers runtime can host consensus-exactly: every julia_did solution reveals the spend's pre-spend state verbatim, only six sub-puzzles rewrite state, and each is a pure function of that state plus values in the same solution — a derivation that reproduces the chain's hash commitment IS the state, and one that does not fails closed as unverifiableState rather than resolving. Keyless and endpoint-agnostic: the default is the open Coinset mainnet RPC, JULIA_RPC_URL points it at any Chia node, and Coinset's one-call get_singleton_info is a fast path whose answer is verified exactly like the portable traversal's. Julia Social publishes the method spec, a Python reference resolver, and the shared fixtures both implementations replay; the W3C DID Methods registry entry is in review (w3c/did-extensions#748). No upstream Universal Resolver serves did:julia, so results are honestly stamped unverified.",
+    links: [
+      {
+        label: "did:julia method spec",
+        url: "https://github.com/julia-social/did-julia/blob/v1.0.0/spec/did-julia.md",
+      },
+      {
+        label: "reference resolver and fixtures",
+        url: "https://github.com/julia-social/did-julia",
+      },
+      {
+        label: "Chialisp puzzle source",
+        url: "https://github.com/julia-social/julia_did_chialisp",
+      },
+      {
+        label: "vendored package",
+        url: `${REPO}/tree/main/vendor/julia-did-resolver`,
+      },
+    ],
+    lastReviewed: "2026-08-26",
+  },
   empe: {
     summary:
       "Empeiria EVDI chain documents, protobuf-decoded offline from one Tendermint abci_query.",

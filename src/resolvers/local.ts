@@ -73,6 +73,8 @@ function bindingFor(
       return env.DRIVER_TZ;
     case "oyd":
       return env.DRIVER_OYD;
+    case "julia":
+      return env.DRIVER_JULIA;
     default:
       return undefined;
   }

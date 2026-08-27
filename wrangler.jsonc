@@ -56,6 +56,7 @@
     { "binding": "DRIVER_TZ", "service": "thisdid-driver-tz" },
     { "binding": "DRIVER_ION", "service": "thisdid-driver-ion" },
     { "binding": "DRIVER_OYD", "service": "thisdid-driver-oyd" },
+    { "binding": "DRIVER_JULIA", "service": "thisdid-driver-julia" },
     // The directory worker — /directory fallback proxy (its own route
     // normally answers first); deploy thisdid-directory before the mother.
     { "binding": "DIRECTORY", "service": "thisdid-directory" },

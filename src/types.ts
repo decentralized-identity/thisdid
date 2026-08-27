@@ -27,6 +27,7 @@ export interface DriverBindings {
   DRIVER_DHT?: DriverServiceBinding;
   DRIVER_TZ?: DriverServiceBinding;
   DRIVER_OYD?: DriverServiceBinding;
+  DRIVER_JULIA?: DriverServiceBinding;
 }
 
 /** Worker bindings (see wrangler.jsonc). */

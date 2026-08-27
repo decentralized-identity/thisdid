@@ -10,7 +10,7 @@ public routes. They do not select fallbacks or record analytics.
 
 ## Workers
 
-All twenty-four active drivers:
+All twenty-five active drivers:
 
 | Binding            | Worker name                | Resolver package                                       | Configuration                                     |
 | ------------------ | -------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
@@ -38,6 +38,7 @@ All twenty-four active drivers:
 | `DRIVER_DHT`       | `thisdid-driver-dht`       | `@thisdid/dht-did-resolver@1.0.0` (clean-room)         | None (keyless; optional `DHT_RELAY_URLS` var)     |
 | `DRIVER_TZ`        | `thisdid-driver-tz`        | `@thisdid/tz-did-resolver@1.0.0` (clean-room)          | None (keyless; optional `TZ_TZKT_*` vars)         |
 | `DRIVER_ION`       | `thisdid-driver-ion`       | `@thisdid/ion-did-resolver@1.0.0` (clean-room)         | Optional `ION_RESOLUTION_ENDPOINT` (unset)        |
+| `DRIVER_JULIA`     | `thisdid-driver-julia`     | `@thisdid/julia-did-resolver@1.0.0` (clean-room)       | None (keyless; optional `JULIA_RPC_URL` var)      |
 
 Every entrypoint registers a DIF `getResolver()` package directly. Six consume published npm
 packages; the rest consume ThisDID-custodied `@thisdid/*` packages vendored under `vendor/`, in
@@ -60,9 +61,12 @@ two families:
   (hand-rolled protobuf decode of Empeiria's `x/diddoc` query — no cosmjs/protobufjs), `dht`
   (every Pkarr relay payload Ed25519-verified against the DID's own identity key before its DNS
   records are reconstructed), `tz` (Tezos layer-1 derivation with TzKT-discovered keys included
-  only after BLAKE2b re-derivation of the address), and `ion` (long-form Sidetree DIDs verified
+  only after BLAKE2b re-derivation of the address), `ion` (long-form Sidetree DIDs verified
   fully offline; short-form deliberately `notConfigured` — no public ION node exists, so the
-  mother's chain falls through to upstreams). Each vendored package
+  mother's chain falls through to upstreams), and `julia` (Chia singleton state derived from
+  the most recent spend's own solution and served only after it recomputes to that coin's
+  on-chain puzzle hash — no CLVM interpreter, and a spend the driver cannot reproduce fails
+  closed as `unverifiableState`). Each vendored package
   documents its trust model, fail-closed behavior, test-vector provenance, and exit criteria in
   its own README under [`vendor/`](../../vendor/).
 
@@ -88,7 +92,7 @@ two families:
 
 ## Deployment order
 
-Run `npm run drivers:check` (dry-run bundles all twenty-four), then deploy the drivers before the
+Run `npm run drivers:check` (dry-run bundles all twenty-five), then deploy the drivers before the
 mother Worker:
 
 ```sh
@@ -102,14 +106,14 @@ Publishing, deployment, commits, and pushes remain explicit maintainer actions.
 
 ## Local development
 
-`npm run dev` starts the twenty-four driver processes, the mother Worker, and the Vite SPA
+`npm run dev` starts the twenty-five driver processes, the mother Worker, and the Vite SPA
 together. Wrangler discovers the driver processes by their configured service names and connects
 the mother's Service Bindings at `http://localhost:8787`; nothing is deployed.
-`npm run dev:drivers` (ports 8791–8809 and 8811–8815; 8810 belongs to `dev:directory`) and
+`npm run dev:drivers` (ports 8791–8809 and 8811–8816; 8810 belongs to `dev:directory`) and
 `npm run dev:worker` are also available when
 separate terminals are preferable.
 
 For local network-backed resolution, copy `.dev.vars.example` to `.dev.vars` inside each
 secret-requiring driver directory (`ethr`, `ens`, `sol`, `iden3`, `polygonid`) and insert the
-full provider URLs. The keyless drivers (`hedera`, `xrpl`, `iota`, `empe`, `dht`, `tz`) and the offline drivers
+full provider URLs. The keyless drivers (`hedera`, `xrpl`, `iota`, `empe`, `dht`, `tz`, `julia`) and the offline drivers
 (`key`, `pkh`, `peer`, `jwk`, and long-form `ion`) need no local secrets.
