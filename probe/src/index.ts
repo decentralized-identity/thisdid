@@ -51,8 +51,6 @@ interface ProbeEnv extends DriverBindings {
   ETHR_CANARY_DID?: string;
   /** Optional stable ens DID; enable only after the ens driver RPC secret is configured. */
   ENS_CANARY_DID?: string;
-  /** Optional stable did:dht; enable only once a continuously republished record exists. */
-  DHT_CANARY_DID?: string;
   DB?: D1Database;
   STATS_KV?: KVNamespace;
 }
@@ -152,10 +150,11 @@ const CANARIES: { step: Step; did: string }[] = [
     step: "local",
     did: "did:tz:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq",
   },
-  // did:dht has NO default canary: nobody republishes a stable public
-  // did:dht record since TBD's shutdown, so any fixed DID would read the
-  // DHT's honest notFound as an outage. Enable one with DHT_CANARY_DID once
-  // a republished record exists (same pattern as ETHR_CANARY_DID).
+  // did:dht has NO canary: nobody republishes a stable public did:dht
+  // record since TBD's shutdown, so any fixed DID would read the DHT's
+  // honest notFound as an outage. The SPA tile is hidden for the same
+  // reason (see src/methods.ts); re-add a canary here if a continuously
+  // republished record ever exists again.
   // did:ion LONG-FORM — offline, deterministic, fully verified in-driver
   // (deploy/bundle check). Short-form has no configured endpoint by design:
   // the routing chain serves it via upstreams, so it is not a local canary.
@@ -408,9 +407,6 @@ async function runRound(env: ProbeEnv): Promise<void> {
       : []),
     ...(env.ENS_CANARY_DID
       ? [{ step: "local" as const, did: env.ENS_CANARY_DID }]
-      : []),
-    ...(env.DHT_CANARY_DID
-      ? [{ step: "local" as const, did: env.DHT_CANARY_DID }]
       : []),
   ];
   const results = await Promise.all(canaries.map((c) => probeOne(c, env)));

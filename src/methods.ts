@@ -207,15 +207,19 @@ export const FEATURED_METHODS: MethodMeta[] = [
       "did:iota:0x0c6e3b00bfe019452ffee1b5c7f5e6d2e09705cb6a354d22fd853450494a697c",
     local: true,
   },
-  {
-    id: "dht",
-    glyph: "M",
-    probation: true,
-    desc: "Ed25519-signed DNS packets in BitTorrent's Mainline DHT",
-    network: "Mainline DHT · Pkarr",
-    example: "did:dht:i9xkp8ddcbcg8jwq54ox699wuzxyifsqx4jru45zodqu453ksz6y",
-    local: true,
-  },
+  // The dht tile is hidden until a live public did:dht record exists again:
+  // records expired ecosystem-wide after TBD's shutdown (all six DIF spec
+  // vectors 404 at relay.pkarr.org, verified 2026-08), so any example DID is
+  // a guaranteed notFound. The method itself stays fully supported.
+  // {
+  //   id: "dht",
+  //   glyph: "M",
+  //   probation: true,
+  //   desc: "Ed25519-signed DNS packets in BitTorrent's Mainline DHT",
+  //   network: "Mainline DHT · Pkarr",
+  //   example: "did:dht:i9xkp8ddcbcg8jwq54ox699wuzxyifsqx4jru45zodqu453ksz6y",
+  //   local: true,
+  // },
   {
     id: "tz",
     glyph: "Z",
@@ -240,7 +244,10 @@ export const FEATURED_METHODS: MethodMeta[] = [
     probation: true,
     desc: "Sidetree DIDs anchored to Bitcoin; long-form verified offline",
     network: "Bitcoin · ION (Sidetree)",
-    example: "did:ion:EiClkZMDxPKqC9c-umQfTkR8vvZ9JPhl_xLDI9Nfk38w5w",
+    // Long-form (self-contained, offline-verified). Short-form examples are
+    // permanently unresolvable since the ION network's sunset.
+    example:
+      "did:ion:EiBwLUL07Ku-N8ZBODHk2jV2uCRWO6SyLhGZimHbqiTa3A:eyJkZWx0YSI6eyJwYXRjaGVzIjpbeyJhY3Rpb24iOiJyZXBsYWNlIiwiZG9jdW1lbnQiOnsicHVibGljS2V5cyI6W3siaWQiOiJzaWcta2V5IiwicHVibGljS2V5SndrIjp7ImNydiI6InNlY3AyNTZrMSIsImt0eSI6IkVDIiwieCI6IllzQ2dSdHJNNkczZEEwUEcwOGZIbkNJSXVnMmNuUEpLYlFSdElkSWZrUGMiLCJ5IjoiYllQMnB2OHQtR1pPeDdnRXF4Tml6SlZBUGtOMDBZR2VDRUM5aW9nWGdBMCJ9LCJwdXJwb3NlcyI6WyJhdXRoZW50aWNhdGlvbiIsImFzc2VydGlvbk1ldGhvZCJdLCJ0eXBlIjoiRWNkc2FTZWNwMjU2azFWZXJpZmljYXRpb25LZXkyMDE5In1dLCJzZXJ2aWNlcyI6W3siaWQiOiJzaXRlIiwic2VydmljZUVuZHBvaW50IjoiaHR0cHM6Ly90aGlzZGlkLmNvbSIsInR5cGUiOiJMaW5rZWREb21haW5zIn1dfX1dLCJ1cGRhdGVDb21taXRtZW50IjoiRWlDaHp6MG0wOC1yemFzUnlWOXF2QXdVVEswYnZLVURaWlpjUmhDN0ZvRzdCZyJ9LCJzdWZmaXhEYXRhIjp7ImRlbHRhSGFzaCI6IkVpQnlWREdZRlpLaEtObm1MZ25hdW5LWGIySjVUWFhLSUJ4di1lcFdsV1FEOVEiLCJyZWNvdmVyeUNvbW1pdG1lbnQiOiJFaURtMThmeHIzWVZnTGRxZ0xRcElocDQ2TkZneDVIZ1Y2WTMzbFA5Q2Q5VVhnIn19",
     local: true,
   },
 ];
@@ -390,11 +397,13 @@ export function isSupportedMethod(method: string): boolean {
   return SUPPORTED_METHODS.has(method.toLowerCase());
 }
 
-/** Network labels for prominent upstream-routed methods without a featured tile. */
+/** Network labels for methods without a featured tile (prominent upstream
+ * routes, plus locally driven methods whose tile is hidden). */
 const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
   oyd: "OYDID (provenance log)",
+  dht: "Mainline DHT · Pkarr",
 };
 
 const NETWORKS: Record<string, string> = {
