@@ -574,6 +574,16 @@ const PROVIDERS = [
     resolver: "goplausible.com",
     href: "https://goplausible.com",
   },
+  {
+    id: "oyd",
+    name: "OYDID Resolver",
+    by: "OwnYourData",
+    glyph: "O",
+    color: "var(--res-d)",
+    desc: "Public resolver for the did:oyd method (OYDID). The identifier is cryptographically derived from the DID Document, and a linked provenance log guarantees resolution yields the latest valid version. ThisDID routes did:oyd here first.",
+    resolver: "resolver.ownyourdata.eu",
+    href: "https://www.ownyourdata.eu",
+  },
 ];
 
 export function ResolverProviders() {
@@ -700,7 +710,7 @@ export function ResolverProviders() {
 
 const NET_STATS = [
   { value: "42", label: "Gateway regions" },
-  { value: "3", label: "Failover providers" },
+  { value: "5", label: "Failover providers" },
   { value: "Live", label: "Route health probes" },
   { value: "DIF", label: "Resolution result shape" },
 ];

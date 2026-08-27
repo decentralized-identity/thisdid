@@ -46,6 +46,8 @@ function upstreamBase(step: Step, env: Env, method?: string): string {
         : env.ARCHON_RESOLVER;
     case "goplausible":
       return env.GOPLAUSIBLE_RESOLVER;
+    case "oyd":
+      return env.OYD_RESOLVER;
     default:
       return "";
   }
@@ -54,6 +56,7 @@ function upstreamBase(step: Step, env: Env, method?: string): string {
 function resolverLabel(step: Step, method: string): string {
   if (step === "local") return `ThisDID (${method} driver)`;
   if (step === "goplausible") return "GoPlausible universal-resolver";
+  if (step === "oyd") return "OYDID Resolver (OwnYourData)";
   return `${step} universal-resolver`;
 }
 

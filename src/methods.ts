@@ -394,6 +394,7 @@ export function isSupportedMethod(method: string): boolean {
 const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
+  oyd: "OYDID (provenance log)",
 };
 
 const NETWORKS: Record<string, string> = {

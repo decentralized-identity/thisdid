@@ -77,6 +77,22 @@ export const PROVIDERS: ProviderProfile[] = [
       { label: "Specs", url: "https://archon.technology/specs" },
     ],
   },
+  {
+    id: "oyd",
+    tag: "oyd",
+    name: "OYDID Resolver",
+    kind: "did:oyd method resolver",
+    operator: "OwnYourData",
+    baseUrl: "https://resolver.ownyourdata.eu/1.0/identifiers/",
+    auth: "Open — no key",
+    summary:
+      "Public resolver for the did:oyd method (OYDID). The identifier is cryptographically derived from the DID Document, and a cryptographically linked public provenance log guarantees that resolution yields the latest valid version.",
+    methods: sorted(UPSTREAM_METHOD_SUPPORT.oyd ?? []),
+    links: [
+      { label: "OwnYourData", url: "https://www.ownyourdata.eu" },
+      { label: "Resolver", url: "https://resolver.ownyourdata.eu" },
+    ],
+  },
 ];
 
 export const PROVIDER_BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));

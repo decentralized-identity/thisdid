@@ -44,6 +44,8 @@ export interface Env extends DriverBindings {
   ARCHON_CID_RESOLVER: string;
   /** GoPlausible Universal Resolver base (DID appended) — tried first for did:algo / did:nfd. */
   GOPLAUSIBLE_RESOLVER: string;
+  /** OwnYourData OYDID resolver base (DID appended) — tried first for did:oyd. */
+  OYD_RESOLVER: string;
   RESOLVER_LABEL: string;
   /** D1 database — authoritative per-resolution event log (optional until provisioned). */
   DB?: D1Database;

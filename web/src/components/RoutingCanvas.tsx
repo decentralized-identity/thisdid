@@ -7,6 +7,7 @@ interface Palette {
   twist: string;
   teal: string;
   amber: string;
+  green: string;
   text: string;
   ring: string;
   glow: string;
@@ -23,6 +24,7 @@ function palette(dark: boolean): Palette {
         twist: "#b587f0",
         teal: "#5fd0e0",
         amber: "#f0b968",
+        green: "#5cc98a",
         text: "rgba(244,239,230,0.55)",
         ring: "rgba(217,119,87,0.5)",
         glow: "rgba(217,119,87,0.4)",
@@ -36,6 +38,7 @@ function palette(dark: boolean): Palette {
         twist: "#8b5cf6",
         teal: "#2f9fb0",
         amber: "#d38f36",
+        green: "#3fa86a",
         text: "rgba(60,50,40,0.6)",
         ring: "rgba(201,99,63,0.45)",
         glow: "rgba(201,99,63,0.25)",
@@ -96,6 +99,7 @@ export function RoutingCanvas({
       { label: "Godiddy", pulse: 0 },
       { label: "GoPlausible", pulse: 0 },
       { label: "Archon", pulse: 0 },
+      { label: "OYDID", pulse: 0 },
     ];
     let hubPulse = 0;
     const packets: Packet[] = [];
@@ -112,7 +116,10 @@ export function RoutingCanvas({
     });
     const rpos = (i: number) => ({
       x: W * (1 - edge()),
-      y: H * (0.28 + i * 0.22),
+      y:
+        H *
+        (0.22 +
+          (resolvers.length > 1 ? i / (resolvers.length - 1) : 0.5) * 0.56),
     });
 
     const layout = () => {
@@ -129,9 +136,14 @@ export function RoutingCanvas({
     ro.observe(canvas);
 
     // Positional, matching `resolvers` order: Godiddy teal, GoPlausible
-    // violet, Archon amber — the same identities the Hero legend pins to
-    // --res-b / --twist / --res-c.
-    const resColors = (pal: Palette) => [pal.teal, pal.twist, pal.amber];
+    // violet, Archon amber, OYDID green — the same identities the Hero legend
+    // pins to --res-b / --twist / --res-c / --res-d.
+    const resColors = (pal: Palette) => [
+      pal.teal,
+      pal.twist,
+      pal.amber,
+      pal.green,
+    ];
     const countryFlag = (code: string) => {
       const normalized = code.trim().toUpperCase();
       if (!/^[A-Z]{2}$/.test(normalized)) return "🌐";

@@ -99,7 +99,7 @@ export function Header({ mode, setMode, onScan }: Props) {
           <a href="#methods" style={navLink}>
             Methods
           </a>
-          <a href="#providers" style={navLink}>
+          <a href="/directory/providers" style={navLink}>
             Providers
           </a>
           <a href="/directory" style={navLink}>

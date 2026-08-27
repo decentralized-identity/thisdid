@@ -5,13 +5,15 @@
  *   - `local`   → resolved by an isolated TypeScript driver Worker through a Service Binding.
  *   - `godiddy` → routed to the godiddy Universal Resolver.
  *   - `archon`  → routed to the archon Universal Resolver.
+ *   - `goplausible` → routed to the GoPlausible (Algorand-native) resolver.
+ *   - `oyd`     → routed to the OwnYourData OYDID resolver (did:oyd).
  *
  * The chain is tried in order; the first step that returns a usable DID document
  * wins, otherwise the next step is attempted. This is the single place to change
  * how (and to which redundant resolver) any method is routed.
  */
 
-export type Step = "local" | "godiddy" | "archon" | "goplausible";
+export type Step = "local" | "godiddy" | "archon" | "goplausible" | "oyd";
 
 /** Most methods: try ThisDID first, then godiddy, then archon. */
 export const DEFAULT_CHAIN: Step[] = ["local", "godiddy", "archon"];
@@ -33,6 +35,10 @@ export const ROUTE_CHAINS: Record<string, Step[]> = {
   iota: ["local", "archon", "godiddy"],
   tz: ["local", "archon", "godiddy"],
   empe: ["local", "archon", "godiddy"],
+  // did:oyd (OYDID) — the OwnYourData public resolver is the authoritative
+  // source (the DID is derived from the document and verified against a linked
+  // provenance log), so it leads; godiddy/archon are best-effort fallbacks.
+  oyd: ["oyd", "godiddy", "archon"],
 };
 
 export function chainFor(method: string): Step[] {
@@ -96,6 +102,7 @@ export const UPSTREAM_METHOD_SUPPORT: Partial<
     "empe",
   ]),
   goplausible: new Set(["algo", "nfd"]),
+  oyd: new Set(["oyd"]),
 };
 
 /** True when the upstream is known (or assumed) to resolve the method. */

@@ -31,6 +31,7 @@ body {
   --twist-bright: #c9a3ff;
   --res-b: #5fd0e0;
   --res-c: #f0b968;
+  --res-d: #5cc98a;
   --glow: rgba(217, 119, 87, 0.35);
   --j-key: #ff916a;
   --j-str: #9ecb8a;
@@ -57,6 +58,7 @@ body {
   --twist-bright: #a78bfa;
   --res-b: #2f9fb0;
   --res-c: #d38f36;
+  --res-d: #3fa86a;
   --glow: rgba(201, 99, 63, 0.22);
   --j-key: #c9633f;
   --j-str: #4c8a3f;

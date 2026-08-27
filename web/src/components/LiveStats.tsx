@@ -45,7 +45,7 @@ export function LiveStats({
       hasSub: true,
     },
     { v: t ? fmt(t.errors) : "—", l: "Not found" },
-    { v: "4", l: "Providers" },
+    { v: "5", l: "Providers" },
     { v: t ? `${fmt(t.latencyAvgMs)} ms` : "—", l: "Avg latency" },
   ];
   return (

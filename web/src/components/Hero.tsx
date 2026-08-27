@@ -452,6 +452,11 @@ export function Hero({
             label="Archon"
             href="https://archon.technology"
           />
+          <Legend
+            c="var(--res-d)"
+            label="OYDID"
+            href="https://www.ownyourdata.eu"
+          />
         </div>
         <div
           style={{

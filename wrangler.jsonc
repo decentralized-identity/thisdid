@@ -26,6 +26,7 @@
     "ARCHON_CID_RESOLVER": "https://archon.technology/api/v1/did",
     // GoPlausible Universal Resolver (DID appended as `/{did}`) — tried first for did:algo / did:nfd.
     "GOPLAUSIBLE_RESOLVER": "https://goplausible.xyz/api/1.0/identifiers",
+    "OYD_RESOLVER": "https://resolver.ownyourdata.eu/1.0/identifiers",
     "RESOLVER_LABEL": "thisdid-edge",
   },
   // Private Tier 1 TypeScript resolver Workers. Deploy these services before the mother Worker.
