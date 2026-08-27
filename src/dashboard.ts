@@ -344,7 +344,7 @@ export function renderDashboard(): string {
       var status=rows.some(function(r){return r.status==='down';})?'down':rows.some(function(r){return r.status==='degraded';})?'degraded':rows.every(function(r){return r.status==='up';})?'up':'unknown';
       return {status:status,ewmaMs:avg(rows,'ewmaMs'),successRate:avg(rows,'successRate'),lastProbeTs:Math.max.apply(null,rows.map(function(r){return r.lastProbeTs||0;}))};
     }
-    var tiles=[['ThisDID',aggregate(local)],['GoPlausible',providers.GoPlausible],['Godiddy',providers.godiddy],['Archon',providers.archon],['OYDID',providers.oyd,'oyd']];
+    var tiles=[['ThisDID',aggregate(local)],['Godiddy',providers.godiddy],['Archon',providers.archon],['OYDID',providers.oyd,'oyd'],['GoPlausible',providers.GoPlausible]];
     return tiles.map(function(item){
       var key=item[0],h=item[1],id=item[2]||key,status=h&&h.status?h.status:'unknown';
       var latency=h&&h.ewmaMs!=null?fmt(h.ewmaMs)+' ms':'—';
