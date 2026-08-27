@@ -97,9 +97,9 @@ export function RoutingCanvas({
     const methods = Array.from({ length: 7 }, () => ({ pulse: 0 }));
     const resolvers = [
       { label: "Godiddy", pulse: 0 },
-      { label: "GoPlausible", pulse: 0 },
       { label: "Archon", pulse: 0 },
       { label: "OYDID", pulse: 0 },
+      { label: "GoPlausible", pulse: 0 },
     ];
     let hubPulse = 0;
     const packets: Packet[] = [];
@@ -135,14 +135,14 @@ export function RoutingCanvas({
     const ro = new ResizeObserver(layout);
     ro.observe(canvas);
 
-    // Positional, matching `resolvers` order: Godiddy teal, GoPlausible
-    // violet, Archon amber, OYDID green — the same identities the Hero legend
-    // pins to --res-b / --twist / --res-c / --res-d.
+    // Positional, matching `resolvers` order: Godiddy teal, Archon amber,
+    // OYDID green, GoPlausible violet — the same identities the Hero legend
+    // pins to --res-b / --res-c / --res-d / --twist.
     const resColors = (pal: Palette) => [
       pal.teal,
-      pal.twist,
       pal.amber,
       pal.green,
+      pal.twist,
     ];
     const countryFlag = (code: string) => {
       const normalized = code.trim().toUpperCase();

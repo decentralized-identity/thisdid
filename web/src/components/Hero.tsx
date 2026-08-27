@@ -14,7 +14,10 @@ const DEFAULT_METHODS = [
 ];
 
 const EXAMPLES = [
-  { short: "did:web", did: "did:web:identity.foundation" },
+  {
+    short: "did:cid",
+    did: "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq",
+  },
   {
     short: "did:key",
     did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
@@ -27,7 +30,10 @@ const EXAMPLES = [
     short: "did:algo",
     did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
   },
-  { short: "did:nfd", did: "did:nfd:goplausible.algo" },
+  {
+    short: "did:oyd",
+    did: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+  },
   {
     short: "did:iden3",
     did: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",

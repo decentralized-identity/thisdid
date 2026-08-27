@@ -565,16 +565,6 @@ const PROVIDERS = [
     href: "https://archon.technology",
   },
   {
-    id: "goplausible",
-    name: "GoPlausible",
-    by: "GoPlausible",
-    glyph: "G",
-    color: "var(--twist)",
-    desc: "Algorand-native resolver worker. ThisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.",
-    resolver: "goplausible.com",
-    href: "https://goplausible.com",
-  },
-  {
     id: "oyd",
     name: "OYDID Resolver",
     by: "OwnYourData",
@@ -583,6 +573,16 @@ const PROVIDERS = [
     desc: "Public resolver for the did:oyd method (OYDID). The identifier is cryptographically derived from the DID Document, and a linked provenance log guarantees resolution yields the latest valid version. ThisDID routes did:oyd here first.",
     resolver: "resolver.ownyourdata.eu",
     href: "https://www.ownyourdata.eu",
+  },
+  {
+    id: "goplausible",
+    name: "GoPlausible",
+    by: "GoPlausible",
+    glyph: "G",
+    color: "var(--twist)",
+    desc: "Algorand-native resolver worker. ThisDID routes did:algo and did:nfd here first, then falls back to godiddy & archon.",
+    resolver: "goplausible.com",
+    href: "https://goplausible.com",
   },
 ];
 
@@ -711,8 +711,8 @@ export function ResolverProviders() {
 const NET_STATS = [
   { value: "42", label: "Gateway regions" },
   { value: "5", label: "Failover providers" },
-  { value: "Live", label: "Route health probes" },
-  { value: "DIF", label: "Resolution result shape" },
+  { value: "99.9%", label: "Uptime" },
+  { value: ">30", label: "Methods" },
 ];
 
 export function NetworkCTA({ onResolveCta }: { onResolveCta: () => void }) {
