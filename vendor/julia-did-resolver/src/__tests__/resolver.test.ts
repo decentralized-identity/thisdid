@@ -121,6 +121,17 @@ describe("accept negotiation follows RFC 9110 quality rules", () => {
       "application/did+ld+json;charset=utf-8, application/did+ld+json;q=0",
       true,
     ],
+    // Concreteness and matched-parameter count are INDEPENDENT dimensions,
+    // compared in that order. A parameterized wildcard is never as specific as
+    // an exact type, so it can neither tie nor outrank one.
+    ["application/did+ld+json;q=0, application/*;charset=utf-8;q=1", false],
+    ["application/*;charset=utf-8;q=1, application/did+ld+json;q=0", false],
+    ["application/did+ld+json;q=0, */*;charset=utf-8;q=1", false],
+    ["application/*;charset=utf-8;q=0, application/did+ld+json", true],
+    ["*/*;charset=utf-8;q=0, application/*;q=1", true],
+    // A wildcard refusal still binds when nothing more concrete matches.
+    ["application/*;q=0, */*", false],
+    ["application/*;q=0", false],
     // Parameters AFTER q are accept extensions and carry no meaning here.
     ["application/did+ld+json;q=0.5;ext=foo", true],
     ["application/did+ld+json;q=0;ext=foo", false],

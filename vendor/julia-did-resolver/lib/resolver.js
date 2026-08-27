@@ -36,6 +36,11 @@ function mediaParameterSatisfied(name, value) {
  *    all, and a matching parameter makes the range MORE specific than the bare
  *    type — the spec's own example ranks `text/plain;format=flowed` above
  *    `text/plain`. Parameters after `q` are accept extensions and are ignored.
+ *  - Specificity is two INDEPENDENT dimensions compared lexicographically:
+ *    how concrete the type is, and only then how many parameters matched. They
+ *    must not be added together, or a parameterized wildcard would tie an
+ *    exact type — `application/*;charset=utf-8` is never as specific as
+ *    `application/did+ld+json`, whatever parameters it carries.
  *  - **A quality of zero means "not acceptable"**, so it is a rejection rather
  *    than a weak preference.
  *  - **The most specific matching range decides.** `application/did+ld+json,
@@ -54,15 +59,17 @@ export function producesRepresentation(accept) {
     for (const entry of accept.split(",")) {
         const parts = entry.split(";");
         const media = parts[0].trim().toLowerCase();
-        let specificity = media === CONTENT_TYPE
+        // How concrete the type itself is: exact > type/* > */*.
+        const concreteness = media === CONTENT_TYPE
             ? 3
             : media === "application/*"
                 ? 2
                 : media === "*/*"
                     ? 1
                     : 0;
-        if (specificity === 0)
+        if (concreteness === 0)
             continue;
+        let parameters = 0;
         let quality = 1;
         let seenQuality = false;
         let matches = true;
@@ -86,14 +93,19 @@ export function producesRepresentation(accept) {
                 matches = false;
                 break;
             }
-            specificity += 1; // a satisfied parameter narrows, and so ranks higher
+            parameters += 1; // a satisfied parameter narrows the range further
         }
         if (!matches)
             continue;
+        // Lexicographic: concreteness first, then matched parameters, and only
+        // among ranges equally specific in BOTH does quality break the tie — so a
+        // self-contradictory header errs toward serving the caller.
         if (best === null ||
-            specificity > best.specificity ||
-            (specificity === best.specificity && quality > best.quality)) {
-            best = { specificity, quality };
+            concreteness > best.concreteness ||
+            (concreteness === best.concreteness &&
+                (parameters > best.parameters ||
+                    (parameters === best.parameters && quality > best.quality)))) {
+            best = { concreteness, parameters, quality };
         }
     }
     return best !== null && best.quality > 0;

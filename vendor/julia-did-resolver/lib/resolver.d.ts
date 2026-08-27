@@ -31,6 +31,11 @@ export declare const CONTENT_TYPE = "application/did+ld+json";
  *    all, and a matching parameter makes the range MORE specific than the bare
  *    type — the spec's own example ranks `text/plain;format=flowed` above
  *    `text/plain`. Parameters after `q` are accept extensions and are ignored.
+ *  - Specificity is two INDEPENDENT dimensions compared lexicographically:
+ *    how concrete the type is, and only then how many parameters matched. They
+ *    must not be added together, or a parameterized wildcard would tie an
+ *    exact type — `application/*;charset=utf-8` is never as specific as
+ *    `application/did+ld+json`, whatever parameters it carries.
  *  - **A quality of zero means "not acceptable"**, so it is a rejection rather
  *    than a weak preference.
  *  - **The most specific matching range decides.** `application/did+ld+json,
