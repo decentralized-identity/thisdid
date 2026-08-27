@@ -30,19 +30,6 @@ export const PROVIDERS: ProviderProfile[] = [
     ],
   },
   {
-    id: "goplausible",
-    tag: "GoPlausible",
-    name: "GoPlausible",
-    kind: "Algorand-native Universal Resolver",
-    operator: "GoPlausible",
-    baseUrl: "https://goplausible.xyz/api/1.0/identifiers/",
-    auth: "Open — no key",
-    summary:
-      "The Algorand-native resolver: authoritative first hop for did:algo and did:nfd.",
-    methods: sorted(UPSTREAM_METHOD_SUPPORT.goplausible ?? []),
-    links: [{ label: "GoPlausible", url: "https://goplausible.com" }],
-  },
-  {
     id: "godiddy",
     tag: "godiddy",
     name: "Godiddy",
@@ -92,6 +79,19 @@ export const PROVIDERS: ProviderProfile[] = [
       { label: "OwnYourData", url: "https://www.ownyourdata.eu" },
       { label: "Resolver", url: "https://resolver.ownyourdata.eu" },
     ],
+  },
+  {
+    id: "goplausible",
+    tag: "GoPlausible",
+    name: "GoPlausible",
+    kind: "Algorand-native Universal Resolver",
+    operator: "GoPlausible",
+    baseUrl: "https://goplausible.xyz/api/1.0/identifiers/",
+    auth: "Open — no key",
+    summary:
+      "The Algorand-native resolver: authoritative first hop for did:algo and did:nfd.",
+    methods: sorted(UPSTREAM_METHOD_SUPPORT.goplausible ?? []),
+    links: [{ label: "GoPlausible", url: "https://goplausible.com" }],
   },
 ];
 

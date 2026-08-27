@@ -39,6 +39,8 @@ interface ProbeEnv extends DriverBindings {
   /** Archon Gatekeeper base for did:cid ONLY (same as the main Worker). */
   ARCHON_CID_RESOLVER?: string;
   GOPLAUSIBLE_RESOLVER: string;
+  /** OwnYourData OYDID resolver base (same as the main Worker) — first hop for did:oyd. */
+  OYD_RESOLVER: string;
   /** Godiddy's unmetered ingress health endpoint (probed instead of the quota-throttled resolver API). */
   GODIDDY_HEALTH?: string;
   /** Same secret as the main Worker (set separately: `wrangler secret put GODIDDY_API_KEY --config probe/wrangler.jsonc`).
@@ -172,6 +174,13 @@ const CANARIES: { step: Step; did: string }[] = [
     did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
   },
   { step: "goplausible", did: "did:nfd:goplausible.algo" },
+  // did:oyd — a live OYDID DID (from OwnYourData's uni-resolver test set),
+  // resolved through resolver.ownyourdata.eu, the authoritative first hop for
+  // the method. The OYDID server does the hash/log/signature verification.
+  {
+    step: "oyd",
+    did: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+  },
   {
     step: "archon",
     did: "did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw",
@@ -223,6 +232,8 @@ function upstreamBase(step: Step, env: ProbeEnv, did: string): string {
         : env.ARCHON_RESOLVER;
     case "goplausible":
       return env.GOPLAUSIBLE_RESOLVER;
+    case "oyd":
+      return env.OYD_RESOLVER;
     default:
       return "";
   }

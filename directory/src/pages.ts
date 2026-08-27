@@ -443,8 +443,7 @@ methods <b>${p.methods.length}</b></span></div>
 the redundant upstreams — with live availability, a measured <b>reliability</b> composite
 (success consistency, stability, latency discipline, throttle behavior, verification
 agreement), and each provider's share of routed traffic. Numbers come from the engine's own
-probes and <a href="/analytics">analytics</a>. Want your resolver in these chains? See
-<a href="/directory/join">joining as a provider</a>.</p>
+probes and <a href="/analytics">analytics</a>. 
 <div class="panel"><h2>Network totals · 7 days</h2>
 <div class="scores"><span>resolutions <b>${totals.resolutions}</b> ·
 health probes <b>${totals.probes}</b> ·
