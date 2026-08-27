@@ -45,8 +45,11 @@ npm, so the wrapper shape used by `webvh`/`plc` is not available yet — see
   null encoding and the protocol's inert-tree sentinels, which are derived from
   the all-zero leaf rather than hardcoded.
 
-Not implemented, and reported rather than faked: `versionId` / `versionTime`
-resolution, representations other than `application/did+ld+json`, DID URL
+Not implemented, and **refused rather than faked**: version-specific
+resolution. A request carrying `versionId` or `versionTime` returns
+`unsupportedResolutionOption` instead of the current document — answering a
+question the caller did not ask is the one failure they cannot detect. Also not
+implemented: representations other than `application/did+ld+json`, DID URL
 dereferencing, and multi-key Merkle-path replay for verification-method
 enumeration — a v1 limitation shared with the reference resolver, visible in
 the multi-class organization canary, which publishes its authentication
@@ -74,6 +77,17 @@ produced it, and a wrong prediction cannot match without a SHA-256 collision.
 Identifying the operation from the pinned puzzle-hash table is an optimization;
 an exhaustive backstop tries every known transition against every solution
 subtree, so a stale hash table costs performance, not correctness.
+
+**An outage is never an answer.** `notFound` is returned only when the node
+itself reports the coin absent — a stock full node's `{ success: true,
+coin_record: null }`, or a gateway's explicit not-found code (Coinset answers
+`success: false` with `COIN_RECORD_NOT_FOUND`). Every other failure —
+transport, timeout, non-2xx, oversized, non-JSON — raises `internalError`,
+which the mother Worker treats as transport-class. `notFound` is a semantic
+verdict that may be cached, so an unreachable node must never become an
+authoritative claim that a DID does not exist. Response bodies are bounded
+*while streaming*, and an oversized `content-length` is rejected before a chunk
+is read.
 
 **Fail-closed:** a spend for which no known transition reproduces the chain's
 commitment returns `didResolutionMetadata.error = "unverifiableState"`. Nothing

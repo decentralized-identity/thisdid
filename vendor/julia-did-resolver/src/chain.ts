@@ -32,7 +32,51 @@ const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const MAX_GENERATIONS = 4096;
 
 export class ChainError extends Error {}
+
+/** The DID, or a coin its lineage requires, is genuinely absent from the chain. */
 export class NotFoundError extends ChainError {}
+
+/**
+ * The endpoint could not be reached, or did not answer usefully: a network
+ * failure, a timeout, a non-2xx status, an oversized body, or a body that is
+ * not JSON. It carries NO information about whether the DID exists, and must
+ * never be reported as `notFound`.
+ */
+export class RpcTransportError extends ChainError {
+  /** HTTP status, when the failure was a status code. */
+  readonly status: number | null;
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/**
+ * The node answered, and its answer was an application-level failure
+ * (`success: false`). Only this class can mean "no such coin" — and only when
+ * the node says so.
+ */
+export class RpcResponseError extends ChainError {
+  readonly code: string | null;
+  /** True when the node reported the object as absent rather than erroring. */
+  readonly absent: boolean;
+  constructor(message: string, code: string | null, absent: boolean) {
+    super(message);
+    this.code = code;
+    this.absent = absent;
+  }
+}
+
+/**
+ * Chia RPC has no machine-readable "absent" signal that every node shares. A
+ * stock full node answers `{ success: true, coin_record: null }`, which needs
+ * no interpretation; Coinset's gateway instead answers `success: false` with
+ * `structuredError.code = "COIN_RECORD_NOT_FOUND"`. Both are recognized, and
+ * anything unrecognized is treated as a real error — the safe direction, since
+ * that surfaces as a transport-class failure rather than as an authoritative
+ * claim that a DID does not exist.
+ */
+const ABSENT_PATTERN = /not[ _-]?found/i;
 
 export interface Coin {
   parentCoinInfo: Uint8Array;
@@ -86,6 +130,50 @@ export interface FullNodeClientOptions {
    * serve it simply falls back, at the cost of two calls per generation.
    */
   useSingletonInfo?: boolean;
+}
+
+/**
+ * Read a response body as text, bounded WHILE STREAMING.
+ *
+ * `response.text()` buffers the whole body before any size check, so a
+ * hostile or broken endpoint could exhaust an edge runtime's memory before the
+ * limit was ever consulted. This stops at the limit and cancels the transfer.
+ * `content-length`, when the endpoint declares one, rejects before a single
+ * chunk is read.
+ */
+async function readBoundedText(
+  response: Response,
+  limit: number,
+  method: string,
+): Promise<string> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) {
+    throw new RpcTransportError(
+      `${method}: response declares ${declared} bytes, over the ${limit}-byte limit`,
+    );
+  }
+  const body = response.body;
+  // No readable stream (an empty body, or a fetch shim without one): there is
+  // nothing to bound incrementally, and content-length was already checked.
+  if (!body) return response.text();
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let total = 0;
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      throw new RpcTransportError(
+        `${method}: response exceeds the ${limit}-byte limit`,
+      );
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }
 
 export function coinId(coin: Coin): Uint8Array {
@@ -157,16 +245,20 @@ export class FullNodeClient {
         signal: controller.signal,
       });
       if (!response.ok) {
-        throw new ChainError(`${method}: HTTP ${response.status}`);
+        throw new RpcTransportError(
+          `${method}: HTTP ${response.status}`,
+          response.status,
+        );
       }
-      const text = await response.text();
-      if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-        throw new ChainError(`${method}: response exceeds size limit`);
+      const text = await readBoundedText(response, MAX_RESPONSE_BYTES, method);
+      try {
+        return JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        throw new RpcTransportError(`${method}: response is not JSON`);
       }
-      return JSON.parse(text) as Record<string, unknown>;
     } catch (cause) {
       if (cause instanceof ChainError) throw cause;
-      throw new ChainError(`${method}: ${(cause as Error).message}`);
+      throw new RpcTransportError(`${method}: ${(cause as Error).message}`);
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -182,7 +274,15 @@ export class FullNodeClient {
     if (!data || data.success !== true) {
       const message =
         (data?.error as string | undefined) ?? "RPC returned success=false";
-      throw new ChainError(`${method}: ${message}`);
+      const structured = data?.structuredError as
+        { code?: unknown } | undefined;
+      const code =
+        typeof structured?.code === "string" ? structured.code : null;
+      throw new RpcResponseError(
+        `${method}: ${message}`,
+        code,
+        ABSENT_PATTERN.test(code ?? "") || ABSENT_PATTERN.test(message),
+      );
     }
     return data;
   }
@@ -198,8 +298,13 @@ export class FullNodeClient {
         { name: `0x${toHex(id)}` },
         signal,
       );
-    } catch {
-      return null;
+    } catch (cause) {
+      // Only the node's own "no such coin" means absent. A transport failure
+      // is propagated: reporting an unreachable node as `notFound` would turn
+      // an outage into an authoritative — and cacheable — claim that a DID
+      // does not exist.
+      if (cause instanceof RpcResponseError && cause.absent) return null;
+      throw cause;
     }
     return data.coin_record ? parseCoinRecord(data.coin_record) : null;
   }
@@ -258,8 +363,17 @@ export class FullNodeClient {
       if (!data.coin_record) return null;
       const record = parseCoinRecord(data.coin_record);
       return record.spent ? null : record;
-    } catch {
-      this.singletonInfoEnabled = false;
+    } catch (cause) {
+      // Stop asking only when this endpoint demonstrably does not implement
+      // the extension. A timeout or an outage says nothing about that, and
+      // must not permanently downgrade a healthy client.
+      if (
+        cause instanceof RpcTransportError &&
+        cause.status !== null &&
+        [404, 405, 501].includes(cause.status)
+      ) {
+        this.singletonInfoEnabled = false;
+      }
       return null;
     }
   }

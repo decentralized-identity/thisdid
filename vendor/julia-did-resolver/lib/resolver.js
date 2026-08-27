@@ -6,12 +6,25 @@ export const METHOD = "julia";
 /**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
- * Resolution options are not consulted: version-specific resolution
- * (`versionId` / `versionTime`) is not implemented, in common with the Python
- * reference resolver, and the only representation produced is
- * `application/did+ld+json`.
+ * Version-specific resolution (`versionId` / `versionTime`) is NOT implemented
+ * — this resolver always reads the singleton's current state. Rather than
+ * ignoring those options and returning the latest document as though it were
+ * the requested one, a request carrying either is REFUSED with
+ * `unsupportedResolutionOption`. Silently answering the wrong question is the
+ * one failure mode a caller cannot detect.
+ *
+ * The only representation produced is `application/did+ld+json`, which every
+ * result reports in `didResolutionMetadata.contentType`.
  */
-export async function resolve(did, options = {}, signal) {
+export async function resolve(did, options = {}, resolutionOptions = {}) {
+    for (const option of ["versionId", "versionTime"]) {
+        if (resolutionOptions[option] !== undefined) {
+            return errorResult("unsupportedResolutionOption", `did:julia resolution does not implement '${option}'; this resolver ` +
+                "reads current singleton state only, and will not return the latest " +
+                "document in place of a requested version");
+        }
+    }
+    const signal = resolutionOptions.signal;
     let launcherId;
     try {
         launcherId = parseDid(did);
@@ -60,7 +73,7 @@ export async function resolve(did, options = {}, signal) {
 /** DIF `did-resolver` registry entry for `did:julia`. */
 export function getResolver(options = {}) {
     const client = options.client ?? new FullNodeClient(options);
-    const resolver = async (did, _parsed, _resolver, _resolutionOptions) => resolve(did, { ...options, client });
+    const resolver = async (did, _parsed, _resolver, resolutionOptions) => resolve(did, { ...options, client }, resolutionOptions ?? {});
     return { [METHOD]: resolver };
 }
 //# sourceMappingURL=resolver.js.map

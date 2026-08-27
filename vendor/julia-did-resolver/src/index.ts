@@ -9,6 +9,8 @@ export {
   COINSET_MAINNET,
   ChainError,
   NotFoundError,
+  RpcTransportError,
+  RpcResponseError,
   type FullNodeClientOptions,
   type RpcTransport,
 } from "./chain.js";

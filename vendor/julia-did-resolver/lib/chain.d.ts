@@ -3,7 +3,30 @@ export declare const COINSET_MAINNET = "https://api.coinset.org";
 export declare const SINGLETON_LAUNCHER_PUZZLE_HASH: Uint8Array<ArrayBufferLike>;
 export declare class ChainError extends Error {
 }
+/** The DID, or a coin its lineage requires, is genuinely absent from the chain. */
 export declare class NotFoundError extends ChainError {
+}
+/**
+ * The endpoint could not be reached, or did not answer usefully: a network
+ * failure, a timeout, a non-2xx status, an oversized body, or a body that is
+ * not JSON. It carries NO information about whether the DID exists, and must
+ * never be reported as `notFound`.
+ */
+export declare class RpcTransportError extends ChainError {
+    /** HTTP status, when the failure was a status code. */
+    readonly status: number | null;
+    constructor(message: string, status?: number | null);
+}
+/**
+ * The node answered, and its answer was an application-level failure
+ * (`success: false`). Only this class can mean "no such coin" — and only when
+ * the node says so.
+ */
+export declare class RpcResponseError extends ChainError {
+    readonly code: string | null;
+    /** True when the node reported the object as absent rather than erroring. */
+    readonly absent: boolean;
+    constructor(message: string, code: string | null, absent: boolean);
 }
 export interface Coin {
     parentCoinInfo: Uint8Array;

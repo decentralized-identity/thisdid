@@ -10,22 +10,31 @@
  * The driver executes no CLVM. See
  * `docs/adr/0001-state-derivation-without-clvm.md`.
  */
-import type { DIDResolutionResult, ResolverRegistry } from "did-resolver";
+import type { DIDResolutionOptions, DIDResolutionResult, ResolverRegistry } from "did-resolver";
 import { FullNodeClient, type FullNodeClientOptions } from "./chain.js";
 export declare const METHOD = "julia";
 export interface JuliaResolverOptions extends FullNodeClientOptions {
     /** Supply a pre-built client instead of constructing one per registry. */
     client?: FullNodeClient;
 }
+/** Per-request DID resolution options, plus a cancellation signal. */
+export interface JuliaResolutionRequest extends DIDResolutionOptions {
+    signal?: AbortSignal;
+}
 /**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
- * Resolution options are not consulted: version-specific resolution
- * (`versionId` / `versionTime`) is not implemented, in common with the Python
- * reference resolver, and the only representation produced is
- * `application/did+ld+json`.
+ * Version-specific resolution (`versionId` / `versionTime`) is NOT implemented
+ * — this resolver always reads the singleton's current state. Rather than
+ * ignoring those options and returning the latest document as though it were
+ * the requested one, a request carrying either is REFUSED with
+ * `unsupportedResolutionOption`. Silently answering the wrong question is the
+ * one failure mode a caller cannot detect.
+ *
+ * The only representation produced is `application/did+ld+json`, which every
+ * result reports in `didResolutionMetadata.contentType`.
  */
-export declare function resolve(did: string, options?: JuliaResolverOptions, signal?: AbortSignal): Promise<DIDResolutionResult>;
+export declare function resolve(did: string, options?: JuliaResolverOptions, resolutionOptions?: JuliaResolutionRequest): Promise<DIDResolutionResult>;
 /** DIF `did-resolver` registry entry for `did:julia`. */
 export declare function getResolver(options?: JuliaResolverOptions): ResolverRegistry;
 //# sourceMappingURL=resolver.d.ts.map

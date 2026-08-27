@@ -41,6 +41,34 @@ describe("resolution replays the committed mainnet recordings", () => {
   }
 });
 
+describe("unsupported resolution options are refused, not ignored", () => {
+  for (const option of ["versionId", "versionTime"] as const) {
+    it(`refuses ${option} rather than returning current state`, async () => {
+      const result = await resolve(
+        CANARIES[0].did,
+        {
+          client: fixtureClient(CANARIES[0].calls),
+        },
+        { [option]: option === "versionId" ? "0xabc" : "2026-01-01T00:00:00Z" },
+      );
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBe(
+        "unsupportedResolutionOption",
+      );
+      expect(result.didResolutionMetadata.errorMessage).toContain(option);
+    });
+  }
+
+  it("still resolves normally when no historical option is given", async () => {
+    const result = await resolve(
+      CANARIES[0].did,
+      { client: fixtureClient(CANARIES[0].calls) },
+      { accept: "application/did+ld+json" },
+    );
+    expect(result.didDocument?.id).toBe(CANARIES[0].did);
+  });
+});
+
 describe("resolution failures are honest", () => {
   it("reports invalidDid without touching the network", async () => {
     const result = await resolve("did:julia:notbase58!", {
@@ -52,11 +80,48 @@ describe("resolution failures are honest", () => {
     expect(result.didDocument).toBeNull();
   });
 
-  it("reports notFound for a well-formed DID with no launcher coin", async () => {
+  it("reports notFound when a stock node answers with no coin record", async () => {
+    // Stock Chia full node shape: the node answered, and the coin is absent.
     const result = await resolve(CANARIES[0].did, {
       transport: async () => ({ success: true, coin_record: null }),
     });
     expect(result.didResolutionMetadata.error).toBe("notFound");
+  });
+
+  it("reports notFound when the node itself reports the coin absent", async () => {
+    // Coinset gateway shape: `success: false` with a structured absence code.
+    const result = await resolve(CANARIES[0].did, {
+      transport: async () => ({
+        success: false,
+        error: "Coin record 0xab… not found",
+        structuredError: { code: "COIN_RECORD_NOT_FOUND" },
+      }),
+    });
+    expect(result.didResolutionMetadata.error).toBe("notFound");
+  });
+
+  it("reports internalError — never notFound — when the node is unreachable", async () => {
+    // An outage says nothing about whether the DID exists. Reporting it as
+    // notFound would turn downtime into an authoritative, cacheable claim of
+    // absence; internalError is transport-class to callers such as ThisDID.
+    const result = await resolve(CANARIES[0].did, {
+      transport: async () => {
+        throw new Error("connection refused");
+      },
+    });
+    expect(result.didResolutionMetadata.error).toBe("internalError");
+    expect(result.didDocument).toBeNull();
+  });
+
+  it("reports internalError when the node fails for a reason that is not absence", async () => {
+    const result = await resolve(CANARIES[0].did, {
+      transport: async () => ({
+        success: false,
+        error: "database is starting up",
+        structuredError: { code: "NOT_READY" },
+      }),
+    });
+    expect(result.didResolutionMetadata.error).toBe("internalError");
   });
 
   it("reports notFound when the coin is not a singleton launcher", async () => {
@@ -78,18 +143,6 @@ describe("resolution failures are honest", () => {
     });
     expect(result.didResolutionMetadata.error).toBe("notFound");
     expect(result.didResolutionMetadata.errorMessage).toMatch(/launcher/);
-  });
-
-  it("reports internalError when the node is unreachable", async () => {
-    const result = await resolve(CANARIES[0].did, {
-      transport: async (method) => {
-        if (method === "get_coin_record_by_name") {
-          return { success: true, coin_record: null };
-        }
-        throw new Error("connection refused");
-      },
-    });
-    expect(result.didResolutionMetadata.error).toBe("notFound");
   });
 
   it("fails closed when the derived state cannot be verified", async () => {

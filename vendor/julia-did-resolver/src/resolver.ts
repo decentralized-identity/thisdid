@@ -44,19 +44,40 @@ export interface JuliaResolverOptions extends FullNodeClientOptions {
   client?: FullNodeClient;
 }
 
+/** Per-request DID resolution options, plus a cancellation signal. */
+export interface JuliaResolutionRequest extends DIDResolutionOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
- * Resolution options are not consulted: version-specific resolution
- * (`versionId` / `versionTime`) is not implemented, in common with the Python
- * reference resolver, and the only representation produced is
- * `application/did+ld+json`.
+ * Version-specific resolution (`versionId` / `versionTime`) is NOT implemented
+ * — this resolver always reads the singleton's current state. Rather than
+ * ignoring those options and returning the latest document as though it were
+ * the requested one, a request carrying either is REFUSED with
+ * `unsupportedResolutionOption`. Silently answering the wrong question is the
+ * one failure mode a caller cannot detect.
+ *
+ * The only representation produced is `application/did+ld+json`, which every
+ * result reports in `didResolutionMetadata.contentType`.
  */
 export async function resolve(
   did: string,
   options: JuliaResolverOptions = {},
-  signal?: AbortSignal,
+  resolutionOptions: JuliaResolutionRequest = {},
 ): Promise<DIDResolutionResult> {
+  for (const option of ["versionId", "versionTime"] as const) {
+    if (resolutionOptions[option] !== undefined) {
+      return errorResult(
+        "unsupportedResolutionOption",
+        `did:julia resolution does not implement '${option}'; this resolver ` +
+          "reads current singleton state only, and will not return the latest " +
+          "document in place of a requested version",
+      );
+    }
+  }
+  const signal = resolutionOptions.signal;
   let launcherId: Uint8Array;
   try {
     launcherId = parseDid(did);
@@ -122,7 +143,8 @@ export function getResolver(
     did: string,
     _parsed: ParsedDID,
     _resolver: Resolvable,
-    _resolutionOptions: DIDResolutionOptions,
-  ): Promise<DIDResolutionResult> => resolve(did, { ...options, client });
+    resolutionOptions: DIDResolutionOptions,
+  ): Promise<DIDResolutionResult> =>
+    resolve(did, { ...options, client }, resolutionOptions ?? {});
   return { [METHOD]: resolver };
 }
