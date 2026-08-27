@@ -29,6 +29,23 @@ import { scrubAlchemyDeep } from "../scrub";
 
 export { scrubAlchemy, scrubAlchemyDeep } from "../scrub";
 
+/**
+ * Compose an Alchemy RPC endpoint from a public base-URL var (ends with `/`,
+ * e.g. "https://eth-mainnet.g.alchemy.com/v2/") and the ALCHEMY_API_KEY
+ * secret appended after it. Returns undefined until both halves are
+ * configured so drivers keep failing closed; a legacy full-URL secret can be
+ * passed as the caller's fallback during migration.
+ */
+export function alchemyRpcUrl(
+  base: string | undefined,
+  key: string | undefined,
+): string | undefined {
+  const trimmedBase = base?.trim();
+  const trimmedKey = key?.trim();
+  if (!trimmedBase || !trimmedKey) return undefined;
+  return trimmedBase.replace(/\/*$/, "/") + trimmedKey;
+}
+
 function errorResult(error: string, message?: string): DIDResolutionResult {
   return {
     didResolutionMetadata: { error, ...(message ? { message } : {}) },

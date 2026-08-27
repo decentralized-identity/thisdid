@@ -7,4 +7,12 @@
   "compatibility_date": "2024-12-18",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Alchemy base URLs are public; the token is the ALCHEMY_API_KEY secret,
+  // appended after the trailing `/` at request-construction time:
+  //   wrangler secret put ALCHEMY_API_KEY --config src/driver-workers/ethr/wrangler.jsonc
+  // Locally: copy .dev.vars.example to .dev.vars. Unconfigured networks fail closed.
+  "vars": {
+    "ETH_RPC_MAINNET_BASE_URL": "https://eth-mainnet.g.alchemy.com/v2/",
+    "ETH_RPC_SEPOLIA_BASE_URL": "https://eth-sepolia.g.alchemy.com/v2/",
+  },
 }

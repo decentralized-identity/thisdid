@@ -26,7 +26,12 @@ import webWorker from "./web";
 import webvhWorker from "./webvh";
 import xrplWorker from "./xrpl";
 import type { DriverResponseV1 } from "./contract";
-import { createDriverWorker, scrubAlchemy, scrubAlchemyDeep } from "./runtime";
+import {
+  alchemyRpcUrl,
+  createDriverWorker,
+  scrubAlchemy,
+  scrubAlchemyDeep,
+} from "./runtime";
 import { hasLocalDriver } from "../resolvers/local";
 import { LOCAL_DRIVER_METHODS } from "../methods";
 import {
@@ -117,6 +122,34 @@ describe("Tier 1 driver Workers", () => {
     await resolve(worker, "did:test:first");
     await resolve(worker, "did:test:second");
     expect(registries).toBe(2);
+  });
+
+  it("builds Alchemy URLs from a public base var plus the API-key secret", () => {
+    expect(
+      alchemyRpcUrl("https://eth-mainnet.g.alchemy.com/v2/", "secret-token"),
+    ).toBe("https://eth-mainnet.g.alchemy.com/v2/secret-token");
+    // a missing trailing slash or pasted whitespace must not corrupt the URL
+    expect(
+      alchemyRpcUrl("https://eth-mainnet.g.alchemy.com/v2", " secret-token\n"),
+    ).toBe("https://eth-mainnet.g.alchemy.com/v2/secret-token");
+    expect(alchemyRpcUrl(undefined, "secret-token")).toBeUndefined();
+    expect(
+      alchemyRpcUrl("https://eth-mainnet.g.alchemy.com/v2/", undefined),
+    ).toBeUndefined();
+    expect(alchemyRpcUrl("", "")).toBeUndefined();
+  });
+
+  it("keeps the ethr driver failing closed when only the base vars are set", async () => {
+    const body = await resolve(
+      ethrWorker,
+      "did:ethr:0xb9c5714089478a327f09197987f16f9e5d936e8a",
+      {
+        ETH_RPC_MAINNET_BASE_URL: "https://eth-mainnet.g.alchemy.com/v2/",
+        ETH_RPC_SEPOLIA_BASE_URL: "https://eth-sepolia.g.alchemy.com/v2/",
+      },
+    );
+    expect(body.result.didResolutionMetadata.error).toBe("internalError");
+    expect(body.result.didDocument).toBeNull();
   });
 
   it("truncates any string carrying an Alchemy URL right after the host", () => {

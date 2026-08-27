@@ -1,4 +1,4 @@
-# EVM JSON-RPC endpoints for the iden3 State contracts (full URLs, e.g. Alchemy).
-# Copy to .dev.vars for local `wrangler dev`; set as Worker secrets for deploys.
-POLYGONID_RPC_POLYGON_MAIN_URL="https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY"
-POLYGONID_RPC_POLYGON_AMOY_URL="https://polygon-amoy.g.alchemy.com/v2/YOUR_KEY"
+# Alchemy token only — the network base URLs live as public vars in
+# wrangler.jsonc and the code appends this key after their trailing `/`.
+# Copy to .dev.vars for local `wrangler dev`; set as a Worker secret for deploys.
+ALCHEMY_API_KEY=replace-me

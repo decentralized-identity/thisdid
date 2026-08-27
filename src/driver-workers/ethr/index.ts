@@ -5,10 +5,20 @@ import {
   type JsonRpcPayload,
   type JsonRpcResult,
 } from "ethers";
-import { createDriverWorker, scrubAlchemy, scrubAlchemyDeep } from "../runtime";
+import {
+  alchemyRpcUrl,
+  createDriverWorker,
+  scrubAlchemy,
+  scrubAlchemyDeep,
+} from "../runtime";
 
 interface EthrEnv {
-  /** Full Alchemy URLs, including credentials; stored only on this driver Worker. */
+  /** Public Alchemy base URLs (wrangler vars, trailing `/`); the token is the
+   *  ALCHEMY_API_KEY secret appended after it. The legacy full-URL secrets
+   *  remain as fallbacks until they are deleted. */
+  ETH_RPC_MAINNET_BASE_URL?: string;
+  ETH_RPC_SEPOLIA_BASE_URL?: string;
+  ALCHEMY_API_KEY?: string;
   ETH_RPC_MAINNET_URL?: string;
   ETH_RPC_SEPOLIA_URL?: string;
 }
@@ -95,27 +105,29 @@ const driver = createDriverWorker<EthrEnv>({
   // in the previous request context, which Cloudflare cancels as a hung request.
   cacheResolver: false,
   registry: (env) => {
+    const mainnetUrl =
+      alchemyRpcUrl(env.ETH_RPC_MAINNET_BASE_URL, env.ALCHEMY_API_KEY) ??
+      env.ETH_RPC_MAINNET_URL;
+    const sepoliaUrl =
+      alchemyRpcUrl(env.ETH_RPC_SEPOLIA_BASE_URL, env.ALCHEMY_API_KEY) ??
+      env.ETH_RPC_SEPOLIA_URL;
     const networks = [
-      ...(env.ETH_RPC_MAINNET_URL
+      ...(mainnetUrl
         ? [
             {
               name: "mainnet",
               chainId: 1,
-              provider: new LoggingJsonRpcProvider(
-                env.ETH_RPC_MAINNET_URL,
-                1,
-                "mainnet",
-              ),
+              provider: new LoggingJsonRpcProvider(mainnetUrl, 1, "mainnet"),
             },
           ]
         : []),
-      ...(env.ETH_RPC_SEPOLIA_URL
+      ...(sepoliaUrl
         ? [
             {
               name: "sepolia",
               chainId: 11155111,
               provider: new LoggingJsonRpcProvider(
-                env.ETH_RPC_SEPOLIA_URL,
+                sepoliaUrl,
                 11155111,
                 "sepolia",
               ),

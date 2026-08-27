@@ -1,5 +1,6 @@
-# Solana JSON-RPC endpoints per cluster (full URLs, e.g. Alchemy).
-# Copy to .dev.vars for local `wrangler dev`; set as Worker secrets for deploys.
-SOL_RPC_MAINNET_URL="https://solana-mainnet.g.alchemy.com/v2/YOUR_KEY"
-SOL_RPC_DEVNET_URL="https://solana-devnet.g.alchemy.com/v2/YOUR_KEY"
+# Alchemy token only — the cluster base URLs live as public vars in
+# wrangler.jsonc and the code appends this key after their trailing `/`.
+# Copy to .dev.vars for local `wrangler dev`; set as a Worker secret for deploys.
+ALCHEMY_API_KEY=replace-me
+# Optional non-Alchemy override for the testnet cluster (full URL, legacy form):
 # SOL_RPC_TESTNET_URL="https://api.testnet.solana.com"

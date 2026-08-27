@@ -7,8 +7,12 @@
   "compatibility_date": "2024-12-18",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // Network RPC URLs are SECRETS (they carry provider API keys — e.g. Alchemy):
-  //   wrangler secret put IDEN3_RPC_POLYGON_MAIN_URL --config src/driver-workers/iden3/wrangler.jsonc
-  //   wrangler secret put IDEN3_RPC_POLYGON_AMOY_URL --config src/driver-workers/iden3/wrangler.jsonc
+  // Alchemy network base URLs are public; the token is the ALCHEMY_API_KEY
+  // secret, appended after the trailing `/` at request-construction time:
+  //   wrangler secret put ALCHEMY_API_KEY --config src/driver-workers/iden3/wrangler.jsonc
   // Locally: copy .dev.vars.example to .dev.vars. Unconfigured networks fail closed.
+  "vars": {
+    "IDEN3_RPC_POLYGON_MAIN_BASE_URL": "https://polygon-mainnet.g.alchemy.com/v2/",
+    "IDEN3_RPC_POLYGON_AMOY_BASE_URL": "https://polygon-amoy.g.alchemy.com/v2/",
+  },
 }
