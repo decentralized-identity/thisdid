@@ -7,6 +7,10 @@ const DANUBE_HEX =
 const DANUBE_TARGET =
   "did:key:z6MkjvBkt8ETnxXGBFPSGgYKb43q7oNHLX8BiYSPcXVG6gY6";
 const DID = "did:dns:danubetech.com";
+// VM fragments are the did:key's own multibase (matching the Danube Tech
+// reference driver + the did:dns spec example), not positional #keyN.
+const ED_FRAG = DANUBE_TARGET.slice("did:key:".length);
+const X25519_FRAG = "z6LShpe5Jrd7ia4pvPRjqx8HXYGJxKWGyF1bWtCmD2j48X6s";
 
 const resolve = (did: string) =>
   getResolver({ dohUrl: "https://doh.test/dns-query" }).dns(
@@ -54,12 +58,12 @@ describe("did:dns DIF driver", () => {
     // The Ed25519 did:key expands to two methods: the signing key itself and
     // the X25519 agreement key embedded in the did:key doc's `keyAgreement`.
     expect(doc?.verificationMethod).toHaveLength(2);
-    expect(doc?.verificationMethod?.[0]?.id).toBe(`${DID}#key1`);
+    expect(doc?.verificationMethod?.[0]?.id).toBe(`${DID}#${ED_FRAG}`);
     expect(doc?.verificationMethod?.[0]?.controller).toBe(DID);
     expect(doc?.verificationMethod?.[0]?.type).toBe(
       "Ed25519VerificationKey2018",
     );
-    expect(doc?.verificationMethod?.[1]?.id).toBe(`${DID}#key1-1`);
+    expect(doc?.verificationMethod?.[1]?.id).toBe(`${DID}#${X25519_FRAG}`);
     expect(doc?.verificationMethod?.[1]?.controller).toBe(DID);
     expect(doc?.verificationMethod?.[1]?.type).toBe(
       "X25519KeyAgreementKey2019",
@@ -69,9 +73,9 @@ describe("did:dns DIF driver", () => {
     // keyAgreement, the agreement key never gains authentication.
     const ids = (doc?.verificationMethod ?? []).map((vm) => vm.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(doc?.authentication).toEqual([`${DID}#key1`]);
-    expect(doc?.assertionMethod).toEqual([`${DID}#key1`]);
-    expect(doc?.keyAgreement).toEqual([`${DID}#key1-1`]);
+    expect(doc?.authentication).toEqual([`${DID}#${ED_FRAG}`]);
+    expect(doc?.assertionMethod).toEqual([`${DID}#${ED_FRAG}`]);
+    expect(doc?.keyAgreement).toEqual([`${DID}#${X25519_FRAG}`]);
   });
 
   it("returns notFound when no key records exist", async () => {
