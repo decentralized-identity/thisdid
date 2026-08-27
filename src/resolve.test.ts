@@ -136,6 +136,63 @@ describe("resolveDid", () => {
     expect(result.didDocumentMetadata).toEqual({ deactivated: true });
   });
 
+  it("scrubs Alchemy URLs leaking through a successful upstream result", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          didResolutionMetadata: {
+            message:
+              "resolved via https://eth-mainnet.g.alchemy.com/v2/secret-token",
+          },
+          didDocument: {
+            id: "did:algo:abc",
+            service: [
+              {
+                id: "did:algo:abc#rpc",
+                type: "Endpoint",
+                serviceEndpoint:
+                  "https://polygon-mainnet.g.alchemy.com/v2/secret-token",
+              },
+            ],
+          },
+          didDocumentMetadata: {},
+        }),
+      ),
+    );
+    const result = await resolveDid("did:algo:abc", env);
+    expect(result.didResolutionMetadata.message).toBe(
+      "resolved via https://eth-mainnet.g.alchemy.com",
+    );
+    expect(JSON.stringify(result)).not.toContain("secret-token");
+  });
+
+  it("scrubs Alchemy URLs leaking through an aggregated upstream failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            didResolutionMetadata: {
+              error: "notFound",
+              message:
+                "could not detect network at https://polygon-amoy.g.alchemy.com/v2/secret-token (retry)",
+            },
+            didDocument: null,
+            didDocumentMetadata: {},
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+    const result = await resolveDid("did:algo:abc", env);
+    expect(result.didResolutionMetadata.error).toBe("notFound");
+    expect(result.didResolutionMetadata.message).toBe(
+      "could not detect network at https://polygon-amoy.g.alchemy.com",
+    );
+    expect(JSON.stringify(result)).not.toContain("secret-token");
+  });
+
   it("rejects an upstream document for a different DID", async () => {
     vi.stubGlobal(
       "fetch",

@@ -26,7 +26,7 @@ import webWorker from "./web";
 import webvhWorker from "./webvh";
 import xrplWorker from "./xrpl";
 import type { DriverResponseV1 } from "./contract";
-import { createDriverWorker } from "./runtime";
+import { createDriverWorker, scrubAlchemy, scrubAlchemyDeep } from "./runtime";
 import { hasLocalDriver } from "../resolvers/local";
 import { LOCAL_DRIVER_METHODS } from "../methods";
 import {
@@ -117,6 +117,84 @@ describe("Tier 1 driver Workers", () => {
     await resolve(worker, "did:test:first");
     await resolve(worker, "did:test:second");
     expect(registries).toBe(2);
+  });
+
+  it("truncates any string carrying an Alchemy URL right after the host", () => {
+    expect(
+      scrubAlchemy(
+        "server response 401 Unauthorized (https://eth-mainnet.g.alchemy.com/v2/secret-token)",
+      ),
+    ).toBe("server response 401 Unauthorized (https://eth-mainnet.g.alchemy.com");
+    expect(scrubAlchemy("https://Polygon-Amoy.g.Alchemy.COM/v2/key")).toBe(
+      "https://Polygon-Amoy.g.Alchemy.COM",
+    );
+    expect(scrubAlchemy("no rpc url here")).toBe("no rpc url here");
+    expect(
+      scrubAlchemyDeep({
+        outer: [{ url: "https://solana-devnet.g.alchemy.com/v2/key" }],
+        untouched: 42,
+      }),
+    ).toEqual({
+      outer: [{ url: "https://solana-devnet.g.alchemy.com" }],
+      untouched: 42,
+    });
+  });
+
+  it("scrubs Alchemy URLs from failed driver results", async () => {
+    const worker = createDriverWorker({
+      method: "test",
+      packageName: "test-driver",
+      packageVersion: "1.0.0",
+      registry: () => ({
+        test: async () => ({
+          didResolutionMetadata: {
+            error: "notFound",
+            message:
+              "could not detect network (request to https://eth-mainnet.g.alchemy.com/v2/secret-token failed)",
+          },
+          didDocument: null,
+          didDocumentMetadata: {},
+        }),
+      }),
+    });
+
+    const body = await resolve(worker, "did:test:leaky");
+    expect(body.result.didResolutionMetadata.message).toBe(
+      "could not detect network (request to https://eth-mainnet.g.alchemy.com",
+    );
+    expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+
+  it("scrubs Alchemy URLs from successful driver results", async () => {
+    const did = "did:test:clean";
+    const worker = createDriverWorker({
+      method: "test",
+      packageName: "test-driver",
+      packageVersion: "1.0.0",
+      registry: () => ({
+        test: async () => ({
+          didResolutionMetadata: {},
+          didDocument: {
+            id: did,
+            service: [
+              {
+                id: `${did}#rpc`,
+                type: "Endpoint",
+                serviceEndpoint:
+                  "https://polygon-mainnet.g.alchemy.com/v2/secret-token",
+              },
+            ],
+          },
+          didDocumentMetadata: {},
+        }),
+      }),
+    });
+
+    const body = await resolve(worker, did);
+    expect(body.result.didDocument?.service?.[0]?.serviceEndpoint).toBe(
+      "https://polygon-mainnet.g.alchemy.com",
+    );
+    expect(JSON.stringify(body)).not.toContain("secret-token");
   });
 
   it("resolves an Ed25519 did:key vector offline", async () => {

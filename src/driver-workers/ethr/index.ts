@@ -5,7 +5,7 @@ import {
   type JsonRpcPayload,
   type JsonRpcResult,
 } from "ethers";
-import { createDriverWorker } from "../runtime";
+import { createDriverWorker, scrubAlchemy, scrubAlchemyDeep } from "../runtime";
 
 interface EthrEnv {
   /** Full Alchemy URLs, including credentials; stored only on this driver Worker. */
@@ -17,13 +17,24 @@ const MAX_LOG_VALUE_CHARS = 4000;
 
 function logValue(value: unknown): unknown {
   try {
-    const json = JSON.stringify(value);
+    const scrubbed = scrubAlchemyDeep(value);
+    const json = JSON.stringify(scrubbed);
     return json.length <= MAX_LOG_VALUE_CHARS
-      ? value
+      ? scrubbed
       : `${json.slice(0, MAX_LOG_VALUE_CHARS)}…[truncated ${json.length - MAX_LOG_VALUE_CHARS} chars]`;
   } catch {
     return "[unserializable]";
   }
+}
+
+/** ethers error messages embed the full request URL — scrub before rethrowing
+ *  so the token cannot surface in any downstream log or metadata either. */
+function scrubError(error: unknown): unknown {
+  if (error instanceof Error) {
+    error.message = scrubAlchemy(error.message);
+    if (error.stack) error.stack = scrubAlchemy(error.stack);
+  }
+  return error;
 }
 
 class LoggingJsonRpcProvider extends JsonRpcProvider {
@@ -55,13 +66,16 @@ class LoggingJsonRpcProvider extends JsonRpcProvider {
         responses: logValue(responses),
       });
       return responses;
-    } catch (error) {
+    } catch (rawError) {
+      const error = scrubError(rawError);
       console.error("ethr.rpc.error", {
         network: this.networkLabel,
         methods: requests.map((request) => request.method),
         durationMs: Date.now() - started,
         name: error instanceof Error ? error.name : "UnknownError",
-        message: error instanceof Error ? error.message : String(error),
+        message: scrubAlchemy(
+          error instanceof Error ? error.message : String(error),
+        ),
         code:
           error && typeof error === "object" && "code" in error
             ? String(error.code)
@@ -145,12 +159,15 @@ export default {
         resolutionError: diagnostic?.result?.didResolutionMetadata?.error,
       });
       return response;
-    } catch (error) {
+    } catch (rawError) {
+      const error = scrubError(rawError);
       console.error("ethr.resolve.error", {
         requestId,
         durationMs: Date.now() - started,
         name: error instanceof Error ? error.name : "UnknownError",
-        message: error instanceof Error ? error.message : String(error),
+        message: scrubAlchemy(
+          error instanceof Error ? error.message : String(error),
+        ),
       });
       throw error;
     }

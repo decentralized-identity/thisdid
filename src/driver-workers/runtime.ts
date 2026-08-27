@@ -25,6 +25,10 @@ type DriverDefinition<Env> = {
   registry(env: Env): ResolverRegistry;
 };
 
+import { scrubAlchemyDeep } from "../scrub";
+
+export { scrubAlchemy, scrubAlchemyDeep } from "../scrub";
+
 function errorResult(error: string, message?: string): DIDResolutionResult {
   return {
     didResolutionMetadata: { error, ...(message ? { message } : {}) },
@@ -40,7 +44,7 @@ function response(
 ): Response {
   const body: DriverResponseV1 = {
     protocol: DRIVER_PROTOCOL_VERSION,
-    result,
+    result: scrubAlchemyDeep(result),
     driver: {
       method: definition.method,
       packageName: definition.packageName,

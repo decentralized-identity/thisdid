@@ -21,6 +21,7 @@ import {
   type VerificationMeta,
 } from "./resolvers/verify";
 import { getHealth, type HealthSnapshot } from "./routing/health";
+import { scrubAlchemyDeep } from "./scrub";
 import type { Env, ThisDidResolution } from "./types";
 
 export type { ResolveHooks } from "./resolvers/verify";
@@ -299,8 +300,8 @@ async function resolveWithVerification(
       method: ctx.method,
       provider,
       reason: "coreMismatch",
-      localDocument: local.result.didDocument,
-      upstreamDocument: upstream.result.didDocument,
+      localDocument: scrubAlchemyDeep(local.result.didDocument),
+      upstreamDocument: scrubAlchemyDeep(upstream.result.didDocument),
     });
     return finalize(upstream, ctx, {
       status: "mismatch",
@@ -345,6 +346,18 @@ async function resolveWithVerification(
 }
 
 export async function resolveDid(
+  did: string,
+  env: Env,
+  hooks?: ResolveHooks,
+): Promise<ThisDidResolution> {
+  // Upstream providers run their own token-in-URL RPC endpoints; their
+  // metadata and documents pass through finalize()/finalizeFailure() verbatim,
+  // so the whole result is scrubbed at this single exit before it can reach
+  // API responses, MCP, or analytics.
+  return scrubAlchemyDeep(await resolveDidInner(did, env, hooks));
+}
+
+async function resolveDidInner(
   did: string,
   env: Env,
   hooks?: ResolveHooks,
