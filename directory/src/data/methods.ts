@@ -415,15 +415,19 @@ export const CURATED: Record<string, CuratedMethod> = {
     lastReviewed: "2026-08-23",
   },
   indy: {
-    status: "no-go",
-    statusReason:
-      "Sovrin MainNet shut down 31 March 2025; Foundation dissolved.",
     summary:
-      "Hyperledger Indy ledger DIDs — the flagship Sovrin network is gone.",
+      "Hyperledger Indy ledger DIDs — served upstream; a local driver has no trustworthy transport.",
     research:
-      "Sovrin MainNet shut down on 31 March 2025 and the Sovrin Foundation dissolved on 21 May 2025; the ledger survives only as a read-only archive with the write keys destroyed. The ecosystem largely migrated to cheqd (which ThisDID serves with a local driver). Indy tooling is additionally worker-hostile (ZMQ ledger transport).",
-    links: [{ label: "Sovrin Foundation", url: "https://sovrin.org/" }],
-    lastReviewed: "2026-08-21",
+      "Sovrin MainNet stopped accepting writes on 31 March 2025 and the Sovrin Foundation dissolved on 21 May 2025 — but its nodes still answer reads (live nymResponse observed August 2026), and the network story did not end there: Indicio MainNet remains actively written (a fresh NYM landed mid-August 2026) while IDunion looks dead and BCovrin/CANdy expose no browse APIs. The ecosystem's growth migrated to cheqd (ThisDID local driver) and did:webvh. A local driver stays parked on transport grounds, not liveness: Indy nodes speak ZeroMQ only, nobody hosts a public indy-vdr proxy, and IndyScan's HTTP API is Indicio-only Elasticsearch data without state proofs — an edge driver would be an unverified scraper with worse coverage than the upstream chain, which resolves both sovrin and indicio namespaces in about a second today.",
+    links: [
+      { label: "Sovrin Foundation", url: "https://sovrin.org/" },
+      { label: "Indicio IndyScan", url: "https://indyscan.indiciotech.io/" },
+      {
+        label: "indy-vdr",
+        url: "https://github.com/hyperledger-indy/indy-vdr",
+      },
+    ],
+    lastReviewed: "2026-08-28",
   },
   sov: {
     status: "no-go",
@@ -492,7 +496,18 @@ export const CURATED: Record<string, CuratedMethod> = {
   },
   btcr2: {
     summary:
-      "The modern successor to did:btcr, anchored in Bitcoin transactions.",
+      "The modern successor to did:btcr (formerly did:btc1), anchored in Bitcoin transactions.",
+    research:
+      "Digital Contract Design's successor to did:btcr, presented as did:btc1 through 2025 before the rename. The spec is very active but self-declared draft with possible breaking changes, and it is not yet in the W3C DID method registry. Identifiers are bech32m (a secp256k1 key or a genesis-document hash); document updates are discovered by scanning beacon addresses over Esplora-style HTTPS APIs and verified with hash-chained JSON Patches and BIP-340 Schnorr signatures — mechanics a Worker driver could implement, and an official TypeScript implementation exists (@did-btcr2/method, noble/scure-based). Adoption is test-network-only so far (mutinynet/signet vectors; no mainnet DIDs found in the wild), so ThisDID serves it upstream — both Godiddy and the DIF Universal Resolver resolve the mutinynet canary today — and a verifying edge driver waits on W3C registration or real mainnet usage.",
+    links: [
+      { label: "did:btcr2 spec", url: "https://dcdpr.github.io/did-btcr2/" },
+      { label: "dcdpr/did-btcr2", url: "https://github.com/dcdpr/did-btcr2" },
+      {
+        label: "TypeScript implementation",
+        url: "https://github.com/dcdpr/did-btcr2-js",
+      },
+    ],
+    lastReviewed: "2026-08-28",
   },
   v1: { summary: "Veres One ledger DIDs (Digital Bazaar)." },
   stack: { summary: "Blockstack/Stacks naming-system DIDs." },
@@ -511,18 +526,56 @@ export const CURATED: Record<string, CuratedMethod> = {
   vaa: { summary: "VAA chain DIDs." },
   unisot: { summary: "UNISOT (Bitcoin SV) supply-chain DIDs." },
   lit: { summary: "LEDGIS chain DIDs." },
-  ling: { summary: "Lingchuang chain DIDs." },
+  ling: {
+    summary: "LING key-value-store DIDs by K4-Security Co., Ltd (Seoul).",
+    research:
+      "Not a Chinese chain: LING is K4-Security's (the same Seoul vendor behind did:kscirc) LevelDB-based key-value store, and the DID method rides on it. The spec is a v0.0.1 Notion draft from May 2024, untouched since, defining no resolution endpoints; the resolver stack is four closed-source containers, and exactly one DID is known to resolve through the DIF dev instance — carrying a revoked timestamp. No public read API exists, so no verifying edge driver is buildable; the method stays upstream-routed in the long tail.",
+    links: [
+      {
+        label: "LING method spec",
+        url: "https://tangy-gallium-b9b.notion.site/LING-DID-Method-Specification-7b9d25a62a1849a496890b9ef24e0890",
+      },
+    ],
+    lastReviewed: "2026-08-28",
+  },
   emtrust: { summary: "Halialabs EmTrust DIDs." },
   meta: { summary: "Metadium chain DIDs." },
   kit: { summary: "Keyp toolkit DIDs." },
-  oyd: { summary: "OwnYourData decentralized-container DIDs." },
+  oyd: {
+    summary:
+      "OwnYourData OYDID — self-verifying identifiers over provenance logs.",
+    research:
+      "The identifier commits to its own document: a base58btc multihash of the stored record, whose provenance log (create/update/revoke entries, each Ed25519-signed and hash-chained) lets any resolver verify the full history from public HTTPS endpoints — no ledger involved. OwnYourData (EU NGI-funded) remains actively developed in 2026 and its public repo and resolver answer in well under a second. ThisDID routes did:oyd to resolver.ownyourdata.eu as the authoritative first hop; notably, the DIF Universal Resolver's oyd driver is a pure proxy to that same resolver and Godiddy does not support the method, so today nobody independently verifies did:oyd. All verification primitives (SHA-256 multihash, canonical-JSON log hashing, Ed25519) are reproducible with WebCrypto alone, making a local verifying driver — the only independent check of the method anywhere — a planned small build.",
+    links: [
+      {
+        label: "OYDID spec",
+        url: "https://ownyourdata.github.io/oydid/",
+      },
+      {
+        label: "OwnYourData/oydid",
+        url: "https://github.com/OwnYourData/oydid",
+      },
+    ],
+    lastReviewed: "2026-08-28",
+  },
   moncon: { summary: "Moncon content-commerce DIDs." },
   mydata: { summary: "MyData operator DIDs." },
   everscale: { summary: "Everscale chain DIDs." },
   ala: { summary: "Alastria network DIDs (Quorum redT)." },
   com: { summary: "Commercio.network chain DIDs." },
   dyne: { summary: "Dyne.org / Zenroom DIDs." },
-  kscirc: { summary: "KS Chain (KSCIRC) DIDs." },
+  kscirc: {
+    summary: "KSChain DIDs by K4-Security Co., Ltd (Seoul).",
+    research:
+      "Operated by K4-Security Co., Ltd, a Seoul security vendor (DIF Korea SIG member, Danube Tech partner) — not, as sometimes assumed, a Korean financial-sector institute. The spec is a Notion page (v1.0.0, 2022, draft) whose entire Read section is one sentence: no resolution API, RPC, or endpoint is documented anywhere, the Universal Resolver driver wraps a closed-source binary, and the service domain inside the method's own DID documents (did.k4-security.com) no longer resolves in DNS. Exactly three canned demo DIDs resolve via the DIF dev instance. With no public read API there is nothing a verifying edge driver could verify — the method stays upstream-routed.",
+    links: [
+      {
+        label: "KSChain method spec",
+        url: "https://tangy-gallium-b9b.notion.site/DID-Method-Specification-KSChain-7a77664f1eae47769692f4ff2d029fe0",
+      },
+    ],
+    lastReviewed: "2026-08-28",
+  },
   iscc: { summary: "International Standard Content Code DIDs." },
   ev: { summary: "Everis/NTT Data DIDs." },
   iid: { summary: "Interchain identifier DIDs." },
@@ -533,7 +586,22 @@ export const CURATED: Record<string, CuratedMethod> = {
   keri: {
     summary: "KERI autonomic identifiers — ledger-independent key event logs.",
   },
-  webs: { summary: "did:web secured with KERI key event logs (did:webs)." },
+  webs: {
+    summary: "did:web secured with KERI key event logs (did:webs).",
+    research:
+      "The ToIP KERI Suite WG spec (v0.10.3, still draft even though the underlying KERI/ACDC/CESR specs were ratified in January 2026) is strict by design: a resolver MUST fetch both did.json and keri.cesr, MUST verify the full key event log, and MUST fail on any mismatch — serving did.json alone degrades did:webs to plain did:web security and is explicitly non-conformant. A faithful TypeScript verifier means a clean-room CESR parser plus KEL state machine (~4–5k lines against keripy's ~25k-line reference; signify-ts is a KERIA client without the validator and drags runtime-WASM libsodium, which Workers block). With adoption still tutorial-grade — GLEIF's own testnet endpoint is down and no production did:webs is discoverable — ThisDID serves the method upstream, where Godiddy resolves the canonical tutorial DID via GLEIF's reference driver in ~200ms. An edge driver waits on production publishers or a maintained TS KEL verifier.",
+    links: [
+      {
+        label: "did:webs spec (ToIP)",
+        url: "https://trustoverip.github.io/kswg-did-method-webs-specification/",
+      },
+      {
+        label: "GLEIF reference resolver",
+        url: "https://github.com/GLEIF-IT/did-webs-resolver",
+      },
+    ],
+    lastReviewed: "2026-08-28",
+  },
   prism: { summary: "Cardano PRISM DIDs (Atala/Hyperledger Identus)." },
   cndid: { summary: "CNDID chain DIDs." },
   tgrid: { summary: "TrustGrid DIDs." },
