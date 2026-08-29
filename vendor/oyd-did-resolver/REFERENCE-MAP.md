@@ -1,0 +1,256 @@
+# Reference map — @thisdid/oyd-did-resolver ⇔ OYDID reference implementation
+
+|                      |                                                                                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reference repository | [OwnYourData/oydid](https://github.com/OwnYourData/oydid)                                                                                                 |
+| Pinned commit        | [`48a62c9c67d63a316bf2ca507babfc59ae4f48e3`](https://github.com/OwnYourData/oydid/tree/48a62c9c67d63a316bf2ca507babfc59ae4f48e3) (2026-08-27) — gem 0.9.1 |
+| Method specification | [OYDID v0.6, 2026-08-25](https://ownyourdata.github.io/oydid/)                                                                                            |
+| Reference deployment | oydid.ownyourdata.eu (repository) · resolver.ownyourdata.eu (resolver)                                                                                    |
+
+This package is a **transliteration of the reference's resolution path under
+a documented profile** — it does not claim functional identity with the Ruby
+resolver, and no formal equivalence proof exists. What it does claim, and
+what the artifacts here support:
+
+- module boundaries, function names, argument shapes, return tuples
+  (`[value, message]`) and control flow mirror the pinned Ruby source, so
+  the two implementations can be reviewed side by side, function by
+  function (the map below), as groundwork for a future formal comparison;
+- every departure from the reference is deliberate and listed under
+  **Deliberate deviations** — several are externally observable, which is
+  precisely why they are enumerated for the method author's review;
+- within the supported profile (ed25519 / sha2-256 / base58btc), the
+  package is **behaviorally compatible with the reference resolver for the
+  captured vectors**: the spec's own published samples — single-version,
+  updated (resolved through both its identifiers), revoked, and
+  non-default-location — reproduce the reference deployment's `didDocument`
+  and `didDocumentMetadata` byte for byte (`src/__tests__/fixture.ts`,
+  `src/__tests__/samples.ts`);
+- on hostile input it is **stricter than the reference by design**: the
+  checks under **Security hardening (beyond the reference)** fail closed,
+  rejecting malformed or malicious logs, keys, repositories and rotation
+  targets that the trusting first-party reference would accept. All
+  supported valid golden vectors resolve unchanged; the one intentional
+  exception to reference behavior is delegation, which is not honored
+  (§2) — a reference-accepted DID relying on a delegated update key is
+  deliberately rejected.
+
+## Function map
+
+Line numbers refer to the pinned commit. Spec anchors refer to
+https://ownyourdata.github.io/oydid/.
+
+| TypeScript                                        | Reference                                                                     | Spec                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------- |
+| `basic.ts multiEncode`                            | `ruby-gem/lib/oydid/basic.rb:14 multi_encode`                                 | §2 `#format`                                        |
+| `basic.ts multiDecode`                            | `basic.rb:24 multi_decode`                                                    | §2 `#format`                                        |
+| `basic.ts hashDefault`                            | `basic.rb:32 hash`                                                            | §4.2.2 `#calculate_hash`                            |
+| `basic.ts multiHash`                              | `basic.rb:36 multi_hash`                                                      | §4.2.2 `#calculate_hash`                            |
+| `basic.ts getDigest`                              | `basic.rb:73 get_digest`                                                      | §4.2.1 `#digests`                                   |
+| `basic.ts getEncoding`                            | `basic.rb:107 get_encoding`                                                   | §2 `#format`                                        |
+| `basic.ts canonical`                              | `basic.rb:116 canonical` (`to_json_c14n` ⇒ RFC 8785)                          | §4.2.2 `#calculate_hash` step 2                     |
+| `basic.ts percentEncode`                          | `basic.rb:125 percent_encode`                                                 | §2 `#format`                                        |
+| `basic.ts getDelegatedPubKeysFromFullDidDocument` | `basic.rb:366 getDelegatedPubKeysFromFullDidDocument`                         | §4.1 `#log_ops` (DELEGATE)                          |
+| `basic.ts verify`                                 | `basic.rb:494 verify` (ed25519-pub branch)                                    | §4.2.3 `#verify_signature`                          |
+| `basic.ts stripLocation`                          | `basic.rb:1233 strip_location`                                                | §2 `#format`                                        |
+| `basic.ts getLocation`                            | `basic.rb:1237 get_location`                                                  | §2 `#format`                                        |
+| `basic.ts retrieveDocument`                       | `basic.rb:1251 retrieve_document` (HTTP branch)                               | §3.2.5 `#http_binding`                              |
+| `basic.ts retrieveDocumentRaw`                    | `basic.rb:1296 retrieve_document_raw` (HTTP branch)                           | §3.2.5 `#http_binding`                              |
+| `basic.ts retrieveLog`                            | `ruby-gem/lib/oydid/log.rb:26 retrieve_log` (HTTP branch)                     | §4.2.4 `#retrieve_log`                              |
+| `log.ts Op`                                       | the reference's numeric `op` codes + `# TERMINATE`-style comments             | §4.1 `#log_ops`                                     |
+| `log.ts Dag`                                      | the `simple_dag` gem's vertex/edge/successors/predecessors surface            | §4 `#log`                                           |
+| `log.ts matchLogDid`                              | `log.rb:18 match_log_did?`                                                    | §4.2.3 `#verify_signature`                          |
+| `log.ts dagDid`                                   | `log.rb:98 dag_did`                                                           | §4 `#log`                                           |
+| `log.ts dag2array`                                | `log.rb:222 dag2array`                                                        | §3.2 `#read`                                        |
+| `log.ts dag2arrayTerminate`                       | `log.rb:246 dag2array_terminate`                                              | §3.2 `#read`                                        |
+| `log.ts REVOKED_ERROR_CODE`                       | `log.rb:268 REVOKED_ERROR_CODE`                                               | §3.2.3 `#deactivation`                              |
+| `log.ts dagUpdate`                                | `log.rb:270 dag_update`                                                       | §4.2 `#verification`, §3.2.3 `#deactivation`        |
+| `read.ts read`                                    | `ruby-gem/lib/oydid.rb:65 read`                                               | §3.2 `#read`                                        |
+| `w3c.ts expandVerificationMethods`                | `oydid.rb:1441 expand_verification_methods`                                   | §3.2.1 `#resolution_result`                         |
+| `w3c.ts versionIds`                               | `oydid.rb:1508 version_ids`                                                   | §3.2.1 `#resolution_result`                         |
+| `w3c.ts versionMetadata`                          | `oydid.rb:1544 version_metadata`                                              | §3.2.1 `#resolution_result`                         |
+| `w3c.ts documentId`                               | `oydid.rb:1587 document_id`                                                   | §3.2.1 `#resolution_result`                         |
+| `w3c.ts w3c`                                      | `oydid.rb:1597 w3c` (ed25519 branch)                                          | §3.2.1 `#resolution_result`                         |
+| `resolver.ts resolutionResult`                    | `uniresolver-plugin/app/controllers/dids_controller.rb:180 resolution_result` | §3.2.1 `#resolution_result`, §3.2.3 `#deactivation` |
+| `resolver.ts dereferenceFragment`                 | the fragment branch of `dids_controller.rb:437 resolution_result`             | §3.2 `#read`                                        |
+| `log.ts dagUpdate` (rotation branch)              | `log.rb:557` — the REVOKE / DID-Rotation case                                 | §3.2.3 `#deactivation`                              |
+
+## Systematic transforms (apply everywhere)
+
+1. **Sync → async.** Ruby hashes and verifies synchronously; TypeScript uses
+   WebCrypto (`crypto.subtle`), so every hash/verify-touching function is
+   `async`. Call order and data flow are unchanged.
+2. **HTTParty → `fetch`.** Same URLs (`/doc/{hash}`, `/doc_raw/{hash}`,
+   `/log/{hash}`), same non-200 ⇒ `[nil, message]` shape. Adds a request
+   timeout and a response-size cap enforced on downloaded **bytes**
+   (Content-Length pre-check plus a streamed byte counter with
+   cancellation — a Worker resolving attacker-supplied custom `%40host`
+   repositories must bound both).
+3. **`[value, msg]` Ruby pairs ⇒ `Tuple<T> = [T | null, string]`.**
+   Repository responses are additionally shape-validated
+   (`parseDocRecord`/`parseLogEntries`) with explicit `malformed …`
+   diagnostics — the reference leans on Ruby's dynamic typing here.
+4. **Numeric op codes ⇒ the `Op` constants** — carrying the reference's own
+   `# TERMINATE`-style comments in the code itself.
+5. Trace/verbose output (`options[:trace]`, the `verification` narrative) is
+   omitted; it never influences control flow in the reference.
+
+## Deliberate deviations (each one is a review point for the method author)
+
+1. **Version-hash commitment and identifier binding are ENABLED**
+   (spec §4.2.2 `#calculate_hash`). The reference keeps its commitment
+   check disabled — commented out in `dag_update` — because its repository
+   guarantees it at write time; an independent resolver cannot extend that
+   trust. Two checks are enforced instead, shaped by what the spec samples
+   revealed about repository behavior (`/doc/{id}` serves the LATEST
+   document even for an old version identifier, while `/doc_raw/{hash}` is
+   version-exact): every `/doc_raw` response must hash to its version
+   identifier, and the REQUESTED identifier must appear as a version
+   (a CREATE/UPDATE entry) in the verified log chain — or, for a
+   bare-public-key identifier, as the document key itself.
+2. **`followAlsoKnownAs` is a host opt-in, OFF by default** (the reference
+   resolver defaults to true). The rotation branch of `dag_update` IS
+   ported: a host that opts in (`getResolver({ followAlsoKnownAs: true })`,
+   e.g. a standalone CLI) follows a revoked DID's rotation to its
+   did:ebsi/did:cheqd target — with the reference's method restriction
+   preserved — through the host's **own registered drivers** (the DIF
+   `Resolvable` the driver receives) instead of the reference's hardcoded
+   `DEFAULT_PUBLIC_RESOLVER` HTTP call. Without the opt-in a
+   revoked-and-rotated did:oyd reports `didDocumentMetadata.deactivated:
+true` (spec §3.2.3 `#deactivation`), which is what a universal-resolver
+   driver must do: its `didDocument.id === requested DID` invariant forbids
+   serving another method's document.
+3. **The legacy resolver fallback (`resolve_did_legacy`) is not ported** —
+   pre-0.x log formats fail with the normal error instead.
+4. **ed25519 / sha2-256 / base58btc only** — the method defaults. The
+   `p256-pub` branches (verify, w3c, JWK conversion), the BLAKE2b/SHA3
+   digests and non-base58btc encodings answer `representationNotSupported`
+   instead of resolving.
+5. **Delegation (op 5) is not honored** — the reference derives update-
+   authorizing keys from every DELEGATE entry without authenticating any of
+   them (its own `!!!OPEN` note). Lacking a defined authorization rule and a
+   positive vector, this driver ignores DELEGATE keys entirely rather than
+   trust an unauthenticated one; see **Security hardening** §2. The
+   reference-mapped `getDelegatedPubKeysFromFullDidDocument` is retained in
+   the API surface but is deliberately not wired into resolution.
+6. `resolution_result`'s fragment handling and `UNIRESOLVER_DEBUG` metadata
+   are omitted — the DIF driver contract resolves DIDs, not DID URLs, and
+   the surrounding Worker stamps its own resolution metadata.
+7. **`read`'s log-location split also recognizes `%40`** (spec-conformance
+   over reference fidelity: the spec defines `%40` as the W3C-conform
+   representation of `@`, the reference splits the document's log reference
+   on `@` only — its `dag_update` handles both forms).
+8. **DIF error taxonomy.** The reference HTTP API can only distinguish
+   404/410/500; the DIF interface has codes for what actually happened, so
+   `errorCodeFor` reports `representationNotSupported` (unported profile),
+   `invalidDidDocument` (the DID's own data fails verification — bad
+   signatures, broken commitments, malformed records),
+   `internalError` (transport: timeout, oversized or invalid response) and
+   `notFound` (a genuinely absent DID) distinctly. The uncaught-exception
+   guard also preserves the exception message instead of discarding it.
+
+## Security hardening (beyond the reference)
+
+The reference is a first-party toolkit that trusts its own repository and
+Ruby's dynamic typing. An independent verifier that resolves
+attacker-influenced logs from arbitrary repositories cannot. The following
+checks have no counterpart in the reference (some address gaps the reference
+author flagged in-code, e.g. the `!!!OPEN` note on delegation). **Every one
+fails closed**: it can only turn malformed or hostile input into a rejection.
+All supported valid golden vectors resolve byte-for-byte unchanged; the sole
+intentional departure is delegation (§2), which is not honored — so a
+reference-accepted DID relying on a delegated update key is deliberately
+rejected, not resolved. Each check is exercised adversarially in
+`src/__tests__/security.test.ts`.
+
+1. **UPDATE authorization is mandatory, not incidental** (`log.ts`). An
+   UPDATE is installed only if its signature was verified against the prior
+   version's authorized keys in a preceding revocation branch; an UPDATE
+   reached without that proof — e.g. spliced directly onto CREATE, or signed
+   by a key that never held authority — is rejected. The reference verifies
+   the update only inside the revocation walk and installs it unconditionally
+   when reached.
+2. **Delegation keys are not honored at all** (`log.ts`, `w3c.ts`). Update
+   authorization uses only the current version's own document key, and the
+   composed document lists no delegate-derived `capabilityDelegation`. The
+   reference never authenticates DELEGATE entries — it derives keys from the
+   raw `full_log` and flags this exact gap `!!!OPEN` — and no
+   authenticated-delegation rule or reference-generated positive vector is
+   available to implement safely, so any DELEGATE key (connected or not,
+   signed or not) is treated as unauthenticated and ignored. A did:oyd that
+   relied on a delegated update key fails closed (its delegated version does
+   not resolve) rather than trust an unauthenticated key. Revisit when the
+   spec defines delegation authorization and a positive vector exists.
+3. **The revocation lookup fails closed** (`log.ts`). A timeout, HTTP error,
+   or malformed/oversized response during the revocation check is an
+   `internalError`, never read as "no revocation exists". The reference
+   guarded the loop `unless log_array.nil?` and served the document.
+4. **Log topology is bounded, unambiguous, and complete** (`log.ts`,
+   `security.ts`): entry-count and back-reference bounds; a duplicate-hash
+   rejection (so a `previous` reference resolves to exactly one entry); a
+   **dangling-reference rejection** (every `previous` hash must resolve to an
+   entry in the returned log — OYDID defines no external references, and the
+   reference silently ignored unknown hashes); and a visited-set in
+   `dag2array` so a cyclic graph terminates instead of overflowing the
+   stack.
+5. **Strict Ed25519 key framing** (`basic.ts`). A key must carry the correct
+   multicodec code AND declared length byte; the reference accepted any
+   34-byte `0xed…` value. Both the document key and the revocation key are
+   validated (an invalid revocation key is `invalidDidDocument`, never a
+   silent empty `publicKeyHex`).
+6. **Repository-fetch SSRF policy** (`security.ts`). Repository URLs
+   (including custom `%40host` ones taken from the DID) are validated before
+   any request: https-only, no embedded credentials, and no literal
+   private / loopback / link-local / metadata hosts by default; redirects
+   are refused. Overridable via `RepositoryPolicy` (scheme list, host
+   allowlist). DNS rebinding is not fully solved at the `fetch` layer — a
+   strict deployment should pin `allowHosts`.
+7. **Rotation targets are validated, not trusted** (`resolver.ts`). A host
+   driver's rotation result is accepted only if it resolves without error to
+   a structurally valid document whose `id` equals the requested rotation
+   DID, within `MAX_ROTATION_DEPTH` hops.
+
+## Verification evidence — and its limits
+
+This is **example-based evidence, not a proof**. There is no formal
+operational model, no refinement relation, no exhaustive state exploration,
+and no machine-checked equivalence argument; a property-based differential
+harness against the Ruby gem is the natural next step if stronger evidence
+is wanted. What the artifacts do establish:
+
+1. Check out the pinned reference:
+   `git clone https://github.com/OwnYourData/oydid && git -C oydid checkout 48a62c9c`
+   — every `⇔ file:line` citation in `src/` resolves against that tree for
+   side-by-side review.
+2. Run `pnpm test` (offline, 41 tests). The **compatibility** half
+   (`resolver.test.ts`) demonstrates, against captured reference data:
+   identifier and log-reference commitments recompute; the CREATE signature
+   verifies; the spec's published samples — single-version, **updated
+   (resolved through BOTH its identifiers, exercising the full
+   CREATE → TERMINATE → REVOKE → UPDATE → TERMINATE walk)**, revoked (both
+   via the repository's 410 and by independent detection from the full log),
+   and non-default-location — reproduce the reference resolver's
+   `didDocument` and `didDocumentMetadata` byte for byte. The **adversarial**
+   half (`security.test.ts`, minting real keys/signatures via
+   `builder.ts`) exercises each hardening above: a spliced UPDATE, an UPDATE
+   signed by a never-authorized key, an injected disconnected DELEGATE, a
+   revocation lookup failing (500 and malformed), a foreign TERMINATE, a
+   rotation target with a mismatched id / a resolution error (plus the
+   matching-id control), the SSRF policy (unit and via a private `%40`
+   repository), strict key framing, an invalid revocation key, an
+   over-length log, a **connected DELEGATE with an irrelevant signature**
+   (not honored), and a **dangling `previous` reference** (rejected).
+3. Compare against the live reference at any time:
+   `curl https://resolver.ownyourdata.eu/1.0/identifiers/<did>` versus this
+   package through a `did-resolver` `Resolver`, for any of the vector DIDs.
+
+Remaining scope notes. **Delegation (op 5) is intentionally unsupported**
+(Security hardening §2): a delegated-key update fails closed, so there is no
+positive delegation behavior to vector — supporting it safely requires a
+spec-defined authorization rule and a reference-generated vector first; both
+delegation attack paths (disconnected and connected-but-unauthenticated) are
+covered. CLONE (op 4) is likewise not handled (nor is it by the reference's
+`dag_update`, so both reject it). Bare-public-key identifiers (`z6M…`) are
+transliterated but not positively vectored. Everything outside the supported
+profile (p256, non-sha2-256 digests, non-base58btc encodings) is
+deliberately rejected, not resolved.

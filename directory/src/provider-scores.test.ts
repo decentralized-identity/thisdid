@@ -136,7 +136,8 @@ describe("provider profiles", () => {
     expect(byId.get("thisdid")?.methods).toContain("tz");
     expect(byId.get("thisdid")?.methods).toContain("empe");
     expect(byId.get("thisdid")?.methods).toContain("ion");
-    expect(byId.get("thisdid")?.methods).toHaveLength(24);
+    expect(byId.get("thisdid")?.methods).toContain("oyd");
+    expect(byId.get("thisdid")?.methods).toHaveLength(25);
     expect(byId.get("goplausible")?.methods).toEqual(["algo", "nfd"]);
     expect(byId.get("archon")?.methods).toContain("hedera");
     expect(byId.get("godiddy")?.methods).toContain("jwk");

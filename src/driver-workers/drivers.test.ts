@@ -16,6 +16,7 @@ import iotaWorker from "./iota";
 import jwkWorker from "./jwk";
 import keyWorker from "./key";
 import nearWorker from "./near";
+import oydWorker from "./oyd";
 import peerWorker from "./peer";
 import pkhWorker from "./pkh";
 import plcWorker from "./plc";
@@ -81,6 +82,11 @@ import {
   PKARR_LIVE_PAYLOAD,
 } from "../../vendor/dht-did-resolver/src/__tests__/fixture";
 import { TZ_REVEALED } from "../../vendor/tz-did-resolver/src/__tests__/fixture";
+import {
+  CANARY_DID as OYD_CANARY_DID,
+  REFERENCE_DOCUMENT as OYD_REFERENCE_DOCUMENT,
+  canaryFetch as oydCanaryFetch,
+} from "../../vendor/oyd-did-resolver/src/__tests__/fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -272,6 +278,36 @@ describe("Tier 1 driver Workers", () => {
 
   it("rejects a DID for another method at the driver boundary", async () => {
     const body = await resolve(keyWorker, "did:web:example.com");
+    expect(body.result.didResolutionMetadata.error).toBe("invalidDid");
+  });
+
+  it("resolves the did:oyd canary offline to the reference document", async () => {
+    vi.stubGlobal("fetch", vi.fn(oydCanaryFetch));
+    const body = await resolve(oydWorker, OYD_CANARY_DID);
+    expect(body.driver).toMatchObject({
+      method: "oyd",
+      packageName: "@thisdid/oyd-did-resolver",
+    });
+    expect(JSON.parse(JSON.stringify(body.result.didDocument))).toEqual(
+      OYD_REFERENCE_DOCUMENT,
+    );
+  });
+
+  it("maps an oyd repository miss to notFound at the driver boundary", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ error: "not found" }, { status: 404 })),
+    );
+    const body = await resolve(
+      oydWorker,
+      "did:oyd:zQmaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+    expect(body.result.didResolutionMetadata.error).toBe("notFound");
+    expect(body.result.didDocument).toBeNull();
+  });
+
+  it("rejects a non-oyd DID at the oyd driver boundary", async () => {
+    const body = await resolve(oydWorker, "did:web:example.com");
     expect(body.result.didResolutionMetadata.error).toBe("invalidDid");
   });
 

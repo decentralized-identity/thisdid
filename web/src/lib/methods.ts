@@ -200,6 +200,14 @@ export const FEATURED_METHODS: MethodMeta[] = [
     example: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
   },
   {
+    id: "oyd",
+    name: "did:oyd",
+    glyph: "Y",
+    probation: true,
+    desc: "Self-verifying OYDID provenance logs, checked hop by hop",
+    example: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+  },
+  {
     id: "ion",
     name: "did:ion",
     glyph: "O",
