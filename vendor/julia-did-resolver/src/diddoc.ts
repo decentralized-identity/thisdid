@@ -152,6 +152,15 @@ export interface ResolutionInputs {
   confirmedTimestamp: number;
   verified: boolean;
   currentPuzzle: boolean;
+  /**
+   * Supplied only by version-specific resolution, which walks the DID's whole
+   * lineage and therefore knows them. Current-state resolution reports what a
+   * single look at the unspent coin establishes, so that its metadata does not
+   * depend on which traversal route a node happened to support (§8.5).
+   */
+  createdTimestamp?: number;
+  nextVersionCoinId?: Uint8Array;
+  nextTimestamp?: number;
 }
 
 /** Document, document metadata (§8.5), and resolution metadata. */
@@ -161,8 +170,17 @@ export function resolutionResult(
   const documentMetadata: Record<string, unknown> = {
     versionId: `0x${toHex(inputs.versionCoinId)}`,
   };
+  if (inputs.createdTimestamp) {
+    documentMetadata.created = isoSeconds(inputs.createdTimestamp);
+  }
   if (inputs.confirmedTimestamp) {
     documentMetadata.updated = isoSeconds(inputs.confirmedTimestamp);
+  }
+  if (inputs.nextVersionCoinId !== undefined) {
+    documentMetadata.nextVersionId = `0x${toHex(inputs.nextVersionCoinId)}`;
+  }
+  if (inputs.nextTimestamp) {
+    documentMetadata.nextUpdate = isoSeconds(inputs.nextTimestamp);
   }
   if (inputs.state.deactivated) documentMetadata.deactivated = true;
 

@@ -89,6 +89,19 @@ function reportsCoinAbsent(cause) {
     const message = cause.message.slice(cause.message.indexOf(": ") + 2);
     return COIN_ABSENT_MESSAGE.test(message);
 }
+/** The current-state view of a fully walked history. */
+export function lineageOf(history) {
+    const generations = history.generations;
+    return {
+        prelauncher: history.prelauncher,
+        launcher: history.launcher,
+        current: generations[generations.length - 1],
+        parent: generations.length > 1
+            ? generations[generations.length - 2]
+            : history.launcher,
+        generations: generations.length,
+    };
+}
 /**
  * Read a response body as text, bounded WHILE STREAMING.
  *
@@ -298,8 +311,8 @@ export class FullNodeClient {
         }
     }
 }
-/** Walk from launcher ID to the current unspent singleton coin (spec §7.2). */
-export async function traceSingleton(client, launcherId, signal) {
+/** The launcher and its parent, with every check a did:julia launcher owes. */
+async function launcherCoins(client, launcherId, signal) {
     const launcher = await client.getCoinRecordByName(launcherId, signal);
     if (launcher === null) {
         throw new NotFoundError("launcher coin not found on chain");
@@ -314,6 +327,52 @@ export async function traceSingleton(client, launcherId, signal) {
     if (prelauncher === null) {
         throw new NotFoundError("prelauncher coin not found");
     }
+    return { launcher, prelauncher };
+}
+/**
+ * The portable traversal: follow the odd-amount child of each spend — the
+ * singleton consensus rules permit exactly one — collecting every generation
+ * from the launcher's child through the unspent coin.
+ *
+ * One implementation, so version-specific and current-state resolution can
+ * never disagree about a DID's lineage.
+ */
+async function walkGenerations(client, launcher, signal) {
+    let record = launcher;
+    const generations = [];
+    while (record.spent) {
+        if (generations.length >= MAX_GENERATIONS) {
+            throw new ChainError(`singleton exceeds ${MAX_GENERATIONS} generations; refusing to walk further`);
+        }
+        const children = await client.getCoinRecordsByParentIds([coinId(record.coin)], signal);
+        const odd = children.filter((child) => child.coin.amount % 2n === 1n);
+        if (odd.length !== 1) {
+            throw new ChainError(`expected exactly one odd-amount singleton child, found ${odd.length}`);
+        }
+        record = odd[0];
+        generations.push(record);
+    }
+    return generations;
+}
+/**
+ * Walk the singleton from its launcher, recording every generation
+ * (spec §7.2.1).
+ *
+ * The `get_singleton_info` fast path is deliberately NOT used here: it answers
+ * "which coin is current", which is the one question a version request is not
+ * asking.
+ */
+export async function traceHistory(client, launcherId, signal) {
+    const { launcher, prelauncher } = await launcherCoins(client, launcherId, signal);
+    return {
+        prelauncher,
+        launcher,
+        generations: await walkGenerations(client, launcher, signal),
+    };
+}
+/** Walk from launcher ID to the current unspent singleton coin (spec §7.2). */
+export async function traceSingleton(client, launcherId, signal) {
+    const { launcher, prelauncher } = await launcherCoins(client, launcherId, signal);
     const fast = await client.getSingletonInfo(launcherId, signal);
     if (fast !== null) {
         const parent = await client.getCoinRecordByName(fast.coin.parentCoinInfo, signal);
@@ -329,23 +388,11 @@ export async function traceSingleton(client, launcherId, signal) {
         // The extension answered with something the portable path can check;
         // fall through rather than trusting an unusable answer.
     }
-    let record = launcher;
-    let parent = launcher;
-    let generations = 0;
-    while (record.spent) {
-        if (generations >= MAX_GENERATIONS) {
-            throw new ChainError(`singleton exceeds ${MAX_GENERATIONS} generations; refusing to walk further`);
-        }
-        const children = await client.getCoinRecordsByParentIds([coinId(record.coin)], signal);
-        const odd = children.filter((child) => child.coin.amount % 2n === 1n);
-        if (odd.length !== 1) {
-            throw new ChainError(`expected exactly one odd-amount singleton child, found ${odd.length}`);
-        }
-        parent = record;
-        record = odd[0];
-        generations += 1;
-    }
-    return { prelauncher, launcher, current: record, parent, generations };
+    return lineageOf({
+        prelauncher,
+        launcher,
+        generations: await walkGenerations(client, launcher, signal),
+    });
 }
 function equalBytes(a, b) {
     if (a.length !== b.length)

@@ -61,6 +61,21 @@ export interface SingletonLineage {
     /** Generations traversed, or null when the fast path skipped the walk. */
     generations: number | null;
 }
+/**
+ * Every generation of a singleton, oldest first (spec §7.2.1).
+ *
+ * `generations[0]` is the coin the launcher spend created — the DID's first
+ * version — and the last entry is the unspent current coin. Version-specific
+ * resolution needs the whole list; current-state resolution needs only its
+ * tail, which `lineageOf` extracts.
+ */
+export interface SingletonHistory {
+    prelauncher: CoinRecord;
+    launcher: CoinRecord;
+    generations: CoinRecord[];
+}
+/** The current-state view of a fully walked history. */
+export declare function lineageOf(history: SingletonHistory): SingletonLineage;
 /** Low-level RPC transport. Overridable so tests can replay recordings. */
 export type RpcTransport = (method: string, payload: Record<string, unknown>, signal?: AbortSignal) => Promise<Record<string, unknown>>;
 export interface FullNodeClientOptions {
@@ -98,6 +113,15 @@ export declare class FullNodeClient {
      */
     getSingletonInfo(launcherId: Uint8Array, signal?: AbortSignal): Promise<CoinRecord | null>;
 }
+/**
+ * Walk the singleton from its launcher, recording every generation
+ * (spec §7.2.1).
+ *
+ * The `get_singleton_info` fast path is deliberately NOT used here: it answers
+ * "which coin is current", which is the one question a version request is not
+ * asking.
+ */
+export declare function traceHistory(client: FullNodeClient, launcherId: Uint8Array, signal?: AbortSignal): Promise<SingletonHistory>;
 /** Walk from launcher ID to the current unspent singleton coin (spec §7.2). */
 export declare function traceSingleton(client: FullNodeClient, launcherId: Uint8Array, signal?: AbortSignal): Promise<SingletonLineage>;
 //# sourceMappingURL=chain.d.ts.map

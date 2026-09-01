@@ -346,7 +346,7 @@ export interface DerivedState {
   previous: Node;
   /** Which transition produced the verified state. */
   operation: string;
-  source: "identity" | "identified" | "exhaustive";
+  source: "identity" | "identified" | "exhaustive" | "revealed";
   /**
    * `sha256tree` of the DID's genesis public key, re-derived from the spend
    * and bound to the launcher ID the DID itself encodes — null when the DID
@@ -449,6 +449,79 @@ export function deriveVerifiedState(
 }
 
 /**
+ * The state a SPENT generation held, read from its own spend (spec §7.2.1).
+ *
+ * Every `julia_did` solution reveals the spend's own pre-spend state as its
+ * first inner argument, and the coin's puzzle curries in that state's hash —
+ * so the reveal is what the coin itself committed to. Nothing is taken on
+ * trust: the puzzle reveal must hash to the coin's on-chain puzzle hash, the
+ * revealed state must match the `CURRIED-ARGS-HASH` that puzzle curries in,
+ * and the state must recompute to the coin's puzzle hash. A tampered reveal
+ * fails all three rather than producing a document.
+ *
+ * This is the route version-specific resolution takes for every superseded
+ * generation. It applies no transition — the state is *revealed*, not
+ * derived — so it also answers for a DID's first generation, whose parent is
+ * the launcher and therefore REMARKs nothing.
+ */
+export function revealedVerifiedState(
+  spend: CoinSpend,
+  coinPuzzleHash: Uint8Array,
+  launcherId: Uint8Array,
+): DerivedState {
+  const puzzle = deserialize(spend.puzzleReveal);
+  if (!bytesEqual(sha256tree(puzzle), coinPuzzleHash)) {
+    throw new StateError(
+      "spend puzzle reveal does not hash to its coin's puzzle hash",
+    );
+  }
+
+  const inner = innerSolution(spend);
+  const curriedArgs = inner[0];
+  const curriedArgsHash = curriedArgsHashOf(puzzle);
+  if (
+    curriedArgsHash !== null &&
+    !bytesEqual(sha256tree(curriedArgs), curriedArgsHash)
+  ) {
+    throw new StateError(
+      "the spend's revealed state does not match the CURRIED-ARGS-HASH its " +
+        "own puzzle commits to",
+    );
+  }
+
+  const state = parseState(curriedArgs);
+  if (!bytesEqual(state.launcherId, launcherId)) {
+    throw new StateError(
+      "the state revealed by this spend belongs to a different DID",
+    );
+  }
+  if (!verifyState(state, coinPuzzleHash)) {
+    throw new UnverifiableStateError(
+      "the state revealed by this spend does not recompute to the coin's own " +
+        "puzzle hash",
+    );
+  }
+
+  const bound = bindLineage(inner[1]);
+  const lineageBound =
+    bound !== null && bytesEqual(bound.launcherId, launcherId);
+  if (!lineageBound && isCurrentPuzzle(state)) {
+    throw new StateError(
+      "the spend's parent-info does not re-derive this DID's launcher ID; " +
+        "consensus would have rejected this spend",
+    );
+  }
+
+  return {
+    state,
+    previous: curriedArgs,
+    operation: "none",
+    source: "revealed",
+    genesisKeyHash: lineageBound ? bound!.genesisKeyHash : null,
+  };
+}
+
+/**
  * `CURRIED-ARGS-HASH` from an authenticated singleton puzzle reveal: uncurry
  * the standard singleton top layer, then its `julia_did` inner puzzle, which
  * is curried with exactly that one argument. Returns null when the reveal is
@@ -520,7 +593,7 @@ export function revealedKeysFromSpend(
  */
 export async function genesisPublicKey(
   client: FullNodeClient,
-  lineage: SingletonLineage,
+  lineage: Pick<SingletonLineage, "prelauncher">,
   expectedKeyHash: Uint8Array | null,
   signal?: AbortSignal,
 ): Promise<Uint8Array | null> {

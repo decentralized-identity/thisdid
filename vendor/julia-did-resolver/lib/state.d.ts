@@ -130,7 +130,7 @@ export interface DerivedState {
     previous: Node;
     /** Which transition produced the verified state. */
     operation: string;
-    source: "identity" | "identified" | "exhaustive";
+    source: "identity" | "identified" | "exhaustive" | "revealed";
     /**
      * `sha256tree` of the DID's genesis public key, re-derived from the spend
      * and bound to the launcher ID the DID itself encodes — null when the DID
@@ -152,6 +152,23 @@ export declare function innerSolution(spend: CoinSpend): Node[];
  */
 export declare function deriveVerifiedState(spend: CoinSpend, parentPuzzleHash: Uint8Array, currentCoinPuzzleHash: Uint8Array, launcherId: Uint8Array): DerivedState;
 /**
+ * The state a SPENT generation held, read from its own spend (spec §7.2.1).
+ *
+ * Every `julia_did` solution reveals the spend's own pre-spend state as its
+ * first inner argument, and the coin's puzzle curries in that state's hash —
+ * so the reveal is what the coin itself committed to. Nothing is taken on
+ * trust: the puzzle reveal must hash to the coin's on-chain puzzle hash, the
+ * revealed state must match the `CURRIED-ARGS-HASH` that puzzle curries in,
+ * and the state must recompute to the coin's puzzle hash. A tampered reveal
+ * fails all three rather than producing a document.
+ *
+ * This is the route version-specific resolution takes for every superseded
+ * generation. It applies no transition — the state is *revealed*, not
+ * derived — so it also answers for a DID's first generation, whose parent is
+ * the launcher and therefore REMARKs nothing.
+ */
+export declare function revealedVerifiedState(spend: CoinSpend, coinPuzzleHash: Uint8Array, launcherId: Uint8Array): DerivedState;
+/**
  * BLS public keys revealed in the most recent spend's solution.
  *
  * These are candidates for the spec §8.2 enumeration rule. A key revealed in
@@ -169,7 +186,7 @@ export declare function revealedKeysFromSpend(spend: CoinSpend, state: JuliaDidS
  * The reveal is authenticated by consensus: its tree hash must equal the
  * prelauncher coin's on-chain puzzle hash.
  */
-export declare function genesisPublicKey(client: FullNodeClient, lineage: SingletonLineage, expectedKeyHash: Uint8Array | null, signal?: AbortSignal): Promise<Uint8Array | null>;
+export declare function genesisPublicKey(client: FullNodeClient, lineage: Pick<SingletonLineage, "prelauncher">, expectedKeyHash: Uint8Array | null, signal?: AbortSignal): Promise<Uint8Array | null>;
 /** True when the state's puzzle-version slot is the current `julia_did`. */
 export declare function isCurrentPuzzle(state: JuliaDidState): boolean;
 //# sourceMappingURL=state.d.ts.map

@@ -54,16 +54,24 @@ export interface JuliaResolverOptions extends FullNodeClientOptions {
 /** Per-request DID resolution options, plus a cancellation signal. */
 export interface JuliaResolutionRequest extends DIDResolutionOptions {
     signal?: AbortSignal;
+    /**
+     * The `versionTime` DID parameter (spec §7.2.1): an XML datetime carrying a
+     * UTC designator or an explicit offset. `versionId` is declared by the DIF
+     * `did-resolver` interface itself.
+     */
+    versionTime?: string;
 }
 /**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
- * Version-specific resolution (`versionId` / `versionTime`) is NOT implemented
- * — this resolver always reads the singleton's current state. Rather than
- * ignoring those options and returning the latest document as though it were
- * the requested one, a request carrying either is REFUSED with
- * `unsupportedResolutionOption`. Silently answering the wrong question is the
- * one failure mode a caller cannot detect.
+ * With no version option this reads the singleton's current state. With
+ * `versionId` or `versionTime` — mutually exclusive, as DID Resolution
+ * requires — it walks the DID's lineage and answers for the generation that
+ * version names (spec §7.2.1). A superseded generation's state is read from
+ * its own spend and checked against that coin's own puzzle hash, so history
+ * is served under exactly the commitment current state is served under: a
+ * version this resolver cannot verify is an error, never a guess, and the
+ * current document is never returned in place of a requested one.
  *
  * The only representation produced is `application/did+ld+json`, which every
  * result reports in `didResolutionMetadata.contentType`.

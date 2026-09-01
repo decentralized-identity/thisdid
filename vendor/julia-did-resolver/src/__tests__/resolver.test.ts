@@ -44,31 +44,17 @@ describe("resolution replays the committed mainnet recordings", () => {
   }
 });
 
-describe("unsupported resolution options are refused, not ignored", () => {
-  for (const option of ["versionId", "versionTime"] as const) {
-    it(`refuses ${option} rather than returning current state`, async () => {
-      const result = await resolve(
-        CANARIES[0].did,
-        {
-          client: fixtureClient(CANARIES[0].calls),
-        },
-        { [option]: option === "versionId" ? "0xabc" : "2026-01-01T00:00:00Z" },
-      );
-      expect(result.didDocument).toBeNull();
-      expect(result.didResolutionMetadata.error).toBe(
-        "unsupportedResolutionOption",
-      );
-      expect(result.didResolutionMetadata.errorMessage).toContain(option);
-    });
-  }
-
-  it("still resolves normally when no historical option is given", async () => {
+describe("current-state resolution is unchanged by the version options", () => {
+  it("resolves normally when no version option is given", async () => {
     const result = await resolve(
       CANARIES[0].did,
       { client: fixtureClient(CANARIES[0].calls) },
       { accept: "application/did+ld+json" },
     );
     expect(result.didDocument?.id).toBe(CANARIES[0].did);
+    // Current-state metadata reports only what the unspent coin establishes.
+    expect(result.didDocumentMetadata).not.toHaveProperty("created");
+    expect(result.didDocumentMetadata).not.toHaveProperty("nextVersionId");
   });
 });
 

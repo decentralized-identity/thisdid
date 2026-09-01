@@ -44,10 +44,18 @@ npm, so the wrapper shape used by `webvh`/`plc` is not available yet — see
   `juliaDocumentPointer` properties. Deactivation (§7.4) recognizes both the
   null encoding and the protocol's inert-tree sentinels, which are derived from
   the all-zero leaf rather than hardcoded.
+- **Version-specific resolution** (spec §7.2.1): `versionId` — the coin id of a
+  singleton generation — and `versionTime` walk the DID's lineage and answer
+  for the generation the caller named. A superseded generation reveals its own
+  pre-spend state in its own spend, so history is served under the same
+  puzzle-hash commitment current state is, with no transition replayed; the
+  result carries `created`, plus `nextVersionId` / `nextUpdate` when the
+  version has been superseded. The two options are mutually exclusive, as DID
+  Resolution requires. See
+  [ADR 0004](https://github.com/julia-social/did-julia/blob/main/ts/docs/adr/0004-version-specific-resolution.md).
 
-Not implemented, and **refused rather than faked**: version-specific resolution
-and every representation but one. `versionId` / `versionTime` return
-`unsupportedResolutionOption`, and an `accept` this resolver cannot produce
+Not implemented, and **refused rather than faked**: every representation but
+one. An `accept` this resolver cannot produce
 returns the standard `representationNotSupported` rather than
 `application/did+ld+json` under another name. Per RFC 9110 §12.5.1 that includes an
 `accept` naming the JSON-LD type with `q=0` ("not acceptable", not a weak
@@ -56,7 +64,8 @@ such as a JSON-LD `profile` this resolver does not emit; parameters after `q`
 are accept extensions and are ignored. The most specific matching range decides,
 so `application/did+ld+json, */*;q=0` is still served — answering a question the caller
 did not ask is the one failure they cannot detect. Also not implemented: DID URL
-dereferencing, and multi-key Merkle-path replay for verification-method
+dereferencing — including the version-specific form (`?versionId=…#fragment`) —
+and multi-key Merkle-path replay for verification-method
 enumeration — a v1 limitation shared with the reference resolver, visible in
 the multi-class organization canary, which publishes its authentication
 commitment and no verification methods.

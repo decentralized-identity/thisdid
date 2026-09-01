@@ -41,6 +41,15 @@ export interface ResolutionInputs {
     confirmedTimestamp: number;
     verified: boolean;
     currentPuzzle: boolean;
+    /**
+     * Supplied only by version-specific resolution, which walks the DID's whole
+     * lineage and therefore knows them. Current-state resolution reports what a
+     * single look at the unspent coin establishes, so that its metadata does not
+     * depend on which traversal route a node happened to support (§8.5).
+     */
+    createdTimestamp?: number;
+    nextVersionCoinId?: Uint8Array;
+    nextTimestamp?: number;
 }
 /** Document, document metadata (§8.5), and resolution metadata. */
 export declare function resolutionResult(inputs: ResolutionInputs): DIDResolutionResult;

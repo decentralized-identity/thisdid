@@ -110,8 +110,17 @@ export function resolutionResult(inputs) {
     const documentMetadata = {
         versionId: `0x${toHex(inputs.versionCoinId)}`,
     };
+    if (inputs.createdTimestamp) {
+        documentMetadata.created = isoSeconds(inputs.createdTimestamp);
+    }
     if (inputs.confirmedTimestamp) {
         documentMetadata.updated = isoSeconds(inputs.confirmedTimestamp);
+    }
+    if (inputs.nextVersionCoinId !== undefined) {
+        documentMetadata.nextVersionId = `0x${toHex(inputs.nextVersionCoinId)}`;
+    }
+    if (inputs.nextTimestamp) {
+        documentMetadata.nextUpdate = isoSeconds(inputs.nextTimestamp);
     }
     if (inputs.state.deactivated)
         documentMetadata.deactivated = true;
