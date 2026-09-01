@@ -388,3 +388,14 @@ check — parity). Still deliberately outside the default profile, as
 strict-spec-mode candidates awaiting the method author's rulings: mandatory
 CREATE signatures, exactly-one-UPDATE-successor, and operation-specific
 predecessor cardinality — each would reject inputs the reference resolves.
+
+**Deferred independently — stricter TypeScript compiler settings.**
+Enabling `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and
+`verbatimModuleSyntax` (the package already builds under `strict: true`) is
+planned as its own dedicated, types-only changeset with the acceptance gate
+"full test suite unchanged" — kept out of this branch so the transliteration
+stays line-comparable to the pinned Ruby source during the method author's
+review, and so type-level edits remain bisectable from behavioral changes.
+Concrete unchecked-access assumptions on attacker-influenced paths are not
+waiting for that changeset: they are guarded individually as reviews
+identify them.
