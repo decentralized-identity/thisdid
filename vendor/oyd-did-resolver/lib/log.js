@@ -5,20 +5,11 @@
  * gem with the same vertex/edge/successors/predecessors surface. Control
  * flow mirrors the Ruby 1:1; trace output is omitted (REFERENCE-MAP).
  */
-import { canonical, getDigest, getEncoding, multiHash, retrieveDocumentRaw, retrieveLog, stripLocation, verify, LOG_HASH_OPTIONS, } from "./basic.js";
+import { canonical, getDigest, getEncoding, multiHash, retrieveDocumentRaw, retrieveLog, stripLocation, verify, DidError, LOG_HASH_OPTIONS, Op, } from "./basic.js";
 import { MAX_LOG_ENTRIES, MAX_PREVIOUS_PER_ENTRY } from "./security.js";
-/** Log operation codes (spec §4.1 #log_ops; DELEGATE is implementation-
- *  defined in the reference). The Ruby reference compares raw integers with
- *  a `# TERMINATE`-style comment on each — these named constants carry the
- *  same information in the code itself. */
-export const Op = {
-    TERMINATE: 0,
-    REVOKE: 1,
-    CREATE: 2,
-    UPDATE: 3,
-    CLONE: 4,
-    DELEGATE: 5,
-};
+// `Op` (the log operation codes) is owned by basic.ts alongside `LogEntry`;
+// re-exported here so existing `log.js` importers keep working.
+export { Op } from "./basic.js";
 export class Dag {
     vertices = [];
     addVertex(id) {
@@ -30,6 +21,12 @@ export class Dag {
         from.successors.push(to);
         to.predecessors.push(from);
     }
+}
+/** The substring after the last `separator`, or "" when it is absent —
+ *  the assertion-free form of `s.split(sep).pop()` when `sep` is present. */
+function afterLast(value, separator) {
+    const index = value.lastIndexOf(separator);
+    return index === -1 ? "" : value.slice(index + separator.length);
 }
 /** The slice of a log entry that is hashed
  *  (⇔ `el.slice("ts","op","doc","sig","previous")`; spec §4.2.2). */
@@ -54,12 +51,22 @@ export async function matchLogDid(log, doc) {
  *  actual edges with the DELEGATE restriction. */
 export async function dagDid(logs, options) {
     // resource bounds (finding 5): reject pathological logs before any graph
-    // work or hashing
-    if (logs.length > MAX_LOG_ENTRIES) {
+    // work or hashing. The limits are deployment-configurable (defaults from
+    // security.ts); exceeding one is reported as a service limit (internalError
+    // via errorCodeFor), not a malformed document. An override is honored only
+    // when it is a finite non-negative integer — otherwise the default stands,
+    // so a bad value (NaN, ±Infinity, negative, fractional) can never silently
+    // DISABLE the bound (`length > NaN` is always false).
+    const boundOr = (value, fallback) => typeof value === "number" && Number.isInteger(value) && value >= 0
+        ? value
+        : fallback;
+    const maxLogEntries = boundOr(options.maxLogEntries, MAX_LOG_ENTRIES);
+    const maxPreviousRefs = boundOr(options.maxPreviousRefs, MAX_PREVIOUS_PER_ENTRY);
+    if (logs.length > maxLogEntries) {
         return [null, null, null, "log entries exceed the maximum"];
     }
     for (const el of logs) {
-        if ((el.previous ?? []).length > MAX_PREVIOUS_PER_ENTRY) {
+        if ((el.previous ?? []).length > maxPreviousRefs) {
             return [null, null, null, "too many back-references in a log entry"];
         }
     }
@@ -89,10 +96,13 @@ export async function dagDid(logs, options) {
     if (!logs.some((el) => el.op === Op.TERMINATE)) {
         return [null, null, null, "missing TERMINATE entries"];
     }
-    // create provisional edges between vertices
+    // create provisional edges between vertices. A hash→first-index map makes
+    // this O(V+E) rather than O(V×E) `indexOf` scans (first occurrence, exactly
+    // as `indexOf` resolved before the duplicate-hash check below runs).
+    const provisionalIndex = firstIndexByHash(logHash);
     for (let i = 0; i < logs.length; i++) {
         for (const p of logs[i].previous ?? []) {
-            const position = logHash.indexOf(p);
+            const position = provisionalIndex.get(p) ?? -1;
             if (position !== -1)
                 dag.addEdge(dagLog[position], dagLog[i]);
         }
@@ -151,9 +161,14 @@ export async function dagDid(logs, options) {
         return [null, null, null, "duplicate log entry hashes"];
     }
     // reject dangling back-references: every `previous` hash must resolve to an
-    // entry in the returned log. OYDID defines no external references, so an
-    // unknown hash is a defective (or manipulated) log, not a silent no-op —
-    // the reference ignored these, this rejects them (REFERENCE-MAP hardening).
+    // entry in the returned log. Among the operations this driver resolves
+    // (CREATE/UPDATE/REVOKE/TERMINATE/DELEGATE) there are no external
+    // references; CLONE — the one op the spec defines with a cross-DID
+    // predecessor — is not resolved here (nor by the reference's dag_update;
+    // both reject it at the op level, the walk's default case), so within the
+    // ops we walk an unknown hash is a defective (or manipulated) log, not a
+    // silent no-op — the reference ignored these, this rejects them
+    // (REFERENCE-MAP hardening).
     const logHashSet = new Set(logHash);
     for (const el of logs) {
         for (const p of el.previous ?? []) {
@@ -162,9 +177,10 @@ export async function dagDid(logs, options) {
             }
         }
     }
+    const actualIndex = firstIndexByHash(logHash);
     for (let i = 0; i < logs.length; i++) {
         for (const p of logs[i].previous ?? []) {
-            const position = logHash.indexOf(p);
+            const position = actualIndex.get(p) ?? -1;
             if (position !== -1) {
                 if (logs[position].op === Op.DELEGATE) {
                     if (i === terminateIndex) {
@@ -180,11 +196,23 @@ export async function dagDid(logs, options) {
     }
     return [dag, createIndex, terminateIndex, ""];
 }
-/** ⇔ dag2array (log.rb:222) — depth-first from the CREATE entry. A visited
- *  set bounds recursion to O(vertices) and makes a malicious cyclic graph
- *  terminate instead of overflowing the stack (finding 5); on an acyclic
- *  graph — which the hash-uniqueness check in dagDid enforces — it visits
- *  the same set of nodes as the reference. */
+/** hash → its FIRST index in the log (⇔ `logHash.indexOf`), built once so
+ *  edge construction is O(V+E) instead of O(V×E). */
+function firstIndexByHash(logHash) {
+    const index = new Map();
+    for (let i = 0; i < logHash.length; i++) {
+        if (!index.has(logHash[i]))
+            index.set(logHash[i], i);
+    }
+    return index;
+}
+/** ⇔ dag2array (log.rb:222) — depth-first from the CREATE entry. The visited
+ *  set is what guarantees termination: it bounds recursion to O(vertices) so a
+ *  cyclic graph terminates instead of overflowing the stack (finding 5).
+ *  (Hash-linked cycles are computationally infeasible to construct — each
+ *  `previous` names an entry by hash, so a cycle needs a hash fixed point —
+ *  but that infeasibility is not the code *proving* acyclicity; the visited
+ *  set is.) On an acyclic graph it visits the same nodes as the reference. */
 export function dag2array(dag, logArray, index, result, visited = new Set()) {
     if (visited.has(index))
         return [...new Set(result)];
@@ -215,7 +243,7 @@ export function dag2arrayTerminate(dag, logArray, index, result) {
     return [...new Set(result)];
 }
 /** ⇔ REVOKED_ERROR_CODE (log.rb:268) · spec §3.2.3 #deactivation */
-export const REVOKED_ERROR_CODE = 410;
+export const REVOKED_ERROR_CODE = DidError.REVOKED;
 /** ⇔ dag_update (log.rb:270) — walks the ordered log, verifying every hop:
  *  CREATE/UPDATE signatures, the document→TERMINATE log commitment, the
  *  revocation chain, and — when followAlsoKnownAs is set — the DID Rotation
@@ -252,7 +280,7 @@ export async function dagUpdate(currentDID, options) {
                 const docDid = el.doc;
                 const docResult = await retrieveDocumentRaw(docDid, docLocation, options);
                 if (docResult[0] === null) {
-                    currentDID.error = 2;
+                    currentDID.error = DidError.RETRIEVAL;
                     currentDID.message =
                         docResult[1] !== "" ? docResult[1] : "cannot retrieve " + docDid;
                     return currentDID;
@@ -265,13 +293,13 @@ export async function dagUpdate(currentDID, options) {
                     // them unresolvable (⇔ the reference's comment, log.rb:314).
                     if (el.sig == null) {
                         if (options.strict_create_sig) {
-                            currentDID.error = 1;
+                            currentDID.error = DidError.INVALID;
                             currentDID.message = "missing signature in CREATE log entry";
                             return currentDID;
                         }
                     }
                     else if (!(await matchLogDid(el, doc))) {
-                        currentDID.error = 1;
+                        currentDID.error = DidError.INVALID;
                         currentDID.message = "Signatures in log don't match";
                         return currentDID;
                     }
@@ -284,13 +312,26 @@ export async function dagUpdate(currentDID, options) {
                     // CREATE — is rejected rather than trusted.
                     const updateHash = (await multiHash(canonical(logSlice(el)), LOG_HASH_OPTIONS))[0];
                     if (updateHash === null || !verifiedUpdateHashes.has(updateHash)) {
-                        currentDID.error = 1;
+                        currentDID.error = DidError.INVALID;
                         currentDID.message = "unauthorized UPDATE log entry";
                         return currentDID;
                     }
                 }
                 currentDID.did = docDid;
                 currentDID.doc = doc;
+                // record this version's DOCUMENT key for pubkey-form identifier
+                // binding (spec §3.2.4 #pubkey_identifier defines the form on the
+                // document public key — NOT the revocation key, so the rev half of
+                // `docKey:revKey` is deliberately excluded).
+                if (typeof doc.key === "string") {
+                    const [documentKey] = doc.key.split(":");
+                    if (documentKey) {
+                        currentDID.version_document_keys = [
+                            ...(currentDID.version_document_keys ?? []),
+                            documentKey,
+                        ];
+                    }
+                }
                 break;
             }
             case Op.TERMINATE: {
@@ -299,13 +340,13 @@ export async function dagUpdate(currentDID, options) {
                 const didHash = stripLocation(docDid.replace(/^did:oyd:/, ""));
                 const docResult = await retrieveDocumentRaw(docDid, docLocation, options);
                 if (docResult[0] === null) {
-                    currentDID.error = 2;
+                    currentDID.error = DidError.RETRIEVAL;
                     currentDID.message = docResult[1];
                     return currentDID;
                 }
                 const doc = docResult[0].doc;
                 if (!(await matchLogDid(el, doc))) {
-                    currentDID.error = 1;
+                    currentDID.error = DidError.INVALID;
                     currentDID.message = "Signatures in log don't match";
                     return currentDID;
                 }
@@ -313,9 +354,9 @@ export async function dagUpdate(currentDID, options) {
                 // entry (spec §4.2.2 #calculate_hash)
                 let term = doc.log;
                 let logLocation = term.includes("@")
-                    ? term.split("@").pop()
+                    ? afterLast(term, "@")
                     : term.includes("%40")
-                        ? term.split("%40").pop()
+                        ? afterLast(term, "%40")
                         : "";
                 if (logLocation === "" || logLocation === term) {
                     logLocation = "";
@@ -326,7 +367,7 @@ export async function dagUpdate(currentDID, options) {
                 logOptions.digest = getDigest(elHash)[0] ?? undefined;
                 logOptions.encode = getEncoding(elHash)[0] ?? undefined;
                 if ((await multiHash(canonical(logSlice(el)), logOptions))[0] !== term) {
-                    currentDID.error = 1;
+                    currentDID.error = DidError.INVALID;
                     currentDID.message = "Log reference and record don't match";
                     return currentDID;
                 }
@@ -341,7 +382,7 @@ export async function dagUpdate(currentDID, options) {
                     // whatever the cause — timeout, HTTP error, malformed or oversized
                     // response — the revocation check could not be completed, which is
                     // an operational failure, never "no revocation exists"
-                    currentDID.error = 2;
+                    currentDID.error = DidError.RETRIEVAL;
                     currentDID.message = "revocation log unavailable";
                     return currentDID;
                 }
@@ -358,6 +399,43 @@ export async function dagUpdate(currentDID, options) {
                     }
                 }
                 if (revocationRecord !== null) {
+                    // opt-in (strictRevocationSig): prove the revocation was AUTHORIZED
+                    // by the version's revocation key, not merely precommitted. OFF by
+                    // default so default resolution stays reference-parity — the
+                    // reference never verifies this, and the TERMINATE→REVOKE hash
+                    // commitment already stops a repository/MITM from substituting a
+                    // revocation (only a creator holding the doc key can precommit an
+                    // unauthorized one; §4.2.3). Fails closed: a revocation not signed
+                    // by the revocation key leaves the document's validity unprovable.
+                    if (options.strict_revocation_sig) {
+                        const revocationKey = currentDID.doc.key.split(":")[1] ?? "";
+                        const authorized = (await verify(String(revocationRecord.doc), String(revocationRecord.sig ?? ""), revocationKey))[0];
+                        if (authorized !== true) {
+                            currentDID.error = DidError.INVALID;
+                            currentDID.message =
+                                "revocation signature does not match revocation key";
+                            return currentDID;
+                        }
+                        // …and the REVOKE must COMMIT to the version it revokes: spec
+                        // §4.1 defines op=1 `doc` as the hash of the version's document
+                        // and key. Preimage verified against real repository data
+                        // (SPEC-DIVERGENCES.md D3): multi_hash(canonical({doc, key})) of
+                        // the revoked version's record. Without this, a correctly
+                        // rev-key-signed REVOKE naming arbitrary content would still be
+                        // honored. The reference performs neither check — both live
+                        // under the same strict opt-in.
+                        const expectedRevokeDoc = (await multiHash(canonical({
+                            doc: currentDID.doc.doc,
+                            key: currentDID.doc.key,
+                        }), LOG_HASH_OPTIONS))[0];
+                        if (expectedRevokeDoc === null ||
+                            String(revocationRecord.doc) !== expectedRevokeDoc) {
+                            currentDID.error = DidError.INVALID;
+                            currentDID.message =
+                                "revocation does not commit to the revoked version";
+                            return currentDID;
+                        }
+                    }
                     // the revocation is published — only an UPDATE building on it
                     // keeps the DID alive
                     let updateTermFound = false;
@@ -378,7 +456,7 @@ export async function dagUpdate(currentDID, options) {
                                 // (REFERENCE-MAP §"Security hardening", deviation 9).
                                 const authorizedKey = currentDID.doc.key.split(":")[0];
                                 if (!(await verify(message, signature, authorizedKey))[0]) {
-                                    currentDID.error = 1;
+                                    currentDID.error = DidError.INVALID;
                                     currentDID.message = "Signature does not match";
                                     return currentDID;
                                 }
@@ -423,6 +501,7 @@ export async function dagUpdate(currentDID, options) {
                                 delete document["didResolutionMetadata"];
                                 currentDID.did = rotateDID;
                                 currentDID.doc = { ...currentDID.doc, doc: document };
+                                currentDID.rotated = true;
                                 rotationPerformed = true;
                             }
                         }
@@ -436,7 +515,7 @@ export async function dagUpdate(currentDID, options) {
                 // do nothing
                 break;
             default:
-                currentDID.error = 2;
+                currentDID.error = DidError.RETRIEVAL;
                 currentDID.message =
                     "FATAL ERROR: op code '" + el.op + "' not implemented";
                 return currentDID;

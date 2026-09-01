@@ -41,6 +41,20 @@ function isPrivateHost(hostname: string): boolean {
   if (LOOPBACK_OR_UNSPEC_V6.has(host)) return true;
   // IPv6 unique-local (fc00::/7) and link-local (fe80::/10)
   if (/^f[cd]/.test(host) || /^fe[89ab]/.test(host)) return true;
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d and ::ffff:AABB:CCDD) — reach the same
+  // v4 space, so classify the embedded IPv4 rather than trust the v6 wrapper
+  const mapped = /^(?:::ffff:|::ffff:0:)(.+)$/.exec(host);
+  if (mapped) {
+    const inner = mapped[1];
+    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(inner)) return PRIVATE_V4.test(inner);
+    const hextets = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(inner);
+    if (hextets) {
+      const hi = parseInt(hextets[1], 16);
+      const lo = parseInt(hextets[2], 16);
+      const dotted = [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join(".");
+      return PRIVATE_V4.test(dotted);
+    }
+  }
   return false;
 }
 

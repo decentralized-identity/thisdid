@@ -11,6 +11,8 @@ import {
   type Tuple,
 } from "../basic.js";
 import { Op } from "../log.js";
+import { decodeEd25519PublicKey } from "../basic.js";
+import { mintPubkeyForm, mintSingleVersion } from "./builder.js";
 import {
   CANARY_DID,
   CANARY_DOC,
@@ -363,7 +365,9 @@ async function mintRevokedDid(payload: Record<string, unknown>): Promise<{
     if (url.includes("/doc_raw/" + didHash)) {
       return Response.json({ doc: docRecord, log });
     }
-    if (url.includes("/log/" + didHash)) return Response.json(log);
+    // /log is fetched by the doc's log-hash (initial read) and the did-hash
+    // (revocation search); this single-DID stub serves its log for either.
+    if (url.includes("/log/")) return Response.json(log);
     return Response.json({ error: "not found" }, { status: 404 });
   };
   return { didHash, fetchStub };
@@ -438,5 +442,238 @@ describe("fragment dereferencing helper", () => {
         "nope",
       ),
     ).toBeNull();
+  });
+});
+
+describe("pubkey-form identifiers (spec §3.2.4 binding)", () => {
+  const rawHex = (key: string): string | null => {
+    const raw = decodeEd25519PublicKey(key);
+    return raw === null
+      ? null
+      : [...raw].map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  it("resolves a pubkey-form DID whose key IS a document key (binds)", async () => {
+    const m = await mintPubkeyForm({ hello: "world" });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocument?.id).toBe(m.did);
+    // the identifier's key is present among the composed verification methods
+    const idHex = rawHex(m.docKey);
+    const vmHexes = (r.didDocument?.verificationMethod ?? []).map((vm) =>
+      rawHex(String(vm.publicKeyMultibase)),
+    );
+    expect(vmHexes).toContain(idHex);
+  });
+
+  it("rejects a pubkey-form DID whose key is NOT a document key (the z6MkrJVn shape)", async () => {
+    // A well-formed pubkey-form identifier the same repository serves, but
+    // whose key is in no version of the DID — resolvable only by trusting the
+    // repository. This is the offline analog of did:oyd:z6MkrJVn… (OYD-DID-CORPUS.md
+    // §"Excluded"): the reference resolves it permissively; we fail closed.
+    const m = await mintPubkeyForm({ hello: "world" });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.unboundDid);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("don't match");
+  });
+
+  it("rejects a pubkey-form DID addressed by its REVOCATION key (spec binds the document key only)", async () => {
+    // The revocation key is a real key of the DID but NOT an identifier form
+    // (spec §3.2.4 #pubkey_identifier is defined on the document key). It must
+    // not bind, even though it is one of the record's two keys.
+    const m = await mintPubkeyForm({ hello: "world" });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.revDid);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("don't match");
+  });
+});
+
+describe("identity invariant & timestamp robustness", () => {
+  it("rejects a did:oyd whose payload spoofs a FOREIGN document id", async () => {
+    // a committed payload shaped like a W3C DID document (w3c's already-a-DID
+    // passthrough) would otherwise set the output id to a foreign identifier
+    const m = await mintSingleVersion({
+      "@context": "https://www.w3.org/ns/did/v1",
+      id: "did:evil:xyz",
+      verificationMethod: [
+        { id: "did:evil:xyz#k", type: "X", controller: "did:evil:xyz" },
+      ],
+    });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("does not match");
+  });
+
+  it("rejects a payload that overwrites id via the service-merge branch", async () => {
+    const m = await mintSingleVersion({
+      id: "did:oyd:zSomeOtherDidEntirely1111111111111111111111111",
+      service: [{ id: "#s", type: "T", serviceEndpoint: "https://x" }],
+    });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("does not match");
+  });
+
+  it("rejects a BARE method-specific id (not a DID URI) smuggled via the service merge", async () => {
+    // pubkey-form: the creator knows the identifier in advance, so the
+    // payload can embed the bare key as `id` — the exact-match invariant
+    // must require the full percent-encoded DID URI, not a stripped equal
+    const m = await mintPubkeyForm((_did: string, docKey: string) => ({
+      id: docKey,
+      service: [{ id: "#s", type: "T", serviceEndpoint: "https://x" }],
+    }));
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("does not match");
+  });
+
+  it("rejects a payload that keeps the CORRECT id but replaces verificationMethod", async () => {
+    // the id passes the exact-match invariant, so this isolates the
+    // authority invariant: the verified doc/rev keys must survive in the
+    // composed verification methods
+    const m = await mintPubkeyForm((did: string) => ({
+      "@context": "https://www.w3.org/ns/did/v1",
+      id: did,
+      verificationMethod: [
+        {
+          id: did + "#evil",
+          type: "Ed25519VerificationKey2020",
+          controller: did,
+          publicKeyMultibase: "z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4sw",
+        },
+      ],
+    }));
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("verified keys");
+  });
+
+  it("rejects INERT methods that retain the key bytes under foreign ids/controllers/types", async () => {
+    // the raw doc/rev key bytes ARE present, but only in methods with a
+    // foreign id, foreign controller and unknown type — the authoritative
+    // `#key-doc`/`#key-rev` methods are gone, and `authentication` points at
+    // the foreign entry. Byte membership alone would pass this; the semantic
+    // authority invariant must not.
+    const m = await mintPubkeyForm(
+      (did: string, docKey: string, revKey: string) => ({
+        "@context": "https://www.w3.org/ns/did/v1",
+        id: did,
+        verificationMethod: [
+          {
+            id: "did:evil:x#untrusted",
+            type: "UnknownType",
+            controller: "did:evil:x",
+            publicKeyMultibase: docKey,
+          },
+          {
+            id: "did:evil:x#untrusted2",
+            type: "UnknownType",
+            controller: "did:evil:x",
+            publicKeyMultibase: revKey,
+          },
+        ],
+        authentication: ["did:evil:x#untrusted"],
+      }),
+    );
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("verified keys");
+  });
+
+  it("rejects a null verificationMethod entry with a controlled error (no thrown promise)", async () => {
+    // property access on a null entry would otherwise THROW outside
+    // read()'s guard, rejecting the resolve promise instead of returning a
+    // DID error
+    const m = await mintPubkeyForm((did: string) => ({
+      "@context": "https://www.w3.org/ns/did/v1",
+      id: did,
+      verificationMethod: [null],
+    }));
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("verified keys");
+  });
+
+  it("rejects a DUPLICATED authoritative method id (valid first, foreign second)", async () => {
+    // both required methods are present and VALID — but #key-doc appears
+    // twice, the second carrying a different key. Relying parties disagree
+    // on which entry wins, so the document is ambiguous and must not serve.
+    const m = await mintPubkeyForm(
+      (did: string, docKey: string, revKey: string) => ({
+        "@context": "https://www.w3.org/ns/did/v1",
+        id: did,
+        verificationMethod: [
+          {
+            id: did + "#key-doc",
+            type: "Ed25519VerificationKey2020",
+            controller: did,
+            publicKeyMultibase: docKey,
+          },
+          {
+            id: did + "#key-rev",
+            type: "Ed25519VerificationKey2020",
+            controller: did,
+            publicKeyMultibase: revKey,
+          },
+          {
+            id: did + "#key-doc", // duplicate id, different key
+            type: "Ed25519VerificationKey2020",
+            controller: did,
+            publicKeyMultibase: revKey,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("verified keys");
+  });
+
+  it("still resolves a service payload that leaves the verified keys intact", async () => {
+    // control: the ordinary service-merge path composes #key-doc/#key-rev
+    // itself, so a normal payload passes both invariants
+    const m = await mintSingleVersion({
+      service: [{ id: "#s", type: "T", serviceEndpoint: "https://x" }],
+    });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    const ids = (r.didDocument?.verificationMethod ?? []).map((v) => v.id);
+    expect(ids).toEqual([m.did + "#key-doc", m.did + "#key-rev"]);
+  });
+
+  it("rejects a same-key id carrying a DIFFERENT location suffix", async () => {
+    const m = await mintPubkeyForm((did: string) => ({
+      "@context": "https://www.w3.org/ns/did/v1",
+      id: did + "%40evil.example",
+      service: [{ id: "#s", type: "T", serviceEndpoint: "https://x" }],
+    }));
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(r.didResolutionMetadata.message).toContain("does not match");
+  });
+
+  it("does not crash on an out-of-Date-range timestamp (omits created)", async () => {
+    // 1e15 s → 1e18 ms, beyond the Date range: toISOString() would throw a
+    // RangeError outside read()'s guard, rejecting the resolve promise
+    const m = await mintSingleVersion({ hello: "world" }, undefined, {
+      ts: 1e15,
+    });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const r = await resolver().resolve(m.did);
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocument?.id).toBe(m.did);
+    expect(r.didDocumentMetadata.created).toBeUndefined();
   });
 });

@@ -4,25 +4,16 @@
  * (#read). Same walk: retrieve the DID document, retrieve and DAG-order the
  * provenance log, then dag_update to the current version.
  */
-import { retrieveDocument, retrieveLog, DEFAULT_LOCATION, LOCATION_PREFIX, LOCATION_PREFIX_ESCAPED, } from "./basic.js";
+import { retrieveDocument, retrieveLog, DEFAULT_LOCATION, DidError, LOCATION_PREFIX, LOCATION_PREFIX_ESCAPED, } from "./basic.js";
 import { dagDid, dag2array, dag2arrayTerminate, dagUpdate } from "./log.js";
 /** ⇔ read (oydid.rb:65) · spec §3.2 #read */
 export async function read(did, options) {
     if (String(did) === "")
         return [null, "missing DID"];
-    // did_requested is the identifier the caller asked for; dag_update
-    // overwrites "did" with every version it walks through (⇔ the
-    // reference's currentDID setup comment, oydid.rb:71)
-    const currentDID = {
-        did,
-        did_requested: did,
-        doc: undefined,
-        log: [],
-        doc_log_id: null,
-        termination_log_id: null,
-        error: 0,
-        message: "",
-    };
+    // the identifier the caller asked for, before location parsing splits it;
+    // dag_update overwrites the working "did" with every version it walks
+    // through, so both are seeded from this (⇔ oydid.rb:71)
+    const requestedDid = did;
     // get did location
     let didLocation = options.doc_location ?? "";
     if (didLocation === "" && options.location)
@@ -46,7 +37,17 @@ export async function read(did, options) {
     const documentResult = await retrieveDocument(didHash, didLocation, options);
     if (documentResult[0] === null)
         return [null, documentResult[1]];
-    currentDID.doc = documentResult[0];
+    const currentDID = {
+        did: requestedDid,
+        did_requested: requestedDid,
+        doc: documentResult[0],
+        log: [],
+        doc_log_id: null,
+        termination_log_id: null,
+        error: DidError.NONE,
+        message: "",
+        version_document_keys: [],
+    };
     // get log location. Spec-conformance note (REFERENCE-MAP §7): the spec
     // defines %40 as the W3C-conform representation of "@", so both forms are
     // recognized here — the reference splits the log reference on "@" only
@@ -69,8 +70,11 @@ export async function read(did, options) {
     }
     if (logLocation === "")
         logLocation = DEFAULT_LOCATION;
-    // retrieve and traverse log to get current DID state
-    const [logArray, logMessage] = await retrieveLog(didHash, logLocation, options);
+    // retrieve and traverse log to get current DID state. The log is fetched
+    // by the DOCUMENT'S `log` hash (⇔ oydid.rb:87 `retrieve_log(log_hash,…)`),
+    // NOT the DID hash: for a pubkey-form identifier (`z6M…`) the DID hash has
+    // no `/log` entry, and only the log-hash endpoint carries the chain.
+    const [logArray, logMessage] = await retrieveLog(logHash, logLocation, options);
     if (logArray === null)
         return [null, logMessage];
     const [dag, createIndex, terminateIndex, dagMessage] = await dagDid(logArray, options);

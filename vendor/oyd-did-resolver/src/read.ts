@@ -8,10 +8,10 @@ import {
   retrieveDocument,
   retrieveLog,
   DEFAULT_LOCATION,
+  DidError,
   LOCATION_PREFIX,
   LOCATION_PREFIX_ESCAPED,
   type DidInfo,
-  type DocRecord,
   type OydOptions,
   type Tuple,
 } from "./basic.js";
@@ -24,19 +24,10 @@ export async function read(
 ): Promise<Tuple<DidInfo>> {
   if (String(did) === "") return [null, "missing DID"];
 
-  // did_requested is the identifier the caller asked for; dag_update
-  // overwrites "did" with every version it walks through (⇔ the
-  // reference's currentDID setup comment, oydid.rb:71)
-  const currentDID: DidInfo = {
-    did,
-    did_requested: did,
-    doc: undefined as unknown as DocRecord,
-    log: [],
-    doc_log_id: null,
-    termination_log_id: null,
-    error: 0,
-    message: "",
-  };
+  // the identifier the caller asked for, before location parsing splits it;
+  // dag_update overwrites the working "did" with every version it walks
+  // through, so both are seeded from this (⇔ oydid.rb:71)
+  const requestedDid = did;
 
   // get did location
   let didLocation = options.doc_location ?? "";
@@ -59,7 +50,18 @@ export async function read(
   // retrieve DID document
   const documentResult = await retrieveDocument(didHash, didLocation, options);
   if (documentResult[0] === null) return [null, documentResult[1]];
-  currentDID.doc = documentResult[0];
+
+  const currentDID: DidInfo = {
+    did: requestedDid,
+    did_requested: requestedDid,
+    doc: documentResult[0],
+    log: [],
+    doc_log_id: null,
+    termination_log_id: null,
+    error: DidError.NONE,
+    message: "",
+    version_document_keys: [],
+  };
 
   // get log location. Spec-conformance note (REFERENCE-MAP §7): the spec
   // defines %40 as the W3C-conform representation of "@", so both forms are
@@ -81,9 +83,12 @@ export async function read(
   }
   if (logLocation === "") logLocation = DEFAULT_LOCATION;
 
-  // retrieve and traverse log to get current DID state
+  // retrieve and traverse log to get current DID state. The log is fetched
+  // by the DOCUMENT'S `log` hash (⇔ oydid.rb:87 `retrieve_log(log_hash,…)`),
+  // NOT the DID hash: for a pubkey-form identifier (`z6M…`) the DID hash has
+  // no `/log` entry, and only the log-hash endpoint carries the chain.
   const [logArray, logMessage] = await retrieveLog(
-    didHash,
+    logHash,
     logLocation,
     options,
   );

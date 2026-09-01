@@ -6,6 +6,7 @@
  */
 import {
   canonical,
+  isPubKeyIdentifier,
   multiEncode,
   multiHash,
   LOG_HASH_OPTIONS,
@@ -94,7 +95,7 @@ function repoFetch(
 export async function mintSingleVersion(
   payload: unknown,
   logOverride?: (callIndex: number) => Response | null,
-  opts: { badRevKey?: boolean } = {},
+  opts: { badRevKey?: boolean; ts?: number } = {},
 ): Promise<MintedDid> {
   const docPair = await keypair();
   const revPair = await keypair();
@@ -102,9 +103,17 @@ export async function mintSingleVersion(
   // a structurally invalid revocation key still commits (the identifier
   // hashes the whole record), exercising the resolver's key validation
   const revKey = opts.badRevKey ? "zNotAValidKey" : await packKey(revPair);
-  const ts = 1700000000;
+  const ts = opts.ts ?? 1700000000;
 
-  const revokeCore = { ts, op: Op.REVOKE, doc: "revoke", sig: "zdummy" };
+  // spec-correct REVOKE commitment (§4.1 op=1): doc = hash({doc, key});
+  // unpublished here, so the sig placeholder is irrelevant
+  const keyString = docKey + ":" + revKey;
+  const revokeCore = {
+    ts,
+    op: Op.REVOKE,
+    doc: await hashOf({ doc: payload, key: keyString }),
+    sig: "zdummy",
+  };
   const terminate: LogEntry = {
     ts,
     op: Op.TERMINATE,
@@ -115,7 +124,7 @@ export async function mintSingleVersion(
   terminate.sig = await sign(docPair, terminate.doc);
   const record: DocRecordShape = {
     doc: payload,
-    key: docKey + ":" + revKey,
+    key: keyString,
     log: await hashOf(terminate),
   };
   const didHash = await hashOf(record);
@@ -135,19 +144,120 @@ export async function mintSingleVersion(
   };
 }
 
-/** CREATE + TERMINATE + published REVOKE, no surviving UPDATE — revoked. */
-export async function mintRevoked(payload: unknown): Promise<MintedDid> {
+/**
+ * A single-version DID addressed by its OWN document key — the correct,
+ * binding pubkey-form identifier (spec §3.2.4: a pubkey-form id must equal a
+ * document key of the DID). `did` resolves; `unboundDid` is a well-formed
+ * pubkey-form identifier served by the SAME repository whose key is NOT a
+ * document key — the exact shape of the real `z6MkrJVn…` artifact that only
+ * repository trust resolves (see OYD-DID-CORPUS.md). The offline analog of that
+ * live case, so the binding is covered without the network.
+ */
+export async function mintPubkeyForm(
+  payload: unknown | ((did: string, docKey: string, revKey: string) => unknown),
+): Promise<{
+  did: string;
+  docKey: string;
+  revDid: string;
+  unboundDid: string;
+  fetch: MintedDid["fetch"];
+}> {
+  // packKey frames `0xed 0x20`; base58btc of that is z6M-prefixed, and
+  // isPubKeyIdentifier additionally requires exactly 48 chars — retry the
+  // occasional shorter encoding so the identifier is genuinely pubkey-form.
+  const asPubkeyForm = async (): Promise<[CryptoKeyPair, string]> => {
+    for (;;) {
+      const pair = await keypair();
+      const key = await packKey(pair);
+      if (isPubKeyIdentifier(key)) return [pair, key];
+    }
+  };
+  const [docPair, docKey] = await asPubkeyForm();
+  // the revocation key is also minted as a valid pubkey-form identifier, so a
+  // rev-key-addressed resolve fails the §3.2.4 binding (rev keys are not an
+  // identifier form) rather than the generic non-pubkey-shape path
+  const [, revKey] = await asPubkeyForm();
+  const [, unboundKey] = await asPubkeyForm();
+  const ts = 1700000000;
+  const resolvedPayload =
+    typeof payload === "function"
+      ? (payload as (did: string, docKey: string, revKey: string) => unknown)(
+          "did:oyd:" + docKey,
+          docKey,
+          revKey,
+        )
+      : payload;
+
+  // spec-correct REVOKE commitment: doc = hash of the version's {doc, key}
+  // (§4.1 op=1); unpublished here (the log carries CREATE+TERMINATE only)
+  const keyString = docKey + ":" + revKey;
+  const revokeCore = {
+    ts,
+    op: Op.REVOKE,
+    doc: await hashOf({ doc: resolvedPayload, key: keyString }),
+    sig: "zdummy",
+  };
+  const terminate: LogEntry = {
+    ts,
+    op: Op.TERMINATE,
+    doc: await hashOf(revokeCore),
+    sig: "",
+    previous: [],
+  };
+  terminate.sig = await sign(docPair, terminate.doc);
+  const record: DocRecordShape = {
+    doc: resolvedPayload,
+    key: keyString,
+    log: await hashOf(terminate),
+  };
+  const didHash = await hashOf(record);
+  const create: LogEntry = {
+    ts,
+    op: Op.CREATE,
+    doc: didHash,
+    sig: await sign(docPair, didHash),
+    previous: [],
+  };
+  const log = [create, terminate];
+  const records = new Map([[didHash, { doc: record, log }]]);
+  return {
+    did: "did:oyd:" + docKey,
+    docKey,
+    revDid: "did:oyd:" + revKey,
+    unboundDid: "did:oyd:" + unboundKey,
+    fetch: repoFetch(records, record, log),
+  };
+}
+
+/** CREATE + TERMINATE + published REVOKE, no surviving UPDATE — revoked.
+ *  `badRevSig` embeds a well-formed signature by the DOCUMENT key (the wrong
+ *  key) in the committed REVOKE — a creator who holds only the doc key
+ *  precommitting a revocation the revocation key never authorized. Default
+ *  resolution honors it (parity); `strictRevocationSig` rejects it. */
+export async function mintRevoked(
+  payload: unknown,
+  opts: { badRevSig?: boolean; wrongRevDoc?: boolean } = {},
+): Promise<MintedDid> {
   const docPair = await keypair();
   const revPair = await keypair();
   const docKey = await packKey(docPair);
   const revKey = await packKey(revPair);
   const ts = 1700000000;
 
+  // spec-correct REVOKE commitment (§4.1 op=1): doc = hash of the revoked
+  // version's {doc, key}. `wrongRevDoc` keeps a VALID rev-key signature but
+  // commits to other content — the strict doc-commitment check's target.
+  const keyString = docKey + ":" + revKey;
+  const revokeDoc = opts.wrongRevDoc
+    ? await hashOf({ doc: { other: "content" }, key: keyString })
+    : await hashOf({ doc: payload, key: keyString });
   const revokeCore = {
     ts,
     op: Op.REVOKE,
-    doc: "revoke",
-    sig: await sign(revPair, "revoke"),
+    doc: revokeDoc,
+    sig: opts.badRevSig
+      ? await sign(docPair, revokeDoc)
+      : await sign(revPair, revokeDoc),
   };
   const terminate: LogEntry = {
     ts,
@@ -158,7 +268,7 @@ export async function mintRevoked(payload: unknown): Promise<MintedDid> {
   };
   const record: DocRecordShape = {
     doc: payload,
-    key: docKey + ":" + revKey,
+    key: keyString,
     log: "",
   };
   terminate.sig = await sign(docPair, terminate.doc);
@@ -204,12 +314,17 @@ export async function mintUpdateChain(opts: {
   const delegateKey = await packKey(delegate);
   const ts = 1700000000;
 
-  // v1: CREATE + TERMINATE committing to a published REVOKE
+  // v1: CREATE + TERMINATE committing to a published REVOKE. The REVOKE
+  // commits to v1's {doc, key} per spec §4.1 (op=1), so strict mode's
+  // doc-commitment check passes on this genuine chain.
+  const v1payload = { content: "original" };
+  const v1keys = v1docKey + ":" + v1revKey;
+  const revoke1Doc = await hashOf({ doc: v1payload, key: v1keys });
   const revoke1Core = {
     ts,
     op: Op.REVOKE,
-    doc: "revoke1",
-    sig: await sign(v1rev, "revoke1"),
+    doc: revoke1Doc,
+    sig: await sign(v1rev, revoke1Doc),
   };
   const terminate1: LogEntry = {
     ts,
@@ -219,8 +334,8 @@ export async function mintUpdateChain(opts: {
     previous: [],
   };
   const record1: DocRecordShape = {
-    doc: { content: "original" },
-    key: v1docKey + ":" + v1revKey,
+    doc: v1payload,
+    key: v1keys,
     log: "",
   };
   terminate1.sig = await sign(v1doc, terminate1.doc);

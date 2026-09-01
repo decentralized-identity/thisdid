@@ -85,8 +85,18 @@ export function multiEncode(message, options) {
         return ["z" + base58Encode(message), ""];
     return [null, "unsupported encoding: '" + method + "'"];
 }
+/** The longest multibase value this profile ever decodes: an Ed25519 key is
+ *  ~48 base58 chars, a 64-byte signature ~88, a sha2-256 multihash ~48. This
+ *  cap is far above every legitimate value and far below the response-size
+ *  limit, so it stops a hostile ~1 MB field from driving the O(n²) base58
+ *  decode (DoS) before its length is even known. */
+const MAX_MULTIBASE_CHARS = 512;
 /** ⇔ multi_decode (basic.rb:24) */
 export function multiDecode(message) {
+    // bound the input before the quadratic base58 decode (DoS guard)
+    if (message.length > MAX_MULTIBASE_CHARS) {
+        return [null, "malformed multibase value (too long)"];
+    }
     try {
         if (message.startsWith("z"))
             return [base58Decode(message.slice(1)), ""];
@@ -229,38 +239,39 @@ export function getLocation(id) {
     return DEFAULT_LOCATION;
 }
 /* ── Ed25519 key handling ── */
-/** Decode a multibase public key to its raw 32 Ed25519 bytes, validating
- *  BOTH the multicodec code AND the declared length byte (finding 7/8: the
- *  reference accepts any 34-byte `0xed…` value and ignores the length byte).
- *  Returns null for anything that is not a well-formed Ed25519 key —
- *  including the p256 and other codecs, which are not part of the supported
- *  profile (REFERENCE-MAP §4). */
+/** The two second-framing bytes OYDID Ed25519 keys carry after the `0xed`
+ *  codec byte: `0x20` is the multihash-style length (32); `0x01` is the
+ *  second byte of the unsigned varint of the multicodec code `0xed`
+ *  (did:key / multicodec framing). Both wrap the same 32-byte key, and the
+ *  reference (`code = first byte, key = last 32`) accepts either. */
+const ED25519_FRAMING_BYTES = [ED25519_KEY_BYTES, 0x01];
+/** Decode a multibase public key to its raw 32 Ed25519 bytes. Validates the
+ *  multicodec code (`0xed`), the total length (34), and that the framing
+ *  byte is one OYDID uses — matching the reference, which works with both
+ *  encodings (finding 7/8; REFERENCE-MAP §4). Returns null for p256 and
+ *  other codecs (outside the supported profile). */
 export function decodeEd25519PublicKey(publicKey) {
     const [decoded] = multiDecode(publicKey);
     if (decoded === null)
         return null;
-    // varint(0xed) is the two bytes 0xed 0x01; the multihash-style prefix used
-    // by OYDID keys is [code, length, …32 bytes]
     if (decoded.length !== 2 + ED25519_KEY_BYTES ||
         decoded[0] !== MULTICODEC_ED25519_PUB ||
-        decoded[1] !== ED25519_KEY_BYTES) {
+        !ED25519_FRAMING_BYTES.includes(decoded[1])) {
         return null;
     }
     return decoded.slice(2);
 }
-/** The 34-byte multicodec-framed form of a validated Ed25519 key (for the
- *  `publicKeyHex` metadata field, which the reference emits code+length
- *  included). */
+/** The decoded key as hex for the `publicKeyHex` metadata field. The
+ *  reference emits the ORIGINAL decoded bytes
+ *  (`multi_decode(key).unpack('H*')`), framing byte included — so a
+ *  `0xed 0x20` key is `ed20…` and a `0xed 0x01` key is `ed01…`; this
+ *  preserves that byte rather than re-framing. */
 export function ed25519KeyFramedHex(publicKey) {
-    const raw = decodeEd25519PublicKey(publicKey);
-    if (raw === null)
+    const [decoded] = multiDecode(publicKey);
+    if (decoded === null || decodeEd25519PublicKey(publicKey) === null) {
         return null;
-    const framed = new Uint8Array([
-        MULTICODEC_ED25519_PUB,
-        ED25519_KEY_BYTES,
-        ...raw,
-    ]);
-    return [...framed].map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    return [...decoded].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 /** ⇔ verify (basic.rb:494, ed25519-pub branch) · spec §4.2.3
  *  #verify_signature. Strictly validates the key framing (finding 7); the
@@ -282,6 +293,29 @@ export async function verify(message, signature, publicKey) {
         return [null, "unknown key codec"];
     }
 }
+/* ── shared data shapes ── */
+/** Log operation codes (spec §4.1 #log_ops; DELEGATE is implementation-
+ *  defined in the reference, which compares raw integers with a
+ *  `# TERMINATE`-style comment on each). Owned here alongside `LogEntry`;
+ *  re-exported from log.ts. */
+export const Op = {
+    TERMINATE: 0,
+    REVOKE: 1,
+    CREATE: 2,
+    UPDATE: 3,
+    CLONE: 4,
+    DELEGATE: 5,
+};
+const OP_CODES = new Set(Object.values(Op));
+/** `DidInfo.error` states (⇔ the reference's numeric `currentDID["error"]`;
+ *  a closed union rather than bare magic numbers). */
+export const DidError = {
+    NONE: 0,
+    INVALID: 1, // signature / data verification failure
+    RETRIEVAL: 2, // document or log could not be retrieved
+    NOT_FOUND: 404,
+    REVOKED: 410,
+};
 /** ⇔ getDelegatedPubKeysFromFullDidDocument (basic.rb:366). Retained for
  *  reference parity but deliberately NOT wired into resolution: delegation
  *  is not honored, because the reference never authenticates DELEGATE
@@ -345,6 +379,98 @@ async function readBoundedBody(response, maxBytes) {
     }
     return bytes;
 }
+/** A lone UTF-16 surrogate half — a high surrogate not followed by a low
+ *  one, or a low surrogate not preceded by a high one. `JSON.parse` happily
+ *  produces these from `\uD800`-style escapes. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+/** Reject parsed repository data RFC 8785 cannot canonicalize: non-finite
+ *  numbers (`1e999` parses to Infinity) and lone Unicode surrogates (in
+ *  values or keys). Canonical JSON feeds identifiers, log hashes and
+ *  signature commitments, so hashing a lossy serialization of such input
+ *  would be silently wrong — fail closed at the single point where all
+ *  repository data enters instead. Iterative walk (no recursion), so deeply
+ *  nested hostile JSON cannot overflow the stack. Returns a short reason, or
+ *  null when the value is clean. */
+function checkIJson(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+        const value = stack.pop();
+        if (typeof value === "number") {
+            if (!Number.isFinite(value))
+                return "non-finite number";
+        }
+        else if (typeof value === "string") {
+            if (LONE_SURROGATE.test(value))
+                return "lone Unicode surrogate";
+        }
+        else if (Array.isArray(value)) {
+            for (const element of value)
+                stack.push(element);
+        }
+        else if (typeof value === "object" && value !== null) {
+            for (const [key, entry] of Object.entries(value)) {
+                if (LONE_SURROGATE.test(key))
+                    return "lone Unicode surrogate";
+                stack.push(entry);
+            }
+        }
+    }
+    return null;
+}
+/** Detect duplicate object member names in a VALID JSON text (the caller
+ *  runs this only after `JSON.parse` succeeded). I-JSON — which RFC 8785
+ *  builds on — forbids duplicate names, but `JSON.parse` silently keeps the
+ *  LAST duplicate, so post-parse validation cannot see them: hashing the
+ *  collapsed object would accept input a conformant JCS verifier rejects.
+ *  Single iterative pass (no recursion), a per-object name `Set` on an
+ *  explicit stack; member names are unescaped via `JSON.parse` of the quoted
+ *  slice so `"a"` and `"a"` collide as JSON semantics require. */
+function hasDuplicateMember(text) {
+    // stack of open containers: a Set for an object (its seen member names),
+    // null for an array
+    const stack = [];
+    // whether the next string in the current object position is a member name
+    let expectKey = false;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"') {
+            const start = i;
+            i++;
+            while (i < text.length) {
+                if (text[i] === "\\")
+                    i += 2;
+                else if (text[i] === '"')
+                    break;
+                else
+                    i++;
+            }
+            const top = stack[stack.length - 1];
+            if (top instanceof Set && expectKey) {
+                const name = JSON.parse(text.slice(start, i + 1));
+                if (top.has(name))
+                    return true;
+                top.add(name);
+                expectKey = false;
+            }
+        }
+        else if (char === "{") {
+            stack.push(new Set());
+            expectKey = true;
+        }
+        else if (char === "[") {
+            stack.push(null);
+            expectKey = false;
+        }
+        else if (char === "}" || char === "]") {
+            stack.pop();
+            expectKey = false;
+        }
+        else if (char === ",") {
+            expectKey = stack[stack.length - 1] instanceof Set;
+        }
+    }
+    return false;
+}
 /** Infrastructure shared by the three retrieval functions — not part of the
  *  reference surface (HTTParty handles this inline there). Adds the
  *  timeout/size guards a Worker needs when fetching attacker-supplied
@@ -381,21 +507,52 @@ async function fetchJson(url, options) {
         }
         const text = new TextDecoder().decode(bytes);
         if (!response.ok) {
-            // ⇔ `retVal.parsed_response["error"].to_s rescue ""` + fallback
-            let message = "";
+            // Error classification is driven by the HTTP STATUS, never by the
+            // repository's message text: the body is repository-controlled, and a
+            // hostile repository could otherwise steer the DIF error code by
+            // echoing marker substrings ("don't match", "unsupported digest", …)
+            // into resolver.ts errorCodeFor. The repo's text is read for exactly
+            // one purpose — recognizing the reference's deactivation signal, which
+            // is only valid on 410 Gone.
+            let repoMessage = "";
             try {
                 const body = JSON.parse(text);
                 if (typeof body.error === "string")
-                    message = body.error;
+                    repoMessage = body.error;
             }
             catch {
-                // non-JSON error body — fall through to the generic message
+                // non-JSON error body — the status alone decides
             }
-            if (message === "")
-                message = "invalid response from " + url;
-            return [null, message];
+            if (response.status === 410 && repoMessage === "revoked") {
+                // ⇔ the reference repository's deactivation signal (parity)
+                return [null, "revoked"];
+            }
+            if (response.status === 404)
+                return [null, "not found"];
+            return [
+                null,
+                "repository error " + response.status + " from " + new URL(url).origin,
+            ];
         }
-        return [JSON.parse(text), ""];
+        const parsed = JSON.parse(text);
+        const ijson = checkIJson(parsed);
+        if (ijson !== null) {
+            return [
+                null,
+                "malformed repository response (" +
+                    ijson +
+                    ") from " +
+                    new URL(url).origin,
+            ];
+        }
+        if (hasDuplicateMember(text)) {
+            return [
+                null,
+                "malformed repository response (duplicate object member) from " +
+                    new URL(url).origin,
+            ];
+        }
+        return [parsed, ""];
     }
     catch (error) {
         return [
@@ -407,41 +564,51 @@ async function fetchJson(url, options) {
     }
 }
 /* ── structural validation of repository responses ── */
-/** A repository response is untrusted input: validate the `{doc, key, log}`
- *  record shape instead of casting (the reference leans on Ruby's dynamic
- *  typing and NoMethodError here). */
-function parseDocRecord(value, origin) {
+/** Type guard for the `{doc, key, log}` record shape (spec §2 #format). */
+function isDocRecord(value) {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return [null, "malformed document record from " + origin];
+        return false;
     }
     const record = value;
-    if (typeof record["key"] !== "string" || typeof record["log"] !== "string") {
-        return [null, "malformed document record from " + origin];
-    }
-    if (!("doc" in record)) {
-        return [null, "malformed document record from " + origin];
-    }
-    return [record, ""];
+    return (typeof record["key"] === "string" &&
+        typeof record["log"] === "string" &&
+        "doc" in record);
 }
-/** Validate a provenance-log array (`{ts, op, doc, sig, previous[]}` per
- *  entry — spec §4.1 #log_ops). */
+/** Type guard for one provenance-log entry (spec §4.1 #log_ops). `op` must
+ *  be a known `OpCode`: an unknown operation is rejected here rather than
+ *  cast, so `LogEntry.op: OpCode` never lies (reviewer #5). */
+function isLogEntry(value) {
+    if (typeof value !== "object" || value === null)
+        return false;
+    const record = value;
+    return (typeof record["ts"] === "number" &&
+        Number.isFinite(record["ts"]) &&
+        typeof record["op"] === "number" &&
+        OP_CODES.has(record["op"]) &&
+        typeof record["doc"] === "string" &&
+        (typeof record["sig"] === "string" || record["sig"] == null) &&
+        (record["previous"] == null ||
+            (Array.isArray(record["previous"]) &&
+                record["previous"].every((p) => typeof p === "string"))));
+}
+/** A repository response is untrusted input: validate the shape with a type
+ *  guard instead of casting (the reference leans on Ruby's dynamic typing
+ *  and NoMethodError here). The validated object is returned as-is, NOT
+ *  reconstructed to only-known fields: every hash commitment is taken over
+ *  the whole record/entry (`canonical(record)`, `canonical(entry)`), so
+ *  stripping extra properties would let a repository that *added* fields
+ *  pass a commitment computed over the stripped shape. Retaining the exact
+ *  bytes is the fail-closed choice here. */
+function parseDocRecord(value, origin) {
+    return isDocRecord(value)
+        ? [value, ""]
+        : [null, "malformed document record from " + origin];
+}
+/** Validate a provenance-log array — `Array.every` with a type predicate
+ *  narrows the array to `LogEntry[]`, so no assertion is needed. */
 function parseLogEntries(value, origin) {
-    if (!Array.isArray(value))
+    if (!Array.isArray(value) || !value.every(isLogEntry)) {
         return [null, "malformed log from " + origin];
-    for (const entry of value) {
-        if (typeof entry !== "object" || entry === null) {
-            return [null, "malformed log from " + origin];
-        }
-        const record = entry;
-        if (typeof record["ts"] !== "number" ||
-            typeof record["op"] !== "number" ||
-            typeof record["doc"] !== "string" ||
-            !(typeof record["sig"] === "string" || record["sig"] == null) ||
-            !(record["previous"] == null ||
-                (Array.isArray(record["previous"]) &&
-                    record["previous"].every((p) => typeof p === "string")))) {
-            return [null, "malformed log from " + origin];
-        }
     }
     return [value, ""];
 }

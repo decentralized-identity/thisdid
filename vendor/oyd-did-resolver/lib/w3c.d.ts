@@ -3,14 +3,27 @@
  * `ruby-gem/lib/oydid.rb` from the OYDID reference, pinned at
  * OwnYourData/oydid@48a62c9, against spec v0.6 §3.2.1 (#resolution_result):
  * w3c, expand_verification_methods, version_ids, version_metadata,
- * document_id. Delegation keys are taken from the already fetched log
- * (getDelegatedPubKeysFromFullDidDocument) instead of the gem's network
- * re-read — same input log, same output keys (REFERENCE-MAP §5).
+ * document_id. Delegate-derived `capabilityDelegation` is deliberately not
+ * composed — delegation is not honored (REFERENCE-MAP §"Security hardening"
+ * 2). `w3c` returns a Result so an unsupported key codec is an explicit
+ * failure rather than an `{error}` sentinel in the open document bag.
  */
 import { type DidInfo } from "./basic.js";
 export declare const ED25519_SECURITY_SUITE = "https://w3id.org/security/suites/ed25519-2020/v1";
 /** A composed (open-shape) W3C DID document. */
 export type W3cDocument = Record<string, unknown>;
+/** The reasons document composition can fail (currently only a key codec
+ *  outside the supported ed25519 profile). */
+export type W3cComposeError = "unsupported key codec";
+/** Result of composing a document — success carries the document, failure a
+ *  specific reason. */
+export type W3cResult = {
+    ok: true;
+    document: W3cDocument;
+} | {
+    ok: false;
+    error: W3cComposeError;
+};
 /** ⇔ expand_verification_methods (oydid.rb:1441) */
 export declare function expandVerificationMethods(payload: Record<string, unknown>, wd: W3cDocument, did: string): W3cDocument;
 /** ⇔ version_ids (oydid.rb:1508) — [canonicalId, equivalentIds], oldest
@@ -27,5 +40,5 @@ export declare function documentId(didInfo: DidInfo): string;
  *  p256-pub returns the reference's error object (REFERENCE-MAP §4). */
 export declare function w3c(didInfo: DidInfo, options: {
     location?: string;
-}): W3cDocument;
+}): W3cResult;
 //# sourceMappingURL=w3c.d.ts.map

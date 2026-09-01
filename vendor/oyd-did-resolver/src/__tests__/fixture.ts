@@ -102,7 +102,10 @@ export function canaryFetch(input: RequestInfo | URL): Promise<Response> {
   if (url.endsWith("/doc_raw/" + CANARY_HASH)) {
     return Promise.resolve(Response.json({ doc: CANARY_DOC, log: CANARY_LOG }));
   }
-  if (url.endsWith("/log/" + CANARY_HASH)) {
+  // /log is requested by both the document's log-hash (initial read) and the
+  // DID hash (dagUpdate revocation search); this single-DID stub serves the
+  // canary's log for either.
+  if (url.includes("/log/")) {
     return Promise.resolve(Response.json(CANARY_LOG));
   }
   return Promise.resolve(

@@ -1,11 +1,13 @@
 # Reference map — @thisdid/oyd-did-resolver ⇔ OYDID reference implementation
 
-|                      |                                                                                                                                                           |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reference repository | [OwnYourData/oydid](https://github.com/OwnYourData/oydid)                                                                                                 |
-| Pinned commit        | [`48a62c9c67d63a316bf2ca507babfc59ae4f48e3`](https://github.com/OwnYourData/oydid/tree/48a62c9c67d63a316bf2ca507babfc59ae4f48e3) (2026-08-27) — gem 0.9.1 |
-| Method specification | [OYDID v0.6, 2026-08-25](https://ownyourdata.github.io/oydid/)                                                                                            |
-| Reference deployment | oydid.ownyourdata.eu (repository) · resolver.ownyourdata.eu (resolver)                                                                                    |
+Three reference points, kept distinct (they are not the same thing):
+
+| role                                  | what                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transliteration source** (baseline) | [`OwnYourData/oydid@48a62c9`](https://github.com/OwnYourData/oydid/tree/48a62c9c67d63a316bf2ca507babfc59ae4f48e3) (2026-08-27) — Ruby gem 0.9.1. The exact source this package was ported from, function by function (the map below).                                                                                                                                   |
+| **Behavioral-parity target**          | [`resolver.ownyourdata.eu`](https://resolver.ownyourdata.eu) — the hosted reference resolver. The DIF Universal Resolver proxies `did:oyd` to this endpoint (it does not run a dedicated OYD container), so this is what the golden vectors are captured from and the live corpus diffs against. Its deployed driver/spec version may differ from the pinned gem above. |
+| **Normative target**                  | [OYDID method specification v0.6](https://ownyourdata.github.io/oydid/) (2026-08-25) — the authority when the source and the spec disagree.                                                                                                                                                                                                                             |
+| Repository backend                    | `oydid.ownyourdata.eu` — the `/doc`, `/doc_raw`, `/log` content store the resolver reads.                                                                                                                                                                                                                                                                               |
 
 This package is a **transliteration of the reference's resolution path under
 a documented profile** — it does not claim functional identity with the Ruby
@@ -18,22 +20,36 @@ what the artifacts here support:
   function (the map below), as groundwork for a future formal comparison;
 - every departure from the reference is deliberate and listed under
   **Deliberate deviations** — several are externally observable, which is
-  precisely why they are enumerated for the method author's review;
+  precisely why they are enumerated for the method author's review (a
+  standalone adjudication dossier — `SPEC-DIVERGENCES.md`, with live
+  evidence and one concrete question per divergence — is maintained outside
+  this package and delivered to the method author directly);
 - within the supported profile (ed25519 / sha2-256 / base58btc), the
   package is **behaviorally compatible with the reference resolver for the
   captured vectors**: the spec's own published samples — single-version,
   updated (resolved through both its identifiers), revoked, and
   non-default-location — reproduce the reference deployment's `didDocument`
-  and `didDocumentMetadata` byte for byte (`src/__tests__/fixture.ts`,
+  and `didDocumentMetadata` field-for-field (deep structural equality via
+  `toEqual`, not raw-byte serialization; `src/__tests__/fixture.ts`,
   `src/__tests__/samples.ts`);
 - on hostile input it is **stricter than the reference by design**: the
-  checks under **Security hardening (beyond the reference)** fail closed,
-  rejecting malformed or malicious logs, keys, repositories and rotation
-  targets that the trusting first-party reference would accept. All
-  supported valid golden vectors resolve unchanged; the one intentional
-  exception to reference behavior is delegation, which is not honored
+  checks under **Security hardening** (stricter than the reference, never
+  more permissive) fail closed, rejecting malformed or malicious logs, keys,
+  repositories and rotation targets that the trusting first-party reference
+  would accept. All supported valid golden vectors resolve unchanged; the one
+  intentional exception to reference behavior is delegation, which is not honored
   (§2) — a reference-accepted DID relying on a delegated update key is
   deliberately rejected.
+
+**Two separate guarantees.** _Resolution compatibility_: all supported valid
+golden vectors resolve to a structurally identical document and metadata as the
+reference (deep-equality, the delegation exception aside). _TypeScript API compatibility_: NOT guaranteed —
+this is a new, unpublished package whose exported types are still being
+tightened. In particular `w3c()` now returns a `W3cResult` discriminated
+union (not a bare document), and `DidInfo.error` / `LogEntry.op` are the
+closed unions `DidErrorCode` / `OpCode`. `LogEntry.op` being a validated
+`OpCode` is enforced at the boundary: `parseLogEntries` rejects any entry
+with an unknown operation code as a malformed log, so the type never lies.
 
 ## Function map
 
@@ -57,7 +73,7 @@ https://ownyourdata.github.io/oydid/.
 | `basic.ts retrieveDocument`                       | `basic.rb:1251 retrieve_document` (HTTP branch)                               | §3.2.5 `#http_binding`                              |
 | `basic.ts retrieveDocumentRaw`                    | `basic.rb:1296 retrieve_document_raw` (HTTP branch)                           | §3.2.5 `#http_binding`                              |
 | `basic.ts retrieveLog`                            | `ruby-gem/lib/oydid/log.rb:26 retrieve_log` (HTTP branch)                     | §4.2.4 `#retrieve_log`                              |
-| `log.ts Op`                                       | the reference's numeric `op` codes + `# TERMINATE`-style comments             | §4.1 `#log_ops`                                     |
+| `basic.ts Op` (re-exported by log.ts)             | the reference's numeric `op` codes + `# TERMINATE`-style comments             | §4.1 `#log_ops`                                     |
 | `log.ts Dag`                                      | the `simple_dag` gem's vertex/edge/successors/predecessors surface            | §4 `#log`                                           |
 | `log.ts matchLogDid`                              | `log.rb:18 match_log_did?`                                                    | §4.2.3 `#verify_signature`                          |
 | `log.ts dagDid`                                   | `log.rb:98 dag_did`                                                           | §4 `#log`                                           |
@@ -107,7 +123,13 @@ https://ownyourdata.github.io/oydid/.
    version-exact): every `/doc_raw` response must hash to its version
    identifier, and the REQUESTED identifier must appear as a version
    (a CREATE/UPDATE entry) in the verified log chain — or, for a
-   bare-public-key identifier, as the document key itself.
+   bare-public-key identifier (spec §3.2.4), as a document key of any
+   verified version in that chain (the `version_document_keys` set collected
+   across every CREATE/UPDATE in `dag_update`), not merely the final version's
+   key.
+   The spec binds a pubkey-form identifier to a document key in the DID's
+   history; there is no separate cryptographic signature over the
+   identifier, so this membership check is the binding.
 2. **`followAlsoKnownAs` is a host opt-in, OFF by default** (the reference
    resolver defaults to true). The rotation branch of `dag_update` IS
    ported: a host that opts in (`getResolver({ followAlsoKnownAs: true })`,
@@ -149,16 +171,20 @@ true` (spec §3.2.3 `#deactivation`), which is what a universal-resolver
    `notFound` (a genuinely absent DID) distinctly. The uncaught-exception
    guard also preserves the exception message instead of discarding it.
 
-## Security hardening (beyond the reference)
+## Security hardening (stricter than the reference, never more permissive)
 
-The reference is a first-party toolkit that trusts its own repository and
-Ruby's dynamic typing. An independent verifier that resolves
+"Stricter than the reference" means exactly one thing here — these checks can
+only _reject_ input the reference would have accepted; they never accept
+anything it rejects, and they never change the document produced for a valid
+DID. They are additional input validation, not a behavioral fork. The reason
+they exist: the reference is a first-party toolkit that trusts its own
+repository and Ruby's dynamic typing. An independent verifier that resolves
 attacker-influenced logs from arbitrary repositories cannot. The following
 checks have no counterpart in the reference (some address gaps the reference
 author flagged in-code, e.g. the `!!!OPEN` note on delegation). **Every one
 fails closed**: it can only turn malformed or hostile input into a rejection.
-All supported valid golden vectors resolve byte-for-byte unchanged; the sole
-intentional departure is delegation (§2), which is not honored — so a
+All supported valid golden vectors resolve to the same document unchanged; the
+sole intentional departure is delegation (§2), which is not honored — so a
 reference-accepted DID relying on a delegated update key is deliberately
 rejected, not resolved. Each check is exercised adversarially in
 `src/__tests__/security.test.ts`.
@@ -185,30 +211,109 @@ rejected, not resolved. Each check is exercised adversarially in
    or malformed/oversized response during the revocation check is an
    `internalError`, never read as "no revocation exists". The reference
    guarded the loop `unless log_array.nil?` and served the document.
+   _Optional (`strictRevocationSig`, OFF by default = parity):_ two extra
+   checks on the honored REVOKE. (a) Its signature must verify against the
+   version's revocation key (spec §4.2.3). (b) Its `doc` must COMMIT to the
+   version it revokes — spec §4.1 defines op=1 `doc` as the hash of the
+   version's document and key; the preimage
+   `multi_hash(canonical({doc, key}))` was verified against real repository
+   data (SPEC-DIVERGENCES.md D3), and every real REVOKE-bearing corpus DID
+   passes both checks live in strict mode. By default — like the reference —
+   the REVOKE is honored on the TERMINATE→REVOKE hash commitment alone; that
+   commitment already stops a repository/MITM from substituting a revocation
+   (proven in `security.test.ts`: a tampered REVOKE sig is ignored), but it
+   proves neither that the revocation _key_ authorized it (a creator holding
+   only the document key can precommit an unauthorized revocation) nor that
+   the REVOKE names the version it revokes. The opt-in closes both gaps for a
+   verifier that will not trust issuance history; the default stays
+   reference-parity.
 4. **Log topology is bounded, unambiguous, and complete** (`log.ts`,
-   `security.ts`): entry-count and back-reference bounds; a duplicate-hash
-   rejection (so a `previous` reference resolves to exactly one entry); a
-   **dangling-reference rejection** (every `previous` hash must resolve to an
-   entry in the returned log — OYDID defines no external references, and the
-   reference silently ignored unknown hashes); and a visited-set in
-   `dag2array` so a cyclic graph terminates instead of overflowing the
-   stack.
-5. **Strict Ed25519 key framing** (`basic.ts`). A key must carry the correct
-   multicodec code AND declared length byte; the reference accepted any
-   34-byte `0xed…` value. Both the document key and the revocation key are
-   validated (an invalid revocation key is `invalidDidDocument`, never a
-   silent empty `publicKeyHex`).
+   `security.ts`): entry-count and back-reference bounds (deployment-
+   configurable via `getResolver({ maxLogEntries, maxPreviousRefs })`;
+   exceeding one is an `internalError` service-limit, not
+   `invalidDidDocument`); a duplicate-hash rejection (so a `previous`
+   reference resolves to exactly one entry); a **dangling-reference
+   rejection** (every `previous` hash must resolve to an entry in the returned
+   log — among the ops this driver resolves there are no external references;
+   CLONE, the one op the spec defines with a cross-DID predecessor, is not
+   resolved by this driver nor by the reference's `dag_update`, both rejecting
+   it at the op level — and the reference silently ignored unknown hashes);
+   and a visited-set in `dag2array` so a cyclic graph terminates instead of
+   overflowing the stack. `parseLogEntries` also requires a finite numeric
+   `ts`.
+5. **Validated Ed25519 key framing** (`basic.ts`). A key must carry the
+   Ed25519 multicodec code (`0xed`) over exactly 32 key bytes, under one of
+   the two framings the reference actually emits across its history —
+   multihash-style code+length (`0xed 0x20`) or varint multicodec
+   (`0xed 0x01`); like the reference we decode on `code = byte[0]`,
+   `key = last 32 bytes`, but unlike it we reject any other length byte or
+   size (the reference accepted any 34-byte `0xed…` value). Both the document
+   key and the revocation key are validated (an invalid revocation key is
+   `invalidDidDocument`, never a silent empty `publicKeyHex`). Offline
+   regression: `security.test.ts` "accepts both Ed25519 key framings"; live:
+   `real.test.ts` zQmSE1h/zQmfEb3K.
 6. **Repository-fetch SSRF policy** (`security.ts`). Repository URLs
    (including custom `%40host` ones taken from the DID) are validated before
    any request: https-only, no embedded credentials, and no literal
-   private / loopback / link-local / metadata hosts by default; redirects
-   are refused. Overridable via `RepositoryPolicy` (scheme list, host
-   allowlist). DNS rebinding is not fully solved at the `fetch` layer — a
-   strict deployment should pin `allowHosts`.
+   private / loopback / link-local / metadata / IPv4-mapped-IPv6 hosts by
+   default; redirects are refused. Overridable via `RepositoryPolicy` (scheme
+   list, host allowlist), now exposed as `getResolver({ repositoryPolicy })`.
+   DNS rebinding is not fully solved at the `fetch` layer — a strict
+   deployment should pin `allowHosts`.
 7. **Rotation targets are validated, not trusted** (`resolver.ts`). A host
    driver's rotation result is accepted only if it resolves without error to
    a structurally valid document whose `id` equals the requested rotation
    DID, within `MAX_ROTATION_DEPTH` hops.
+8. **Identity & authority invariants on the composed document**
+   (`resolver.ts`). The stored payload is untrusted; a payload shaped like a
+   W3C DID document (w3c's already-a-DID passthrough) or one carrying its own
+   `id` / `verificationMethod` (the service merge) could otherwise (a) set
+   the output `id` to a foreign identifier, a bare non-DID string, or a
+   same-key-different-location variant, or (b) REPLACE or DEMOTE the
+   verification methods — hiding the keys the verified log says control the
+   DID, or retaining their raw bytes only in inert methods with foreign
+   ids/controllers/types while the authoritative `#key-doc`/`#key-rev`
+   disappear (reachable for pubkey-form ids, whose creator knows the id in
+   advance). Composition itself stays byte-identical to the reference; two
+   post-composition guards fail closed instead: `document.id` must EXACTLY
+   equal the percent-encoded requested DID URI (`documentId`, location
+   suffix included), and each authoritative method must be present with its
+   exact id (`{did}#key-doc` / `{did}#key-rev`), this DID as `controller`,
+   the profile's `Ed25519VerificationKey2020` type, and the matching raw key
+   bytes (so either Ed25519 framing passes) — byte membership alone is not
+   enough. The only license to differ is an authenticated DID-Rotation
+   actually followed through the host's drivers (`DidInfo.rotated`, gated on
+   `followAlsoKnownAs`). Violations are `invalidDidDocument`.
+   _Uniqueness scope:_ the resolver requires **exactly one** authoritative
+   `{did}#key-doc` and `{did}#key-rev` method (a duplicated authoritative id
+   — valid first, attacker-controlled second — would leave relying parties
+   with an ambiguous document, undermining the verified authority binding),
+   and every entry must be a well-formed object (a `null` entry is a
+   controlled `invalidDidDocument`, never a thrown error). It does NOT
+   impose document-wide uniqueness on controller-authored
+   verification-method identifiers: the OYD reference preserves those
+   payload entries as-is, and DID Core 1.0 requires consumers to reject
+   duplicate ids for _services_ (§5.4) but states no equivalent consumer
+   requirement for verification methods (§5.2) — so a document-wide
+   rejection would be a parity-breaking rule unrelated to the OYD authority
+   invariant. Full-document id-uniqueness remains available as optional
+   future hardening in a DID-document validation profile.
+9. **Bounded, crash-safe, classification-safe input handling** (`basic.ts`,
+   `w3c.ts`). Multibase values are length-capped before the O(n²) base58
+   decode (DoS guard); an out-of-`Date`-range timestamp is dropped, not fed
+   to `toISOString()` (which would throw a `RangeError` outside `read()`'s
+   guard and reject the resolve promise); every parsed repository response is
+   validated against RFC 8785's input constraints at the single fetch choke
+   point (non-finite numbers such as `1e999`→Infinity, lone Unicode
+   surrogates, and duplicate object member names — which `JSON.parse`
+   silently collapses to the last value, invisible to any post-parse check,
+   so the raw text is scanned — are all rejected: canonical JSON feeds
+   identifiers, log hashes and signature commitments, so a lossy
+   serialization must never be hashed); and repository error handling is STATUS-driven — `"revoked"` is
+   honored only on HTTP 410 (the reference's deactivation status), 404 maps
+   to not-found, any other failure to a transport error, and the
+   repository's message text can never steer the DIF error classification
+   (it could otherwise echo marker substrings into `errorCodeFor`).
 
 ## Verification evidence — and its limits
 
@@ -230,19 +335,34 @@ is wanted. What the artifacts do establish:
    CREATE → TERMINATE → REVOKE → UPDATE → TERMINATE walk)**, revoked (both
    via the repository's 410 and by independent detection from the full log),
    and non-default-location — reproduce the reference resolver's
-   `didDocument` and `didDocumentMetadata` byte for byte. The **adversarial**
+   `didDocument` and `didDocumentMetadata` with field-for-field deep-equality
+   (`toEqual`, not raw-byte serialization). The **adversarial**
    half (`security.test.ts`, minting real keys/signatures via
    `builder.ts`) exercises each hardening above: a spliced UPDATE, an UPDATE
    signed by a never-authorized key, an injected disconnected DELEGATE, a
    revocation lookup failing (500 and malformed), a foreign TERMINATE, a
    rotation target with a mismatched id / a resolution error (plus the
    matching-id control), the SSRF policy (unit and via a private `%40`
-   repository), strict key framing, an invalid revocation key, an
-   over-length log, a **connected DELEGATE with an irrelevant signature**
-   (not honored), and a **dangling `previous` reference** (rejected).
+   repository), key framing (both the `0xed 0x20` and `0xed 0x01` framings
+   accepted, a malformed one rejected), the **pubkey-form §3.2.4 binding**
+   (a bound identifier resolves, an unbound one — the `z6MkrJVn` shape —
+   rejected), an invalid revocation key, an over-length log, a **connected
+   DELEGATE with an irrelevant signature** (not honored), and a **dangling
+   `previous` reference** (rejected).
 3. Compare against the live reference at any time:
    `curl https://resolver.ownyourdata.eu/1.0/identifiers/<did>` versus this
    package through a `did-resolver` `Resolver`, for any of the vector DIDs.
+4. `pnpm run test:live` runs the real-world corpus in `real.test.ts`
+   (opt-in, network) — actual `did:oyd` identifiers from OwnYourData's
+   repos/spec, each diffed live against the reference; every one is expected
+   to pass. See [OYD-DID-CORPUS.md](./OYD-DID-CORPUS.md), which also documents one real
+   DID **excluded** from that corpus (`did:oyd:z6MkrJVn…`): a pubkey-form
+   identifier whose key matches no document key in its resolved DID's version
+   history (spec §3.2.4), which the reference resolves only through a legacy
+   permissive path. Rather than pin a network-dependent divergence, its
+   binding is covered offline in `resolver.test.ts` (a bound pubkey-form DID
+   resolves; the unbound `z6MkrJVn` shape is rejected) — an open question for
+   the method author, without a red live test.
 
 Remaining scope notes. **Delegation (op 5) is intentionally unsupported**
 (Security hardening §2): a delegated-key update fails closed, so there is no
@@ -254,3 +374,17 @@ covered. CLONE (op 4) is likewise not handled (nor is it by the reference's
 transliterated but not positively vectored. Everything outside the supported
 profile (p256, non-sha2-256 digests, non-base58btc encodings) is
 deliberately rejected, not resolved.
+
+**REVOKE `doc` commitment — validated under the strict opt-in.** Spec §4.1
+defines the op=1 REVOKE `doc` as the _hash of the document and key_ of the
+version being revoked. The preimage was determined empirically against real
+repository data — `multi_hash(canonical({doc, key}))` of the revoked
+version's record (SPEC-DIVERGENCES.md D3) — and `strictRevocationSig` now
+enforces it alongside the revocation-key signature: a correctly-key-signed
+REVOKE whose `doc` names other content is rejected in strict mode
+(`security.test.ts`), and every real REVOKE-bearing corpus DID passes both
+checks live. The DEFAULT does not enforce it (the reference performs neither
+check — parity). Still deliberately outside the default profile, as
+strict-spec-mode candidates awaiting the method author's rulings: mandatory
+CREATE signatures, exactly-one-UPDATE-successor, and operation-specific
+predecessor cardinality — each would reject inputs the reference resolves.

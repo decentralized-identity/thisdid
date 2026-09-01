@@ -11,6 +11,7 @@
  */
 import type { DIDResolutionResult, ResolverRegistry } from "did-resolver";
 import { type OydOptions } from "./basic.js";
+import { type RepositoryPolicy } from "./security.js";
 import { type W3cDocument } from "./w3c.js";
 /** Host-facing configuration (a DIF driver defaults to answering only for
  *  the requested DID; a standalone host such as a CLI opts into following
@@ -19,6 +20,22 @@ export interface OydResolverOptions {
     /** Follow a revoked DID's alsoKnownAs rotation (⇔ the reference
      *  resolver's FOLLOW_ALSOKNOWNAS, which defaults to true there). */
     followAlsoKnownAs?: boolean;
+    /** Verify each honored REVOKE's signature against the version's revocation
+     *  key (spec §4.2.3). **OFF by default = reference parity** (the reference
+     *  never verifies this). When ON, a revocation not authorized by the
+     *  revocation key is rejected (`invalidDidDocument`) rather than honored —
+     *  defense-in-depth for a verifier that will not trust issuance history.
+     *  Only the middle case changes: a valid revocation still deactivates, and
+     *  a repository/MITM still cannot forge one (hash commitment). */
+    strictRevocationSig?: boolean;
+    /** Override the resource bounds (defaults from security.ts). Exceeding one
+     *  is an `internalError` (a service limit), not `invalidDidDocument`. */
+    maxLogEntries?: number;
+    maxPreviousRefs?: number;
+    /** Repository-fetch SSRF policy (scheme list, host allowlist, private-host
+     *  toggle). Default: https-only, no private/loopback/link-local/mapped
+     *  hosts. A strict deployment should pin `allowHosts`. */
+    repositoryPolicy?: RepositoryPolicy;
 }
 /** ⇔ resolution_result (dids_controller.rb:180). DID-URL fragments are the
  *  caller's layer (see dereferenceFragment below). */

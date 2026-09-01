@@ -17,6 +17,8 @@ import type {
   ResolverRegistry,
 } from "did-resolver";
 import {
+  decodeEd25519PublicKey,
+  DidError,
   ed25519KeyFramedHex,
   getDigest,
   getEncoding,
@@ -26,7 +28,7 @@ import {
   type DidInfo,
   type OydOptions,
 } from "./basic.js";
-import { MAX_ROTATION_DEPTH } from "./security.js";
+import { MAX_ROTATION_DEPTH, type RepositoryPolicy } from "./security.js";
 import { Op, REVOKED_ERROR_CODE } from "./log.js";
 import { read } from "./read.js";
 import {
@@ -37,7 +39,18 @@ import {
   type W3cDocument,
 } from "./w3c.js";
 
-function errorResult(error: string, message?: string): DIDResolutionResult {
+/** The DIF DID-resolution error codes this driver emits. */
+type DifErrorCode =
+  | "invalidDid"
+  | "invalidDidDocument"
+  | "notFound"
+  | "representationNotSupported"
+  | "internalError";
+
+function errorResult(
+  error: DifErrorCode,
+  message?: string,
+): DIDResolutionResult {
   return {
     didResolutionMetadata: { error, ...(message ? { message } : {}) },
     didDocument: null,
@@ -60,6 +73,7 @@ const UNSUPPORTED_MARKERS = [
 const INVALID_MARKERS = [
   "don't match",
   "does not match",
+  "does not commit",
   "malformed",
   "wrong number of CREATE",
   "missing TERMINATE",
@@ -86,7 +100,7 @@ const TRANSPORT_MARKERS = [
  *  distinguish 404/410/500; the DIF interface has codes for what actually
  *  happened, so verification failures, transport failures and absent DIDs
  *  are reported distinctly. */
-function errorCodeFor(message: string): string {
+function errorCodeFor(message: string): DifErrorCode {
   if (UNSUPPORTED_MARKERS.some((marker) => message.includes(marker))) {
     return "representationNotSupported";
   }
@@ -97,6 +111,29 @@ function errorCodeFor(message: string): string {
     return "internalError";
   }
   return "notFound";
+}
+
+const keyHex = (key: string): string | null => {
+  const raw = decodeEd25519PublicKey(key);
+  return raw === null
+    ? null
+    : [...raw].map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+/** Spec §3.2.4 (#pubkey_identifier): a pubkey-form identifier binds iff its
+ *  raw key equals the DOCUMENT public key of some verified version (both
+ *  framings compared as raw bytes). The revocation key is NOT an identifier
+ *  form, so only the document half of each version's `docKey:revKey` counts.
+ *  Falls back to the current document's key (split[0]) if no version history
+ *  was recorded. */
+function pubkeyBindsToVersion(identifier: string, result: DidInfo): boolean {
+  const idHex = keyHex(identifier);
+  if (idHex === null) return false;
+  const documentKeys =
+    result.version_document_keys && result.version_document_keys.length > 0
+      ? result.version_document_keys
+      : result.doc.key.split(":").slice(0, 1);
+  return documentKeys.some((key) => keyHex(key) === idHex);
 }
 
 /** The composed document is an open shape; the DIF interface wants a
@@ -115,6 +152,22 @@ export interface OydResolverOptions {
   /** Follow a revoked DID's alsoKnownAs rotation (⇔ the reference
    *  resolver's FOLLOW_ALSOKNOWNAS, which defaults to true there). */
   followAlsoKnownAs?: boolean;
+  /** Verify each honored REVOKE's signature against the version's revocation
+   *  key (spec §4.2.3). **OFF by default = reference parity** (the reference
+   *  never verifies this). When ON, a revocation not authorized by the
+   *  revocation key is rejected (`invalidDidDocument`) rather than honored —
+   *  defense-in-depth for a verifier that will not trust issuance history.
+   *  Only the middle case changes: a valid revocation still deactivates, and
+   *  a repository/MITM still cannot forge one (hash commitment). */
+  strictRevocationSig?: boolean;
+  /** Override the resource bounds (defaults from security.ts). Exceeding one
+   *  is an `internalError` (a service limit), not `invalidDidDocument`. */
+  maxLogEntries?: number;
+  maxPreviousRefs?: number;
+  /** Repository-fetch SSRF policy (scheme list, host allowlist, private-host
+   *  toggle). Default: https-only, no private/loopback/link-local/mapped
+   *  hosts. A strict deployment should pin `allowHosts`. */
+  repositoryPolicy?: RepositoryPolicy;
 }
 
 /** ⇔ resolution_result (dids_controller.rb:180). DID-URL fragments are the
@@ -137,6 +190,19 @@ export async function resolutionResult(
   options.followAlsoKnownAs = config.followAlsoKnownAs === true;
   if (options.followAlsoKnownAs && resolveRotationTarget) {
     options.resolveRotationTarget = resolveRotationTarget;
+  }
+  // host opt-ins, all off by default so default resolution stays parity
+  if (config.strictRevocationSig === true) {
+    options.strict_revocation_sig = true;
+  }
+  if (config.maxLogEntries !== undefined) {
+    options.maxLogEntries = config.maxLogEntries;
+  }
+  if (config.maxPreviousRefs !== undefined) {
+    options.maxPreviousRefs = config.maxPreviousRefs;
+  }
+  if (config.repositoryPolicy !== undefined) {
+    options.repositoryPolicy = config.repositoryPolicy;
   }
 
   let result: DidInfo | null;
@@ -171,20 +237,24 @@ export async function resolutionResult(
       readMessage !== "" ? readMessage : undefined,
     );
   }
-  if (result.error !== 0) {
+  if (result.error !== DidError.NONE) {
     return errorResult(
-      result.error === 404 ? "notFound" : errorCodeFor(result.message),
+      result.error === DidError.NOT_FOUND
+        ? "notFound"
+        : errorCodeFor(result.message),
       result.message,
     );
   }
 
   // Identifier binding (REFERENCE-MAP §1): `/doc/{id}` serves the latest
   // document, so the REQUESTED identifier must be bound to the verified
-  // chain — it must appear as a version (a CREATE/UPDATE entry's doc) in
-  // the walked log, or, for a bare-public-key identifier, as the document
-  // key itself.
+  // chain. A hash-form identifier must appear as a version (a CREATE/UPDATE
+  // entry's doc) in the walked log. A pubkey-form identifier (spec §3.2.4)
+  // must equal a document key of SOME version in the verified history —
+  // compared on the raw 32 key bytes so the two framings (`0xed 0x20` /
+  // `0xed 0x01`) match, and across all versions so a rotated key still binds.
   const bound = isPubKeyIdentifier(didHash)
-    ? result.doc.key.split(":")[0] === didHash
+    ? pubkeyBindsToVersion(didHash, result)
     : (result.log ?? []).some(
         (el) =>
           (el.op === Op.CREATE || el.op === Op.UPDATE) &&
@@ -229,12 +299,83 @@ export async function resolutionResult(
   // ⇔ `Oydid.w3c(Marshal.load(Marshal.dump(result)), {})` — the deep copy
   // keeps w3c's in-place payload edits away from the metadata below
   const composed = w3c(structuredClone(result), {});
-  if (typeof composed["error"] === "string") {
-    return errorResult("representationNotSupported", composed["error"]);
+  if (!composed.ok) {
+    return errorResult("representationNotSupported", composed.error);
   }
-  const document = asDidDocument(composed);
+  const document = asDidDocument(composed.document);
   if (document === null) {
     return errorResult("invalidDidDocument");
+  }
+
+  // Identity invariant: a did:oyd must resolve to a document whose `id` IS
+  // the requested did:oyd — compared EXACTLY against `documentId(result)`
+  // (the percent-encoded DID URI, location suffix included), which is what
+  // legitimate composition always produces. The stored payload is untrusted —
+  // a payload shaped like a W3C DID document (w3c's already-a-DID
+  // passthrough) or one carrying its own `id` (the service merge) could
+  // otherwise set the output `id` to a foreign identifier, a bare non-DID
+  // string, or a same-key-different-location variant. The only license to
+  // carry a foreign `id` is an authenticated DID-Rotation actually followed
+  // through the host's drivers (`result.rotated`).
+  if (result.rotated !== true && document.id !== documentId(result)) {
+    return errorResult(
+      "invalidDidDocument",
+      "resolved document id does not match the requested DID",
+    );
+  }
+
+  // Authority invariant: the composed document must still carry the
+  // AUTHORITATIVE verification methods the verified log says control this
+  // DID — not merely the key bytes somewhere. Composition itself is kept
+  // byte-identical to the reference (its payload merge lets `inner` fields
+  // override), so a committed payload could otherwise REPLACE
+  // `verificationMethod` — or retain the real key bytes only in inert
+  // methods with foreign ids/controllers/types while the authoritative
+  // `#key-doc`/`#key-rev` disappear (reachable for pubkey-form ids, whose
+  // creator knows the id in advance). Guard, don't rewrite: unless an
+  // authenticated rotation was followed, each required method must exist
+  // with its exact id, this DID as controller, the profile's type, and the
+  // matching raw key bytes (so either Ed25519 framing passes); otherwise
+  // fail closed.
+  if (result.rotated !== true) {
+    const did = documentId(result);
+    const methods = Array.isArray(document.verificationMethod)
+      ? document.verificationMethod
+      : [];
+    // a null / non-object entry is a malformed document — and unguarded
+    // property access on it would THROW outside read()'s try/catch,
+    // rejecting the resolve promise instead of returning a DID error
+    const wellFormed = methods.every(
+      (entry) => typeof entry === "object" && entry !== null,
+    );
+    const authoritative: ReadonlyArray<[string, string]> = [
+      [did + "#key-doc", pubDocKey],
+      [did + "#key-rev", pubRevKey],
+    ];
+    const survives =
+      wellFormed &&
+      authoritative.every(([methodId, expectedKey]) => {
+        // EXACTLY one method may carry the authoritative id: with a
+        // duplicate (first occurrence valid, second attacker-controlled) a
+        // relying party's selection is ambiguous — different consumers pick
+        // different entries — so a duplicated id fails the invariant.
+        const matches = methods.filter((entry) => entry.id === methodId);
+        if (matches.length !== 1) return false;
+        const method = matches[0];
+        const expectedHex = keyHex(expectedKey);
+        return (
+          method.controller === did &&
+          method.type === "Ed25519VerificationKey2020" &&
+          expectedHex !== null &&
+          keyHex(String(method.publicKeyMultibase ?? "")) === expectedHex
+        );
+      });
+    if (!survives) {
+      return errorResult(
+        "invalidDidDocument",
+        "resolved document does not carry the DID's verified keys",
+      );
+    }
   }
 
   const didDocumentMetadata: Record<string, unknown> = {

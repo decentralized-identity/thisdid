@@ -3,9 +3,10 @@
  * `ruby-gem/lib/oydid.rb` from the OYDID reference, pinned at
  * OwnYourData/oydid@48a62c9, against spec v0.6 §3.2.1 (#resolution_result):
  * w3c, expand_verification_methods, version_ids, version_metadata,
- * document_id. Delegation keys are taken from the already fetched log
- * (getDelegatedPubKeysFromFullDidDocument) instead of the gem's network
- * re-read — same input log, same output keys (REFERENCE-MAP §5).
+ * document_id. Delegate-derived `capabilityDelegation` is deliberately not
+ * composed — delegation is not honored (REFERENCE-MAP §"Security hardening"
+ * 2). `w3c` returns a Result so an unsupported key codec is an explicit
+ * failure rather than an `{error}` sentinel in the open document bag.
  */
 import {
   getLocation,
@@ -21,6 +22,15 @@ export const ED25519_SECURITY_SUITE =
 
 /** A composed (open-shape) W3C DID document. */
 export type W3cDocument = Record<string, unknown>;
+
+/** The reasons document composition can fail (currently only a key codec
+ *  outside the supported ed25519 profile). */
+export type W3cComposeError = "unsupported key codec";
+
+/** Result of composing a document — success carries the document, failure a
+ *  specific reason. */
+export type W3cResult =
+  { ok: true; document: W3cDocument } | { ok: false; error: W3cComposeError };
 
 /** ⇔ expand_verification_methods (oydid.rb:1441) */
 export function expandVerificationMethods(
@@ -94,8 +104,14 @@ export function versionMetadata(didInfo: DidInfo): Record<string, string> {
   const asDatetime = (ts: unknown): string | null => {
     const seconds = Number(ts);
     if (!Number.isFinite(seconds)) return null;
+    // a finite `seconds` can still fall outside the Date range (±271821 yr),
+    // where getTime() is NaN and toISOString() THROWS a RangeError — this runs
+    // outside read()'s try/catch, so an out-of-range repository timestamp would
+    // reject resolution instead of returning a DID error. Guard first.
+    const date = new Date(seconds * 1000);
+    if (!Number.isFinite(date.getTime())) return null;
     // XML Datetime normalised to UTC, no sub-second precision
-    return new Date(seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    return date.toISOString().replace(/\.\d{3}Z$/, "Z");
   };
   const versionOf = (id: string): string =>
     stripLocation(String(id)).replace(/^did:oyd:/, "");
@@ -137,7 +153,7 @@ export function documentId(didInfo: DidInfo): string {
 export function w3c(
   didInfo: DidInfo,
   options: { location?: string },
-): W3cDocument {
+): W3cResult {
   // check if doc is already a W3C DID (DID Rotation payload)
   const payloadDoc = didInfo.doc?.doc as Record<string, unknown> | undefined;
   const isAlreadyW3cDid =
@@ -147,7 +163,7 @@ export function w3c(
     "@context" in payloadDoc &&
     "id" in payloadDoc &&
     String(payloadDoc.id).split(":")[0] === "did";
-  if (isAlreadyW3cDid) return payloadDoc as W3cDocument;
+  if (isAlreadyW3cDid) return { ok: true, document: payloadDoc };
 
   const did = documentId(didInfo);
   const didDoc = { ...didInfo.doc };
@@ -161,10 +177,10 @@ export function w3c(
 
   const oydContext: unknown[] = ["https://www.w3.org/ns/did/v1"];
   const [pubkey] = multiDecode(pubDocKey);
-  if (pubkey === null) return { error: "unsupported key codec" };
+  if (pubkey === null) return { ok: false, error: "unsupported key codec" };
   const code = pubkey.length === 34 ? pubkey[0] : (pubkey[0] << 8) | pubkey[1];
   if (code !== MULTICODEC_ED25519_PUB) {
-    return { error: "unsupported key codec" };
+    return { ok: false, error: "unsupported key codec" };
   }
   oydContext.push(ED25519_SECURITY_SUITE);
 
@@ -227,7 +243,7 @@ export function w3c(
       }
       merged["service"] = [first, ...serviceArray.slice(1)];
     }
-    return merged;
+    return { ok: true, document: merged };
   }
 
   let payload: unknown = null;
@@ -271,5 +287,5 @@ export function w3c(
           },
         ];
   }
-  return wd;
+  return { ok: true, document: wd };
 }

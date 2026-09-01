@@ -279,13 +279,17 @@ export function samplesFetch(
     const url = new URL(String(input));
     const path = url.pathname;
     const json = (value: unknown) => Promise.resolve(Response.json(value));
+    // read() fetches /log by the document's log-hash; dagUpdate fetches it by
+    // the version's did-hash — the stub serves the DID's log for either.
+    const logHash = (rec: { log: string }): string =>
+      rec.log.split("@")[0].split("%40")[0];
 
     if (url.hostname === LOCATION_HOST) {
       if (path === "/doc/" + LOCATION_HASH) return json(LOCATION_RECORD);
       if (path === "/doc_raw/" + LOCATION_HASH) {
         return json({ doc: LOCATION_RECORD, log: LOCATION_LOG });
       }
-      if (path === "/log/" + LOCATION_HASH) return json(LOCATION_LOG);
+      if (path.startsWith("/log/")) return json(LOCATION_LOG);
     }
 
     if (
@@ -302,7 +306,9 @@ export function samplesFetch(
     }
     if (
       path === "/log/" + UPDATED_OLD_HASH ||
-      path === "/log/" + UPDATED_NEW_HASH
+      path === "/log/" + UPDATED_NEW_HASH ||
+      path === "/log/" + logHash(UPDATED_NEW_RECORD) ||
+      path === "/log/" + logHash(UPDATED_OLD_RECORD)
     ) {
       return json(UPDATED_LOG);
     }
@@ -315,7 +321,12 @@ export function samplesFetch(
     if (path === "/doc_raw/" + REVOKED_HASH) {
       return json({ doc: REVOKED_RECORD, log: REVOKED_LOG });
     }
-    if (path === "/log/" + REVOKED_HASH) return json(REVOKED_LOG);
+    if (
+      path === "/log/" + REVOKED_HASH ||
+      path === "/log/" + logHash(REVOKED_RECORD)
+    ) {
+      return json(REVOKED_LOG);
+    }
 
     return Promise.resolve(
       Response.json({ error: "not found" }, { status: 404 }),

@@ -25,6 +25,7 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf lib",
     "test": "vitest run",
+    "test:live": "OYD_LIVE=1 vitest run",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\""
   },

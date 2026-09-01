@@ -13,6 +13,8 @@ export {
   expandVerificationMethods,
   ED25519_SECURITY_SUITE,
   type W3cDocument,
+  type W3cResult,
+  type W3cComposeError,
 } from "./w3c.js";
 export {
   canonical,
@@ -32,12 +34,15 @@ export {
   stripLocation,
   verify,
   DEFAULT_LOCATION,
+  DidError,
   LOG_HASH_OPTIONS,
   MULTICODEC_ED25519_PUB,
   MULTICODEC_SHA2_256,
+  type DidErrorCode,
   type DidInfo,
   type DocRecord,
   type LogEntry,
+  type OpCode,
   type OydOptions,
   type Tuple,
 } from "./basic.js";

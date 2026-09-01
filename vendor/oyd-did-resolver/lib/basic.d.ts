@@ -28,6 +28,18 @@ export interface OydOptions {
     followAlsoKnownAs?: boolean;
     log_complete?: boolean;
     strict_create_sig?: boolean;
+    /** Verify each honored REVOKE's signature against the version's revocation
+     *  key before accepting deactivation or a REVOKE-based UPDATE (spec §4.2.3
+     *  #verify_signature). OFF by default = reference parity (the reference
+     *  never verifies this); a host opts in via
+     *  `getResolver({ strictRevocationSig: true })`. */
+    strict_revocation_sig?: boolean;
+    /** Resource-bound overrides (defaults: `MAX_LOG_ENTRIES` /
+     *  `MAX_PREVIOUS_PER_ENTRY` from security.ts). A deployment may raise or
+     *  lower them; exceeding one is an `internalError` (a service limit), never
+     *  `invalidDidDocument`. */
+    maxLogEntries?: number;
+    maxPreviousRefs?: number;
     doc_location?: string;
     log_location?: string;
     location?: string;
@@ -75,21 +87,47 @@ export declare function percentEncode(did: string): string;
 export declare function stripLocation(id: string): string;
 /** ⇔ get_location (basic.rb:1237) */
 export declare function getLocation(id: string): string;
-/** Decode a multibase public key to its raw 32 Ed25519 bytes, validating
- *  BOTH the multicodec code AND the declared length byte (finding 7/8: the
- *  reference accepts any 34-byte `0xed…` value and ignores the length byte).
- *  Returns null for anything that is not a well-formed Ed25519 key —
- *  including the p256 and other codecs, which are not part of the supported
- *  profile (REFERENCE-MAP §4). */
+/** Decode a multibase public key to its raw 32 Ed25519 bytes. Validates the
+ *  multicodec code (`0xed`), the total length (34), and that the framing
+ *  byte is one OYDID uses — matching the reference, which works with both
+ *  encodings (finding 7/8; REFERENCE-MAP §4). Returns null for p256 and
+ *  other codecs (outside the supported profile). */
 export declare function decodeEd25519PublicKey(publicKey: string): Uint8Array | null;
-/** The 34-byte multicodec-framed form of a validated Ed25519 key (for the
- *  `publicKeyHex` metadata field, which the reference emits code+length
- *  included). */
+/** The decoded key as hex for the `publicKeyHex` metadata field. The
+ *  reference emits the ORIGINAL decoded bytes
+ *  (`multi_decode(key).unpack('H*')`), framing byte included — so a
+ *  `0xed 0x20` key is `ed20…` and a `0xed 0x01` key is `ed01…`; this
+ *  preserves that byte rather than re-framing. */
 export declare function ed25519KeyFramedHex(publicKey: string): string | null;
 /** ⇔ verify (basic.rb:494, ed25519-pub branch) · spec §4.2.3
  *  #verify_signature. Strictly validates the key framing (finding 7); the
  *  p256-pub branch is not ported (REFERENCE-MAP §4). */
 export declare function verify(message: string, signature: string, publicKey: string): Promise<Tuple<boolean>>;
+/** Log operation codes (spec §4.1 #log_ops; DELEGATE is implementation-
+ *  defined in the reference, which compares raw integers with a
+ *  `# TERMINATE`-style comment on each). Owned here alongside `LogEntry`;
+ *  re-exported from log.ts. */
+export declare const Op: {
+    readonly TERMINATE: 0;
+    readonly REVOKE: 1;
+    readonly CREATE: 2;
+    readonly UPDATE: 3;
+    readonly CLONE: 4;
+    readonly DELEGATE: 5;
+};
+/** The set of valid operation codes — the closed union a validated
+ *  `LogEntry.op` inhabits. */
+export type OpCode = (typeof Op)[keyof typeof Op];
+/** `DidInfo.error` states (⇔ the reference's numeric `currentDID["error"]`;
+ *  a closed union rather than bare magic numbers). */
+export declare const DidError: {
+    readonly NONE: 0;
+    readonly INVALID: 1;
+    readonly RETRIEVAL: 2;
+    readonly NOT_FOUND: 404;
+    readonly REVOKED: 410;
+};
+export type DidErrorCode = (typeof DidError)[keyof typeof DidError];
 /** The resolution state `Oydid.read` builds and `dag_update` walks
  *  (⇔ currentDID, oydid.rb:78). Mutated in place, exactly as the
  *  reference mutates its hash. */
@@ -102,8 +140,19 @@ export interface DidInfo {
     log: LogEntry[];
     doc_log_id: number | null;
     termination_log_id: number | null;
-    error: number;
+    error: DidErrorCode;
     message: string;
+    /** Multibase DOCUMENT keys seen across every verified version during the
+     *  walk — the set a pubkey-form identifier must match (spec §3.2.4
+     *  #pubkey_identifier). Revocation keys are excluded: the pubkey form is
+     *  defined on the document key only. */
+    version_document_keys?: string[];
+    /** True only when an authenticated DID-Rotation target was actually
+     *  resolved through the host's drivers (followAlsoKnownAs). It licenses the
+     *  composed document to carry the target's (foreign) `id`; without it the
+     *  resolver enforces `document.id === requested did:oyd`, so a payload that
+     *  merely *looks* like a DID document cannot spoof a foreign identifier. */
+    rotated?: boolean;
 }
 /** One stored DID document record (`{doc, key, log}`; spec §2 #format). */
 export interface DocRecord {
@@ -111,13 +160,19 @@ export interface DocRecord {
     key: string;
     log: string;
 }
-/** One provenance-log entry (spec §4.1 #log_ops). */
+/** One provenance-log entry (spec §4.1 #log_ops). `op` is a validated
+ *  `OpCode` — `parseLogEntries` rejects unknown codes as malformed. */
 export interface LogEntry {
     ts: number;
-    op: number;
+    op: OpCode;
     doc: string;
+    /** Repository entries may carry `sig`/`previous` as null or omit
+     *  `previous` entirely; the resolver supports that representation as-is
+     *  (every consumer treats a missing `previous` as `[]`), and it is
+     *  preserved rather than normalized so hash commitments over the entry
+     *  match byte-for-byte (see parseDocRecord's note). */
     sig: string | null;
-    previous: string[];
+    previous?: string[] | null;
     [extra: string]: unknown;
 }
 /** ⇔ getDelegatedPubKeysFromFullDidDocument (basic.rb:366). Retained for
