@@ -23,7 +23,7 @@ export interface OydResolverOptions {
     /** Verify each honored REVOKE's signature against the version's revocation
      *  key AND its `doc` commitment to the revoked version's `{doc, key}`
      *  (spec §4.1 / §4.2.3). **ON by default** — the method author ruled these
-     *  checks mandatory (D2/D3): the reference is adopting them as its own
+     *  checks mandatory: the reference is adopting them as its own
      *  default, and every one of the 1,117 production revocations passes both,
      *  so nothing legitimate breaks. Set `false` to opt OUT into the legacy
      *  reference-parity behavior (hash-commitment trust only) — useful for
@@ -31,7 +31,7 @@ export interface OydResolverOptions {
     strictRevocationSig?: boolean;
     /** Bind a pubkey-form (`z6M…`) identifier to a document key of the DID's
      *  verified history before serving it. **OFF by default** — the method
-     *  author ruled (D8) that the pubkey form is a repository lookup, NOT
+     *  author ruled that the pubkey form is a repository lookup, NOT
      *  self-certifying, so the default follows the reference; callers needing
      *  self-certification should use the hash form. Opting in rejects
      *  repository-trust-only aliases (the `z6MkrJVn…` shape) as

@@ -19,23 +19,27 @@ export declare class Dag {
     addVertex(id: number): Vertex;
     addEdge(from: Vertex, to: Vertex): void;
 }
-/** Collapse byte-identical replayed log entries, keeping the FIRST
- *  occurrence (D4 corollary). A duplicate-laden log from a source the
- *  resolver does not control — a custom `%40` repository, a hostile
- *  mirror — would otherwise deny resolution: a replayed CREATE or tangling
- *  TERMINATE trips the structural counts (as it does in the pinned
- *  reference's `dag_did`). The production repository's append endpoint
- *  already rejects byte-identical duplicates server-side (author-confirmed:
- *  `Log.stored?` + a UNIQUE index on the entry hash), and the author is
- *  adding this same collapse to the reference `dag_did` as defense-in-depth
- *  — so this guards the untrusted-source case, not the honest store. A
- *  byte-identical entry IS the same logical record — entries are
- *  content-addressed by the same full-entry hash that `previous` references
- *  resolve to — so collapsing repeats preserves every hash and signature
- *  property while removing the denial-of-service lever. Entries that differ
- *  anywhere (including `previous`) keep distinct hashes and are NOT
- *  collapsed, so a genuine fork (two distinct valid UPDATEs) still fails
- *  closed as ambiguous. */
+/** Collapse PROTOCOL-IDENTICAL repeated log entries, keeping the FIRST
+ *  occurrence (a corollary of the author's succession ruling: a duplicate-laden log must not deny
+ *  resolution). Keyed by the canonical five-field log-entry hash
+ *  (`ts`, `op`, `doc`, `sig`, `previous` — the same `logSlice` identity that
+ *  `previous` references and the duplicate-hash invariant resolve on), so a
+ *  repeat IS the same logical record and collapsing it preserves every hash
+ *  and signature property.
+ *
+ *  Two consequences of keying on those five fields, both deliberate:
+ *  entries differing WITHIN them stay distinct (a genuine fork — two valid
+ *  UPDATEs — still fails closed as ambiguous), while entries differing only
+ *  in extra properties DO collapse. The latter is the point: such a variant
+ *  would collide with the original in every structural check anyway, so
+ *  keying on anything narrower (e.g. raw bytes) would leave a
+ *  variant-repeat gap open. Keep-first decides which representation
+ *  survives.
+ *
+ *  This guards logs from sources the resolver does not control (a custom
+ *  `%40` repository, a mirror); the production repository rejects duplicate
+ *  entries server-side, and the same collapse is being adopted in the
+ *  reference as defense-in-depth. */
 export declare function dedupeLogEntries(logs: LogEntry[]): Promise<LogEntry[]>;
 /** ⇔ match_log_did? (log.rb:18) · spec §4.2.3 #verify_signature */
 export declare function matchLogDid(log: LogEntry, doc: {

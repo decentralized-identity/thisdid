@@ -71,11 +71,10 @@ describe("update lifecycle authorization (finding 1)", () => {
     expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
   });
 
-  it("junk op=3 appended to the log cannot deny service (D4 ruling)", async () => {
-    // the log endpoint is unauthenticated: anyone can append an unsigned
-    // UPDATE referencing the revocation. It must be IGNORED — not picked
-    // (first-match) and not an error (naive more-than-one ⇒ error) — so the
-    // genuine chain still resolves to v2.
+  it("junk op=3 appended to the log cannot deny service (author's succession ruling)", async () => {
+    // a log may carry an unsigned UPDATE referencing the revocation. It must
+    // be IGNORED — not picked (first-match) and not an error (naive
+    // more-than-one ⇒ error) — so the genuine chain still resolves to v2.
     const chain = await mintUpdateChain({ updateSigner: "v1doc" });
     const junked = async (input: RequestInfo | URL) => {
       const response = await chain.fetch(input);
@@ -104,13 +103,12 @@ describe("update lifecycle authorization (finding 1)", () => {
   });
 
   it.each(["create", "terminate", "revoke", "update"] as const)(
-    "byte-identical replay of an existing %s entry cannot deny resolution",
+    "a protocol-identical repeat of an existing %s entry cannot deny resolution",
     async (pick) => {
-      // an unauthenticated append of a COPY of an existing entry must be
-      // collapsed, not fatal — without dedup a replayed CREATE trips the
-      // CREATE count and a replayed tangling TERMINATE the terminate count
-      // (as they do in the pinned reference), and the rest trip the
-      // duplicate-hash rejection
+      // a log carrying a COPY of an existing entry (five-field-identical)
+      // must be collapsed, not fatal — otherwise the structural counts and
+      // the duplicate-hash invariant turn a harmless repeat into a
+      // resolution failure
       const chain = await mintUpdateChain({ updateSigner: "v1doc" });
       const dup = async (input: RequestInfo | URL) => {
         const response = await chain.fetch(input);
@@ -135,7 +133,7 @@ describe("update lifecycle authorization (finding 1)", () => {
     },
   );
 
-  it("rejects TWO valid UPDATE successors as ambiguous (D4 ruling)", async () => {
+  it("rejects TWO valid UPDATE successors as ambiguous (author's succession ruling)", async () => {
     const chain = await mintUpdateChain({
       updateSigner: "v1doc",
       duplicateSuccessor: true,
@@ -497,11 +495,11 @@ describe("resource bounds (finding 5)", () => {
   );
 });
 
-describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per D2/D3)", () => {
+describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per the author's rulings)", () => {
   const parityResolver = () =>
     new Resolver(getResolver({ strictRevocationSig: false }));
 
-  it("DEFAULT rejects a revocation not signed by the revocation key (D2 ruling)", async () => {
+  it("DEFAULT rejects a revocation not signed by the revocation key (author's ruling)", async () => {
     const did = await mintRevoked({ ok: true }, { badRevSig: true });
     vi.stubGlobal("fetch", vi.fn(did.fetch));
     const result = await resolver().resolve(did.did);
@@ -511,7 +509,7 @@ describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per D2/D
     );
   });
 
-  it("DEFAULT rejects a rev-key-signed REVOKE whose doc does NOT commit to the revoked version (D3 ruling)", async () => {
+  it("DEFAULT rejects a rev-key-signed REVOKE whose doc does NOT commit to the revoked version (author's ruling)", async () => {
     // valid revocation-key signature, but `doc` is the hash of OTHER content
     // — spec §4.1 requires REVOKE.doc = hash of the revoked version's
     // {doc, key} (preimage confirmed by the method author; all 1,117
@@ -549,7 +547,7 @@ describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per D2/D
 
   it("the default is UNIVERSAL: a direct low-level read(did, {}) call still verifies", async () => {
     // the exported low-level API must not silently bypass the mandatory
-    // D2/D3 checks — omitting the option means ON; only an explicit
+    // mandatory revocation checks — omitting the option means ON; only an explicit
     // `strict_revocation_sig: false` opts out
     const did = await mintRevoked({ ok: true }, { badRevSig: true });
     vi.stubGlobal("fetch", vi.fn(did.fetch));
@@ -696,7 +694,7 @@ describe("repository deactivation assertion is bound to HTTP 410 (finding 1)", (
     });
   const CANARY = "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh";
 
-  it("confirms a repository 410 'revoked' assertion from the records (D10 ruling)", async () => {
+  it("confirms a repository 410 'revoked' assertion from the records (author's ruling)", async () => {
     // the 410 is a HINT: /doc answers 410, but /doc_raw and /log still serve
     // the revoked DID's records — the driver walks them and reports
     // deactivated only on cryptographic confirmation

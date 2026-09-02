@@ -25,7 +25,7 @@ real-world / regression layer on top of it.
 | `did:oyd:zQmNauTUUdkpi5TcrTZ2524SKM8dJAzuuw4xfW13iHrtY1W%40did2.data-container.net` | non-default location              |
 | `did:oyd:zQmSE1hzumtZ7AoK1qhHf4t5kiKsujMsJSHqoXtWrdd7K7W`                           | updated DPP DID, varint key frame |
 | `did:oyd:zQmfEb3KgYZjZUPLTHPmFPdcV6peF5itB5NmJ9N6gaxxE8K`                           | same chain, updated identifier    |
-| `did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2`                          | pubkey-form alias (D8 ruling)     |
+| `did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2`                          | pubkey-form alias (see below)     |
 
 For each, `didDocument` **and** `didDocumentMetadata` match the reference
 field-for-field (deep structural equality via `toEqual`, not raw-byte
@@ -42,13 +42,13 @@ resolved only after the key-framing fix below — their keys are varint-framed
 | --------------------------------------------------------- | ------------------------------------ |
 | `did:oyd:zQmQMvhHrccgcP2XzE2rM4E8MDx9P8D5FWPdDF1DTPikF4F` | revoked → `deactivated: true` (both) |
 
-## The `z6MkrJVn…` case — settled by the author's D8 ruling
+## The `z6MkrJVn…` case — settled by the method author
 
 `did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2` was originally
 **excluded** from this corpus: its embedded key is in no document version of
 its own DID, and this driver's then-default §3.2.4 binding rejected what the
-reference resolves. The question went to the method author
-(SPEC-DIVERGENCES.md D8) and the ruling settled it: **the pubkey form is a
+reference resolves. The question went to the method author during close
+collaboration, and their ruling settled it: **the pubkey form is a
 repository lookup, explicitly not self-certifying** — callers needing
 self-certification use the hash form — and this id is a pre-spec artifact,
 **the only such row in the entire production store**. The spec is being
@@ -59,21 +59,13 @@ offline and deterministically (see the end of this section). The forensics
 below are kept as the record that motivated the ruling.
 
 **What the DID is.** A _pubkey-form_ identifier — the id embeds an Ed25519
-public key (`0xed 0x01` varint framing) rather than a document hash:
+public key (`0xed 0x01` varint framing) rather than a document hash.
 
-```
-identifier key  b00d8d938e7f773d51565aad36a623f5344f7f5d1960f9cf3e8e12620ea2810f
-```
-
-**What it resolves to.** The reference returns a single-version document whose
-two keys (multihash-framed, `0xed 0x20`) are:
-
-```
-#key-doc  f71e7d7d6d1723d4dd248c4a4fd209e1c1f6e886f99d2bea7f0dcdee79f8e285
-#key-rev  0a3be56be8218c94a6a80e73f8d7fb289600c6c1fe7a0d6a5208a255775e91ee
-```
-
-and an `alsoKnownAs` pointing to `did:oyd:zQmYSydHP5A1nRuqMcAoxpb971mfJrKJxpGJPEsxc5mw5Wt`.
+**What it resolves to.** A single-version document whose two keys are
+multihash-framed (`0xed 0x20`), plus an `alsoKnownAs` pointing to
+`did:oyd:zQmYSydHP5A1nRuqMcAoxpb971mfJrKJxpGJPEsxc5mw5Wt`. (The byte-level
+key comparison is kept as private audit evidence rather than published here;
+it is reproducible from the recipe at the end of this section.)
 
 **The finding.** Normalising the framing away and comparing raw bytes, the
 identifier's key (`b00d…`) equals **neither** document key, and the DID is
@@ -103,7 +95,7 @@ exactly as the reference resolves it, and under
 rev-key-addressed id are rejected `invalidDidDocument`. Both directions of
 the §3.2.4 binding stay network-free regression tests.
 
-**The former open questions — answered by the ruling (D8):** it IS a
+**The former open questions — answered by the ruling:** it IS a
 pre-spec artifact (an alias minted from a key that is not the document's),
 kept resolvable for compatibility; there is **exactly one** such row in the
 entire production store; and the binding check is a legitimate strict
@@ -138,6 +130,6 @@ the parity DIDs above (and, for the framing, an offline regression test):
 Re-run `pnpm run test:live`. Every DID in the corpus is expected to pass; a
 `PARITY` entry that starts failing means the reference output changed (or a
 regression). The corpus was last re-validated against the gem 0.9.4
-reference deployment (post-rulings). Candidate addition: the DID whose junk
-op=5 entry used to 500 the reference (`zQmSVzAL…` — full identifier pending
-from the author) once confirmed resolving on both sides.
+reference deployment (post-rulings). One further DID is a candidate for the
+parity table once the author confirms its identifier and it resolves on both
+sides.

@@ -67,23 +67,27 @@ function logSlice(entry: LogEntry): Record<string, unknown> {
   return slice;
 }
 
-/** Collapse byte-identical replayed log entries, keeping the FIRST
- *  occurrence (D4 corollary). A duplicate-laden log from a source the
- *  resolver does not control — a custom `%40` repository, a hostile
- *  mirror — would otherwise deny resolution: a replayed CREATE or tangling
- *  TERMINATE trips the structural counts (as it does in the pinned
- *  reference's `dag_did`). The production repository's append endpoint
- *  already rejects byte-identical duplicates server-side (author-confirmed:
- *  `Log.stored?` + a UNIQUE index on the entry hash), and the author is
- *  adding this same collapse to the reference `dag_did` as defense-in-depth
- *  — so this guards the untrusted-source case, not the honest store. A
- *  byte-identical entry IS the same logical record — entries are
- *  content-addressed by the same full-entry hash that `previous` references
- *  resolve to — so collapsing repeats preserves every hash and signature
- *  property while removing the denial-of-service lever. Entries that differ
- *  anywhere (including `previous`) keep distinct hashes and are NOT
- *  collapsed, so a genuine fork (two distinct valid UPDATEs) still fails
- *  closed as ambiguous. */
+/** Collapse PROTOCOL-IDENTICAL repeated log entries, keeping the FIRST
+ *  occurrence (a corollary of the author's succession ruling: a duplicate-laden log must not deny
+ *  resolution). Keyed by the canonical five-field log-entry hash
+ *  (`ts`, `op`, `doc`, `sig`, `previous` — the same `logSlice` identity that
+ *  `previous` references and the duplicate-hash invariant resolve on), so a
+ *  repeat IS the same logical record and collapsing it preserves every hash
+ *  and signature property.
+ *
+ *  Two consequences of keying on those five fields, both deliberate:
+ *  entries differing WITHIN them stay distinct (a genuine fork — two valid
+ *  UPDATEs — still fails closed as ambiguous), while entries differing only
+ *  in extra properties DO collapse. The latter is the point: such a variant
+ *  would collide with the original in every structural check anyway, so
+ *  keying on anything narrower (e.g. raw bytes) would leave a
+ *  variant-repeat gap open. Keep-first decides which representation
+ *  survives.
+ *
+ *  This guards logs from sources the resolver does not control (a custom
+ *  `%40` repository, a mirror); the production repository rejects duplicate
+ *  entries server-side, and the same collapse is being adopted in the
+ *  reference as defense-in-depth. */
 export async function dedupeLogEntries(logs: LogEntry[]): Promise<LogEntry[]> {
   const seen = new Set<string>();
   const unique: LogEntry[] = [];
@@ -357,10 +361,10 @@ export async function dagUpdate(
   // be installed if its hash is recorded here.
   const verifiedUpdateHashes = new Set<string>();
   // UPDATE candidates that referenced a revocation but FAILED signature
-  // verification (D4 ruling): attacker-appendable junk — the log endpoint is
-  // unauthenticated — so the walk SKIPS them rather than erroring (a hard
-  // rejection would be a denial-of-service lever). Distinct from an UPDATE
-  // that was never any revocation's candidate, which stays a hard rejection.
+  // verification (author's succession ruling): a log may carry such junk, so the walk SKIPS
+  // them rather than erroring (a hard rejection would be a
+  // denial-of-service lever). Distinct from an UPDATE that was never any
+  // revocation's candidate, which stays a hard rejection.
   const junkUpdateHashes = new Set<string>();
   let docLocation = options.doc_location ?? "";
   let initialDid = String(currentDID.did).replace(/^did:oyd:/, "");
@@ -381,10 +385,11 @@ export async function dagUpdate(
       case Op.CREATE:
       case Op.UPDATE: {
         if (el.op === Op.UPDATE) {
-          // UPDATE authorization (finding 1 + D4 ruling), checked BEFORE any
+          // UPDATE authorization (finding 1 + the author's succession ruling),
+          // checked BEFORE any
           // fetch so junk cannot cost a round-trip or a retrieval error:
           // - a hash recorded as a NON-surviving revocation candidate is
-          //   attacker-appendable junk — SKIPPED, never an error;
+          //   an unverifiable candidate — SKIPPED, never an error;
           // - the verified valid successor is installed below;
           // - an UPDATE that was never any revocation's candidate — e.g.
           //   one spliced directly onto CREATE — is rejected, not trusted.
@@ -416,7 +421,7 @@ export async function dagUpdate(
         }
         const doc = docResult[0].doc;
         if (el.op === Op.CREATE) {
-          // Tolerant of a missing CREATE signature unless strict — D1 ruling:
+          // Tolerant of a missing CREATE signature unless strict — per the author's ruling:
           // the tolerance is PERMANENT (1,643 production CREATEs predate the
           // Client-Managed-Secret-Mode signature collection phase and carry
           // none; ⇔ the reference's comment, log.rb:314). A signature that
@@ -516,8 +521,9 @@ export async function dagUpdate(
           currentDID.message = "revocation log unavailable";
           return currentDID;
         }
-        // replay guard: collapse byte-identical appended copies before the
-        // candidate scan (a replayed valid UPDATE must count once, not twice)
+        // repeat guard: collapse protocol-identical entries (five-field
+        // hash) before the candidate scan — a repeated valid UPDATE must
+        // count once, not twice
         const logArray = await dedupeLogEntries(rawRevocationLog);
         for (const logEl of logArray) {
           const structure: LogEntry = { ...logEl };
@@ -535,7 +541,7 @@ export async function dagUpdate(
         }
 
         if (revocationRecord !== null) {
-          // MANDATORY BY DEFAULT (author rulings D2/D3, adopted by the
+          // MANDATORY BY DEFAULT (author's revocation rulings, adopted by the
           // reference as of gem 0.9.4): prove the revocation was AUTHORIZED
           // by the version's revocation key and COMMITS to the version it
           // revokes, not merely that it was precommitted. The check runs
@@ -564,7 +570,7 @@ export async function dagUpdate(
             }
             // …and the REVOKE must COMMIT to the version it revokes: spec
             // §4.1 defines op=1 `doc` as the hash of the version's document
-            // and key. Preimage CONFIRMED by the method author (D3 ruling —
+            // and key. Preimage CONFIRMED by the method author (
             // all 1,117 production revocations match, zero exceptions):
             // multi_hash(canonical({doc, key})) of the revoked version's
             // record, with the digest and encoding derived FROM THE STORED
@@ -599,14 +605,14 @@ export async function dagUpdate(
             }
           }
           // the revocation is published — only a VALID UPDATE building on
-          // it keeps the DID alive. D4 ruling: collect EVERY op=3 whose
+          // it keeps the DID alive. Author's succession ruling: collect EVERY op=3
+          // whose
           // `previous` references this revocation, verify each signature
           // against the superseded version's OWN document key (delegation is
-          // not honored — and per D7, the reference itself adopted exactly
-          // this rule in gem 0.9.4 after the takeover it permitted was
-          // demonstrated), then require EXACTLY ONE valid survivor. An
-          // invalid candidate is junk anyone could append to the
-          // unauthenticated log endpoint — ignored, never an error
+          // not honored — and the reference adopted exactly this rule
+          // in gem 0.9.4), then require EXACTLY ONE valid survivor. An
+          // invalid candidate is junk a log may carry — ignored, never an
+          // error
           // (first-match or naive more-than-one ⇒ error would both hand
           // attackers a denial-of-service). Two VALID survivors are a
           // genuine fork: ambiguous, fail closed.

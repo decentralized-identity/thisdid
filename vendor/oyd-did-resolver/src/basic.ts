@@ -37,14 +37,14 @@ export interface OydOptions {
   /** Verify each honored REVOKE's signature against the version's revocation
    *  key AND its `doc` commitment to the revoked `{doc, key}` before
    *  accepting deactivation or a REVOKE-based UPDATE (spec §4.1 / §4.2.3).
-   *  ON unless EXPLICITLY set to `false` — the author's D2/D3 rulings made
+   *  ON unless EXPLICITLY set to `false` — the author's revocation rulings made
    *  the checks mandatory, so the default is universal: omitting the field
    *  (e.g. a direct `read(did, {})` caller) still verifies. `false` opts out
    *  into legacy pre-0.9.4 reference-parity behavior
    *  (`getResolver({ strictRevocationSig: false })`). */
   strict_revocation_sig?: boolean;
   /** Bind a pubkey-form identifier to a document key of the verified
-   *  history (spec §3.2.4). OFF by default — the author's D8 ruling: the
+   *  history (spec §3.2.4). OFF by default — per the author's ruling: the
    *  pubkey form is a repository lookup, not self-certifying; opt in via
    *  `getResolver({ strictPubkeyBinding: true })`. */
   strict_pubkey_binding?: boolean;

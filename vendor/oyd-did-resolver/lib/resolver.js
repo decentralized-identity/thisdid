@@ -107,10 +107,10 @@ export async function resolutionResult(did, config = {}, resolveRotationTarget) 
     if (options.followAlsoKnownAs && resolveRotationTarget) {
         options.resolveRotationTarget = resolveRotationTarget;
     }
-    // strict revocation checks default ON (author's D2/D3 rulings — mandatory
+    // strict revocation checks default ON (author's rulings — mandatory
     // intent, zero production breakage); `false` opts out into legacy parity
     options.strict_revocation_sig = config.strictRevocationSig !== false;
-    // pubkey binding defaults OFF (author's D8 ruling — the pubkey form is a
+    // pubkey binding defaults OFF (author's ruling — the pubkey form is a
     // repository lookup, not self-certifying); an explicit opt-in binds
     if (config.strictPubkeyBinding === true) {
         options.strict_pubkey_binding = true;
@@ -165,7 +165,7 @@ export async function resolutionResult(did, config = {}, resolveRotationTarget) 
     // compared on the raw 32 key bytes so the two framings (`0xed 0x20` /
     // `0xed 0x01`) match, and across all versions so a rotated key still binds.
     // Pubkey-form binding is applied only under `strictPubkeyBinding` — the
-    // author's D8 ruling: the pubkey form is a repository lookup, NOT
+    // per the author's ruling: the pubkey form is a repository lookup, NOT
     // self-certifying (callers needing self-certification use the hash form),
     // so the DEFAULT follows the reference. Hash-form identifiers stay bound
     // to the verified chain unconditionally (they ARE self-certifying).

@@ -40,7 +40,7 @@ export async function read(did, options) {
         documentRecord = documentResult[0];
     }
     else if (documentResult[1] === "revoked") {
-        // D10 ruling: a repository 410 is a HINT, not proof — an independent
+        // author's ruling: a repository 410 is a HINT, not proof — an independent
         // verifier SHOULD confirm the published REVOKE cryptographically, and it
         // can, because `/doc_raw` and `/log` still serve a revoked DID's records
         // (only `/doc` answers 410). Fetch the version-exact record and continue
@@ -101,11 +101,10 @@ export async function read(did, options) {
     const [rawLogArray, logMessage] = await retrieveLog(logHash, logLocation, options);
     if (rawLogArray === null)
         return [null, logMessage];
-    // replay guard (D4 corollary): collapse byte-identical appended copies of
-    // existing entries before any counting or graph work — an unauthenticated
-    // replay must not deny resolution (a duplicated CREATE or tangling
-    // TERMINATE would otherwise trip the structural counts, as it does in the
-    // pinned reference)
+    // repeat guard (author's succession ruling): collapse protocol-identical entries (the
+    // canonical five-field log-entry hash) before any counting or graph work,
+    // so a duplicate-laden log from an uncontrolled source cannot deny
+    // resolution — see `dedupeLogEntries`
     const logArray = await dedupeLogEntries(rawLogArray);
     const [dag, createIndex, terminateIndex, dagMessage] = await dagDid(logArray, options);
     if (dag === null || createIndex === null || terminateIndex === null) {

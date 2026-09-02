@@ -156,7 +156,7 @@ export interface OydResolverOptions {
   /** Verify each honored REVOKE's signature against the version's revocation
    *  key AND its `doc` commitment to the revoked version's `{doc, key}`
    *  (spec §4.1 / §4.2.3). **ON by default** — the method author ruled these
-   *  checks mandatory (D2/D3): the reference is adopting them as its own
+   *  checks mandatory: the reference is adopting them as its own
    *  default, and every one of the 1,117 production revocations passes both,
    *  so nothing legitimate breaks. Set `false` to opt OUT into the legacy
    *  reference-parity behavior (hash-commitment trust only) — useful for
@@ -164,7 +164,7 @@ export interface OydResolverOptions {
   strictRevocationSig?: boolean;
   /** Bind a pubkey-form (`z6M…`) identifier to a document key of the DID's
    *  verified history before serving it. **OFF by default** — the method
-   *  author ruled (D8) that the pubkey form is a repository lookup, NOT
+   *  author ruled that the pubkey form is a repository lookup, NOT
    *  self-certifying, so the default follows the reference; callers needing
    *  self-certification should use the hash form. Opting in rejects
    *  repository-trust-only aliases (the `z6MkrJVn…` shape) as
@@ -201,10 +201,10 @@ export async function resolutionResult(
   if (options.followAlsoKnownAs && resolveRotationTarget) {
     options.resolveRotationTarget = resolveRotationTarget;
   }
-  // strict revocation checks default ON (author's D2/D3 rulings — mandatory
+  // strict revocation checks default ON (author's rulings — mandatory
   // intent, zero production breakage); `false` opts out into legacy parity
   options.strict_revocation_sig = config.strictRevocationSig !== false;
-  // pubkey binding defaults OFF (author's D8 ruling — the pubkey form is a
+  // pubkey binding defaults OFF (author's ruling — the pubkey form is a
   // repository lookup, not self-certifying); an explicit opt-in binds
   if (config.strictPubkeyBinding === true) {
     options.strict_pubkey_binding = true;
@@ -268,7 +268,7 @@ export async function resolutionResult(
   // compared on the raw 32 key bytes so the two framings (`0xed 0x20` /
   // `0xed 0x01`) match, and across all versions so a rotated key still binds.
   // Pubkey-form binding is applied only under `strictPubkeyBinding` — the
-  // author's D8 ruling: the pubkey form is a repository lookup, NOT
+  // per the author's ruling: the pubkey form is a repository lookup, NOT
   // self-certifying (callers needing self-certification use the hash form),
   // so the DEFAULT follows the reference. Hash-form identifiers stay bound
   // to the verified chain unconditionally (they ARE self-certifying).

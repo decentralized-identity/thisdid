@@ -20,11 +20,10 @@ what the artifacts here support:
   function (the map below), as groundwork for a future formal comparison;
 - every departure from the reference is deliberate and listed under
   **Deliberate deviations** — several are externally observable, which is
-  precisely why they were put to the method author for adjudication — see
-  [SPEC-DIVERGENCES.md](./SPEC-DIVERGENCES.md), whose D1–D11 questions have
-  now ALL been ruled on (the author confirmed the findings, fixed a real
-  takeover defect the report surfaced, and shipped the changes as gem 0.9.4
-  on the live reference);
+  precisely why they were put to the method author for adjudication, in a
+  divergence report shared with them during close collaboration. Every
+  question in it has been ruled on: the author acted on the findings and
+  shipped the resulting changes as gem 0.9.4 on the live reference;
 - within the supported profile (ed25519 / sha2-256 / base58btc), the
   package is **behaviorally compatible with the reference resolver for the
   captured vectors**: the spec's own published samples — single-version,
@@ -40,12 +39,11 @@ what the artifacts here support:
   would accept. All supported valid golden vectors resolve unchanged.
   (Delegation is not honored (§2) — originally a deliberate departure from
   the reference, and since gem 0.9.4 the reference's own behavior too: the
-  author confirmed unauthenticated delegation was a takeover defect and
-  adopted this driver's rule.)
+  author adopted this driver's document-key-only authorization rule.)
 
 **Two separate guarantees.** _Resolution compatibility_: all supported valid
 golden vectors resolve to a structurally identical document and metadata as the
-reference (deep-equality, the delegation exception aside). _TypeScript API compatibility_: NOT guaranteed —
+reference (deep-equality). _TypeScript API compatibility_: NOT guaranteed —
 this is a new, unpublished package whose exported types are still being
 tightened. In particular `w3c()` now returns a `W3cResult` discriminated
 union (not a bare document), and `DidInfo.error` / `LogEntry.op` are the
@@ -125,7 +123,7 @@ https://ownyourdata.github.io/oydid/.
    version-exact): every `/doc_raw` response must hash to its version
    identifier, and a REQUESTED hash-form identifier must appear as a version
    (a CREATE/UPDATE entry) in the verified log chain.
-   _Pubkey-form identifiers follow the author's D8 ruling:_ the pubkey form
+   _Pubkey-form identifiers follow the author's ruling:_ the pubkey form
    is a **repository lookup, not self-certifying** (callers needing
    self-certification use the hash form), so by DEFAULT a `z6M…` identifier
    resolves exactly as the reference resolves it, with no key-membership
@@ -153,11 +151,10 @@ true` (spec §3.2.3 `#deactivation`), which is what a universal-resolver
    `p256-pub` branches (verify, w3c, JWK conversion), the BLAKE2b/SHA3
    digests and non-base58btc encodings answer `representationNotSupported`
    instead of resolving.
-5. **Delegation (op 5) is not honored** — the reference derives update-
-   authorizing keys from every DELEGATE entry without authenticating any of
-   them (its own `!!!OPEN` note). Lacking a defined authorization rule and a
-   positive vector, this driver ignores DELEGATE keys entirely rather than
-   trust an unauthenticated one; see **Security hardening** §2. The
+5. **Delegation (op 5) is not honored** — delegation authorization was
+   underspecified. Pending a normative authorization rule and positive
+   vectors, delegated keys are not honored; the method author adopted the
+   same policy in gem 0.9.4. See **Security hardening** §2. The
    reference-mapped `getDelegatedPubKeysFromFullDidDocument` is retained in
    the API surface but is deliberately not wired into resolution.
 6. `resolution_result`'s fragment handling and `UNIRESOLVER_DEBUG` metadata
@@ -185,40 +182,46 @@ DID. They are additional input validation, not a behavioral fork. The reason
 they exist: the reference is a first-party toolkit that trusts its own
 repository and Ruby's dynamic typing. An independent verifier that resolves
 attacker-influenced logs from arbitrary repositories cannot. The following
-checks have no counterpart in the reference (some address gaps the reference
-author flagged in-code, e.g. the `!!!OPEN` note on delegation). **Every one
-fails closed**: it can only turn malformed or hostile input into a rejection.
+checks had no counterpart in the pinned reference when this driver was
+written; several have since been adopted upstream in gem 0.9.4 (delegation
+authorization §2, revocation verification §3, and the repeat-collapse in §4),
+so the two implementations now agree on those. **Every one fails closed**: it
+can only turn malformed or hostile input into a rejection.
 All supported valid golden vectors resolve to the same document unchanged; the
 delegation departure (§2) has since been adopted by the reference itself
-(gem 0.9.4 — the D7 ruling), and the author's production audit found zero
+(gem 0.9.4), and the author's production audit found zero
 DIDs relying on a delegated key, so no reference-resolvable DID is affected.
 Each check is exercised adversarially in `src/__tests__/security.test.ts`.
 
-1. **UPDATE succession follows the author's D4 ruling** (`log.ts`). Every
+1. **UPDATE succession follows the author's ruling** (`log.ts`). Every
    op=3 whose `previous` references the honored revocation is collected; each
    candidate's signature is verified against the superseded version's OWN
    document key; EXACTLY ONE valid survivor is required. An invalid candidate
-   is attacker-appendable junk (the log endpoint is unauthenticated) and is
-   ignored — never an error, because first-match or naive
+   is ignored — never an error, because first-match or naive
    more-than-one ⇒ error would both be denial-of-service levers; two VALID
    survivors are a genuine fork and fail closed as ambiguous. An UPDATE that
    was never any revocation's candidate — e.g. spliced directly onto
    CREATE — remains a hard rejection. (The pinned reference took the first
    match and checked nothing else.)
-2. **Delegation keys are not honored** (`log.ts`, `w3c.ts`) — **and the
-   D7 ruling confirmed this as a real takeover defect in the reference,
-   which has adopted our rule.** A party holding no key of the victim could
-   take over a revoked-but-not-yet-updated DID via an unauthenticated
-   DELEGATE plus a self-signed UPDATE; the author reproduced it, audited all
-   67 DELEGATE-bearing production DIDs (zero rely on delegated keys), and as
-   of gem 0.9.4 the reference authorizes an UPDATE only by the superseded
-   version's own document key — exactly this driver's behavior. Fail-closed
-   rejection remains the recommended stance until a DELEGATE authorization
-   rule and a positive vector exist.
+2. **Delegation keys are not honored** (`log.ts`, `w3c.ts`). Update
+   authorization uses only the current version's own document key, and the
+   composed document lists no delegate-derived `capabilityDelegation`.
+   Delegation authorization was underspecified: OYDID defines the DELEGATE
+   operation but not a normative authorization rule, and no
+   reference-generated positive vector exists — so delegated keys are not
+   honored, and a did:oyd that relied on one fails closed. **The method
+   author reviewed this
+   and adopted the same document-key-only authorization rule in gem
+   0.9.4**, so the reference and this driver now agree; their production
+   audit found no DID relying on a delegated key, so nothing legitimate
+   changed. Fail-closed rejection is the author's recommended stance for
+   independent verifiers until a DELEGATE authorization rule and a positive
+   vector exist. (Security specifics were handled privately with the author;
+   they are deliberately not restated here.)
 3. **The revocation lookup fails closed, and revocations are verified BY
    DEFAULT** (`log.ts`). A timeout, HTTP error, or malformed/oversized
    response during the revocation check is an `internalError`, never read as
-   "no revocation exists". Per the author's D2/D3 rulings the two REVOKE
+   "no revocation exists". Per the author's rulings the two REVOKE
    checks are now **ON by default** (`strictRevocationSig: false` opts out
    into legacy pre-0.9.4 parity): (a) the REVOKE's signature must verify
    against the version's revocation key (§4.2.3 — the doc-key/rev-key
@@ -233,18 +236,17 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    `security.ts`): entry-count and back-reference bounds (deployment-
    configurable via `getResolver({ maxLogEntries, maxPreviousRefs })`;
    exceeding one is an `internalError` service-limit, not
-   `invalidDidDocument`); a **replay-dedup at log ingestion** (byte-identical
-   copies of an existing entry are collapsed keep-first, keyed on the same
-   full-entry hash `previous` references resolve to — a duplicate-laden log
-   from an uncontrolled source must not deny resolution (D4 corollary).
-   Author-confirmed context: the production append endpoint already rejects
-   byte-identical duplicates server-side (`Log.stored?` + a UNIQUE index),
-   so the honest store is not reachable this way; the pinned reference's
-   `dag_did` errors on a replayed CREATE or tangling TERMINATE via its
-   structural counts, and the author is adding this same collapse there as
-   defense-in-depth. Until that ships this is an accept-more availability
-   deviation that can only ever yield the identical verified document, since
-   byte-identical entries carry the original's hashes and signatures); a
+   `invalidDidDocument`); a **repeat-dedup at log ingestion**
+   (protocol-identical entries — equal on the canonical five-field
+   log-entry hash `previous` references resolve on — are collapsed
+   keep-first, so a duplicate-laden log from a source the resolver does not
+   control cannot deny resolution (D4 corollary). The production repository
+   rejects duplicate entries server-side, and the author is adopting the
+   same collapse in the reference as defense-in-depth; until that ships this
+   is an accept-more availability deviation that can only ever yield the
+   identical verified document, since a protocol-identical entry carries the
+   original's hashes and signatures. Entries differing within those five
+   fields stay distinct, so a genuine fork remains ambiguous); a
    duplicate-hash rejection retained as an internal invariant (so a
    `previous` reference resolves to exactly one entry); a **dangling-reference
    rejection** (every `previous` hash must resolve to an entry in the returned
@@ -257,7 +259,7 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    `ts`.
 5. **Validated Ed25519 key framing** (`basic.ts`). A key must carry the
    Ed25519 multicodec code (`0xed`) over exactly 32 key bytes, under one of
-   the two framings — per the author's D9 ruling, **varint multicodec
+   the two framings — per the author's ruling, **varint multicodec
    `0xed 0x01` is canonical** and multihash-style code+length `0xed 0x20`
    was an encoding bug up to gem 0.5.6, retained officially for
    compatibility; like the reference we decode on `code = byte[0]`,
@@ -326,7 +328,7 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    identifiers, log hashes and signature commitments, so a lossy
    serialization must never be hashed); and repository error handling is
    STATUS-driven — a 410 `"revoked"` is treated as a HINT per the author's
-   D10 ruling: the driver then fetches the still-served `/doc_raw` + `/log`
+   author's ruling: the driver then fetches the still-served `/doc_raw` + `/log`
    records and runs the normal verified walk, reporting `deactivated` only
    on cryptographic confirmation (a bare hint with unavailable records is a
    transport error, and a log that proves the DID live wins over the hint);
@@ -346,7 +348,7 @@ is wanted. What the artifacts do establish:
    `git clone https://github.com/OwnYourData/oydid && git -C oydid checkout 48a62c9c`
    — every `⇔ file:line` citation in `src/` resolves against that tree for
    side-by-side review.
-2. Run `pnpm test` (offline, 41 tests). The **compatibility** half
+2. Run `pnpm test` (offline, 88 tests). The **compatibility** half
    (`resolver.test.ts`) demonstrates, against captured reference data:
    identifier and log-reference commitments recompute; the CREATE signature
    verifies; the spec's published samples — single-version, **updated
@@ -358,7 +360,7 @@ is wanted. What the artifacts do establish:
    (`toEqual`, not raw-byte serialization). The **adversarial**
    half (`security.test.ts`, minting real keys/signatures via
    `builder.ts`) exercises each hardening above: a spliced UPDATE, an UPDATE
-   signed by a never-authorized key, an injected disconnected DELEGATE, a
+   signed by a never-authorized key, delegation cases (not honored), a
    revocation lookup failing (500 and malformed), a foreign TERMINATE, a
    rotation target with a mismatched id / a resolution error (plus the
    matching-id control), the SSRF policy (unit and via a private `%40`
@@ -374,14 +376,15 @@ is wanted. What the artifacts do establish:
 4. `pnpm run test:live` runs the real-world corpus in `real.test.ts`
    (opt-in, network) — actual `did:oyd` identifiers from OwnYourData's
    repos/spec, each diffed live against the reference; every one is expected
-   to pass. See [OYD-DID-CORPUS.md](./OYD-DID-CORPUS.md), which also documents one real
-   DID **excluded** from that corpus (`did:oyd:z6MkrJVn…`): a pubkey-form
-   identifier whose key matches no document key in its resolved DID's version
-   history (spec §3.2.4), which the reference resolves only through a legacy
-   permissive path. Rather than pin a network-dependent divergence, its
-   binding is covered offline in `resolver.test.ts` (a bound pubkey-form DID
-   resolves; the unbound `z6MkrJVn` shape is rejected) — an open question for
-   the method author, without a red live test.
+   to pass. See [OYD-DID-CORPUS.md](./OYD-DID-CORPUS.md), which also records
+   the history of `did:oyd:z6MkrJVn…`: a pubkey-form identifier whose key is
+   in no document version of its own DID. It was originally excluded from
+   the corpus, but the author's ruling settled it — the pubkey form is a
+   repository lookup, not self-certifying — so it now resolves by default
+   (and sits in the parity table) exactly as the reference resolves it. The
+   stricter §3.2.4 binding lives on as the `strictPubkeyBinding` opt-in,
+   covered offline in `resolver.test.ts` (a bound pubkey-form DID resolves;
+   the unbound shape and a rev-key-addressed id are rejected).
 
 Remaining scope notes. **Delegation (op 5) is intentionally unsupported**
 (Security hardening §2): a delegated-key update fails closed, so there is no
@@ -394,7 +397,7 @@ transliterated but not positively vectored. Everything outside the supported
 profile (p256, non-sha2-256 digests, non-base58btc encodings) is
 deliberately rejected, not resolved.
 
-**REVOKE `doc` commitment — validated BY DEFAULT (D3 ruling).** Spec §4.1
+**REVOKE `doc` commitment — validated BY DEFAULT.** Spec §4.1
 defines the op=1 REVOKE `doc` as the _hash of the document and key_ of the
 version being revoked. The preimage was determined empirically against real
 repository data — `multi_hash(canonical({doc, key}))` of the revoked
@@ -407,7 +410,7 @@ DID passes both checks live. Author rulings resolved the remaining scope
 questions: unsigned legacy CREATEs stay tolerated permanently (D1 —
 `strict_create_sig` remains the opt-in), UPDATE succession uses the
 valid-survivor rule (D4, implemented), and operation-specific predecessor
-rules are descriptive, not normative (D5), except the TERMINATE→REVOKE
+rules are descriptive, not normative, except the TERMINATE→REVOKE
 commitment, which is enforced.
 
 **Deferred independently — stricter TypeScript compiler settings.**

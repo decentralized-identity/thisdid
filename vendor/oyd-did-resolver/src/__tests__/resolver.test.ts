@@ -328,7 +328,7 @@ async function mintRevokedDid(payload: Record<string, unknown>): Promise<{
   // revocation record (hashed without `previous` for the TERMINATE ref);
   // spec-correct commitment (§4.1 op=1): doc = hash of the version's
   // {doc, key}, signed by the revocation key — passes the default-on
-  // strict revocation checks (D2/D3 rulings)
+  // strict revocation checks (author's rulings)
   const revokeDoc = await hashOf({
     doc: payload,
     key: docKey + ":" + revKey,
@@ -474,7 +474,7 @@ describe("pubkey-form identifiers (spec §3.2.4 binding)", () => {
     expect(vmHexes).toContain(idHex);
   });
 
-  it("DEFAULT resolves an unbound pubkey-form id via repository lookup (D8 ruling)", async () => {
+  it("DEFAULT resolves an unbound pubkey-form id via repository lookup (author's ruling)", async () => {
     // The method author ruled the pubkey form is a repository lookup, NOT
     // self-certifying — so by default an identifier whose key is in no
     // version (the z6MkrJVn shape) resolves exactly as the reference

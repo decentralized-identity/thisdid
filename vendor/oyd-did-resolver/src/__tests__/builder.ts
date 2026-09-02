@@ -233,7 +233,7 @@ export async function mintPubkeyForm(
  *  `badRevSig` embeds a well-formed signature by the DOCUMENT key (the wrong
  *  key) in the committed REVOKE — a creator who holds only the doc key
  *  precommitting a revocation the revocation key never authorized. Default
- *  resolution REJECTS it (D2 ruling — verification is mandatory);
+ *  resolution REJECTS it (verification is mandatory per the author's ruling);
  *  `strictRevocationSig: false` restores legacy pre-0.9.4 parity, which
  *  honors it. `wrongRevDoc` keeps a valid rev-key signature but commits to
  *  other content — the D3 doc-commitment check's target, same defaults. */

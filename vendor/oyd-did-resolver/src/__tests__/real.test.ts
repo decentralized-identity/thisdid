@@ -42,7 +42,7 @@ const PARITY = [
   "did:oyd:zQmNauTUUdkpi5TcrTZ2524SKM8dJAzuuw4xfW13iHrtY1W%40did2.data-container.net", // non-default location
   "did:oyd:zQmSE1hzumtZ7AoK1qhHf4t5kiKsujMsJSHqoXtWrdd7K7W", // updated DPP DID, varint-framed keys — original id
   "did:oyd:zQmfEb3KgYZjZUPLTHPmFPdcV6peF5itB5NmJ9N6gaxxE8K", // same chain — updated id
-  "did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2", // pubkey-form alias (D8 ruling: repository lookup, not self-certifying)
+  "did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2", // pubkey-form alias (author's ruling: repository lookup, not self-certifying)
 ];
 
 /** Real DIDs that resolve to a deactivated (revoked) state. */
@@ -50,7 +50,7 @@ const DEACTIVATED = ["did:oyd:zQmQMvhHrccgcP2XzE2rM4E8MDx9P8D5FWPdDF1DTPikF4F"];
 
 // did:oyd:z6MkrJVn… (a pubkey-form alias whose embedded key is in no document
 // version of its own DID) was originally excluded here, but the method
-// author's D8 RULING settled it: the pubkey form is a repository lookup, NOT
+// author's RULING settled it: the pubkey form is a repository lookup, NOT
 // self-certifying, so the default resolves it exactly as the reference does
 // and it now sits in PARITY above. The stricter §3.2.4 binding survives as
 // the `strictPubkeyBinding` opt-in, covered deterministically offline in
