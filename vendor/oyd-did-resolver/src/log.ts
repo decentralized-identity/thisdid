@@ -361,10 +361,10 @@ export async function dagUpdate(
   // be installed if its hash is recorded here.
   const verifiedUpdateHashes = new Set<string>();
   // UPDATE candidates that referenced a revocation but FAILED signature
-  // verification (author's succession ruling): a log may carry such junk, so the walk SKIPS
-  // them rather than erroring (a hard rejection would be a
-  // denial-of-service lever). Distinct from an UPDATE that was never any
-  // revocation's candidate, which stays a hard rejection.
+  // verification (author's succession ruling): a log may carry such junk, so
+  // the walk SKIPS them rather than erroring — an unverifiable candidate must
+  // not stop an otherwise-valid DID from resolving. Distinct from an UPDATE
+  // that was never any revocation's candidate, which stays a hard rejection.
   const junkUpdateHashes = new Set<string>();
   let docLocation = options.doc_location ?? "";
   let initialDid = String(currentDID.did).replace(/^did:oyd:/, "");
@@ -612,10 +612,9 @@ export async function dagUpdate(
           // not honored — and the reference adopted exactly this rule
           // in gem 0.9.4), then require EXACTLY ONE valid survivor. An
           // invalid candidate is junk a log may carry — ignored, never an
-          // error
-          // (first-match or naive more-than-one ⇒ error would both hand
-          // attackers a denial-of-service). Two VALID survivors are a
-          // genuine fork: ambiguous, fail closed.
+          // error, since an unverifiable entry must not change the outcome
+          // for an otherwise-valid DID. Two VALID survivors are a genuine
+          // fork: ambiguous, fail closed.
           const revocationHash = (
             await multiHash(canonical(revocationRecord), LOG_HASH_OPTIONS)
           )[0];

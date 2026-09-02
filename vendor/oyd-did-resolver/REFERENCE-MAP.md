@@ -197,12 +197,11 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    op=3 whose `previous` references the honored revocation is collected; each
    candidate's signature is verified against the superseded version's OWN
    document key; EXACTLY ONE valid survivor is required. An invalid candidate
-   is ignored — never an error, because first-match or naive
-   more-than-one ⇒ error would both be denial-of-service levers; two VALID
-   survivors are a genuine fork and fail closed as ambiguous. An UPDATE that
-   was never any revocation's candidate — e.g. spliced directly onto
-   CREATE — remains a hard rejection. (The pinned reference took the first
-   match and checked nothing else.)
+   is ignored — never an error, since an unverifiable entry must not change
+   the outcome for an otherwise-valid DID; two VALID survivors are a genuine
+   fork and fail closed as ambiguous. An UPDATE that was never any
+   revocation's candidate — e.g. spliced directly onto CREATE — remains a
+   hard rejection.
 2. **Delegation keys are not honored** (`log.ts`, `w3c.ts`). Update
    authorization uses only the current version's own document key, and the
    composed document lists no delegate-derived `capabilityDelegation`.
@@ -240,7 +239,7 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    (protocol-identical entries — equal on the canonical five-field
    log-entry hash `previous` references resolve on — are collapsed
    keep-first, so a duplicate-laden log from a source the resolver does not
-   control cannot deny resolution (D4 corollary). The production repository
+   control still resolves to the same document. The production repository
    rejects duplicate entries server-side, and the author is adopting the
    same collapse in the reference as defense-in-depth; until that ships this
    is an accept-more availability deviation that can only ever yield the

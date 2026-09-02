@@ -71,10 +71,10 @@ describe("update lifecycle authorization (finding 1)", () => {
     expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
   });
 
-  it("junk op=3 appended to the log cannot deny service (author's succession ruling)", async () => {
+  it("junk op=3 in the log does not prevent resolution (author's succession ruling)", async () => {
     // a log may carry an unsigned UPDATE referencing the revocation. It must
-    // be IGNORED — not picked (first-match) and not an error (naive
-    // more-than-one ⇒ error) — so the genuine chain still resolves to v2.
+    // be IGNORED rather than picked or treated as fatal, so the genuine
+    // chain still resolves to v2.
     const chain = await mintUpdateChain({ updateSigner: "v1doc" });
     const junked = async (input: RequestInfo | URL) => {
       const response = await chain.fetch(input);
@@ -103,12 +103,11 @@ describe("update lifecycle authorization (finding 1)", () => {
   });
 
   it.each(["create", "terminate", "revoke", "update"] as const)(
-    "a protocol-identical repeat of an existing %s entry cannot deny resolution",
+    "a protocol-identical repeat of an existing %s entry does not prevent resolution",
     async (pick) => {
       // a log carrying a COPY of an existing entry (five-field-identical)
-      // must be collapsed, not fatal — otherwise the structural counts and
-      // the duplicate-hash invariant turn a harmless repeat into a
-      // resolution failure
+      // must be collapsed rather than treated as a second, distinct record,
+      // so a harmless repeat cannot turn into a resolution failure
       const chain = await mintUpdateChain({ updateSigner: "v1doc" });
       const dup = async (input: RequestInfo | URL) => {
         const response = await chain.fetch(input);
