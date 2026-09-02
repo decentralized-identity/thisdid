@@ -259,6 +259,12 @@ export async function dagUpdate(currentDID, options) {
     // authorized keys in a revocation branch (finding 1) — an UPDATE may only
     // be installed if its hash is recorded here.
     const verifiedUpdateHashes = new Set();
+    // UPDATE candidates that referenced a revocation but FAILED signature
+    // verification (D4 ruling): attacker-appendable junk — the log endpoint is
+    // unauthenticated — so the walk SKIPS them rather than erroring (a hard
+    // rejection would be a denial-of-service lever). Distinct from an UPDATE
+    // that was never any revocation's candidate, which stays a hard rejection.
+    const junkUpdateHashes = new Set();
     let docLocation = options.doc_location ?? "";
     let initialDid = String(currentDID.did).replace(/^did:oyd:/, "");
     if (initialDid.includes("@")) {
@@ -276,6 +282,24 @@ export async function dagUpdate(currentDID, options) {
         switch (el.op) {
             case Op.CREATE:
             case Op.UPDATE: {
+                if (el.op === Op.UPDATE) {
+                    // UPDATE authorization (finding 1 + D4 ruling), checked BEFORE any
+                    // fetch so junk cannot cost a round-trip or a retrieval error:
+                    // - a hash recorded as a NON-surviving revocation candidate is
+                    //   attacker-appendable junk — SKIPPED, never an error;
+                    // - the verified valid successor is installed below;
+                    // - an UPDATE that was never any revocation's candidate — e.g.
+                    //   one spliced directly onto CREATE — is rejected, not trusted.
+                    const updateHash = (await multiHash(canonical(logSlice(el)), LOG_HASH_OPTIONS))[0];
+                    if (updateHash !== null && junkUpdateHashes.has(updateHash)) {
+                        break;
+                    }
+                    if (updateHash === null || !verifiedUpdateHashes.has(updateHash)) {
+                        currentDID.error = DidError.INVALID;
+                        currentDID.message = "unauthorized UPDATE log entry";
+                        return currentDID;
+                    }
+                }
                 currentDID.doc_log_id = i;
                 const docDid = el.doc;
                 const docResult = await retrieveDocumentRaw(docDid, docLocation, options);
@@ -287,10 +311,11 @@ export async function dagUpdate(currentDID, options) {
                 }
                 const doc = docResult[0].doc;
                 if (el.op === Op.CREATE) {
-                    // Tolerant of a missing CREATE signature unless strict: DIDs
-                    // created before Client-Managed-Secret-Mode gained its signature
-                    // collection phase carry none, and rejecting them would make
-                    // them unresolvable (⇔ the reference's comment, log.rb:314).
+                    // Tolerant of a missing CREATE signature unless strict — D1 ruling:
+                    // the tolerance is PERMANENT (1,643 production CREATEs predate the
+                    // Client-Managed-Secret-Mode signature collection phase and carry
+                    // none; ⇔ the reference's comment, log.rb:314). A signature that
+                    // IS present must verify; new CREATEs are always signed.
                     if (el.sig == null) {
                         if (options.strict_create_sig) {
                             currentDID.error = DidError.INVALID;
@@ -301,19 +326,6 @@ export async function dagUpdate(currentDID, options) {
                     else if (!(await matchLogDid(el, doc))) {
                         currentDID.error = DidError.INVALID;
                         currentDID.message = "Signatures in log don't match";
-                        return currentDID;
-                    }
-                }
-                else {
-                    // UPDATE authorization (finding 1): install an UPDATE only if its
-                    // signature was already verified against the prior version's
-                    // authorized keys in a preceding revocation branch. An UPDATE
-                    // reached without that proof — e.g. one spliced directly onto
-                    // CREATE — is rejected rather than trusted.
-                    const updateHash = (await multiHash(canonical(logSlice(el)), LOG_HASH_OPTIONS))[0];
-                    if (updateHash === null || !verifiedUpdateHashes.has(updateHash)) {
-                        currentDID.error = DidError.INVALID;
-                        currentDID.message = "unauthorized UPDATE log entry";
                         return currentDID;
                     }
                 }
@@ -399,15 +411,19 @@ export async function dagUpdate(currentDID, options) {
                     }
                 }
                 if (revocationRecord !== null) {
-                    // opt-in (strictRevocationSig): prove the revocation was AUTHORIZED
-                    // by the version's revocation key, not merely precommitted. OFF by
-                    // default so default resolution stays reference-parity — the
-                    // reference never verifies this, and the TERMINATE→REVOKE hash
-                    // commitment already stops a repository/MITM from substituting a
-                    // revocation (only a creator holding the doc key can precommit an
-                    // unauthorized one; §4.2.3). Fails closed: a revocation not signed
-                    // by the revocation key leaves the document's validity unprovable.
-                    if (options.strict_revocation_sig) {
+                    // MANDATORY BY DEFAULT (author rulings D2/D3, adopted by the
+                    // reference as of gem 0.9.4): prove the revocation was AUTHORIZED
+                    // by the version's revocation key and COMMITS to the version it
+                    // revokes, not merely that it was precommitted. The check runs
+                    // unless the caller EXPLICITLY opts out (`!== false`, never a
+                    // truthy gate) so the ruling is universal — direct `read()` /
+                    // `dagUpdate()` callers passing `{}` get it too, and only
+                    // `strict_revocation_sig: false` restores legacy pre-0.9.4 parity.
+                    // The TERMINATE→REVOKE hash commitment alone stops a
+                    // repository/MITM from substituting a revocation, but proves
+                    // neither revocation-key authorization nor the revoked version
+                    // (§4.2.3 / §4.1). Fails closed.
+                    if (options.strict_revocation_sig !== false) {
                         const revocationKey = currentDID.doc.key.split(":")[1] ?? "";
                         const authorized = (await verify(String(revocationRecord.doc), String(revocationRecord.sig ?? ""), revocationKey))[0];
                         if (authorized !== true) {
@@ -418,58 +434,76 @@ export async function dagUpdate(currentDID, options) {
                         }
                         // …and the REVOKE must COMMIT to the version it revokes: spec
                         // §4.1 defines op=1 `doc` as the hash of the version's document
-                        // and key. Preimage verified against real repository data
-                        // (SPEC-DIVERGENCES.md D3): multi_hash(canonical({doc, key})) of
-                        // the revoked version's record. Without this, a correctly
-                        // rev-key-signed REVOKE naming arbitrary content would still be
-                        // honored. The reference performs neither check — both live
-                        // under the same strict opt-in.
-                        const expectedRevokeDoc = (await multiHash(canonical({
+                        // and key. Preimage CONFIRMED by the method author (D3 ruling —
+                        // all 1,117 production revocations match, zero exceptions):
+                        // multi_hash(canonical({doc, key})) of the revoked version's
+                        // record, with the digest and encoding derived FROM THE STORED
+                        // VALUE ITSELF (per the author's request, so non-default
+                        // multiformats don't false-negative). Without this check, a
+                        // correctly rev-key-signed REVOKE naming arbitrary content would
+                        // still be honored.
+                        const revokeDocValue = String(revocationRecord.doc);
+                        const [expectedRevokeDoc, expectedError] = await multiHash(canonical({
                             doc: currentDID.doc.doc,
                             key: currentDID.doc.key,
-                        }), LOG_HASH_OPTIONS))[0];
-                        if (expectedRevokeDoc === null ||
-                            String(revocationRecord.doc) !== expectedRevokeDoc) {
+                        }), {
+                            digest: getDigest(revokeDocValue)[0] ?? undefined,
+                            encode: getEncoding(revokeDocValue)[0] ?? undefined,
+                        });
+                        if (expectedRevokeDoc === null) {
+                            currentDID.error = DidError.INVALID;
+                            currentDID.message =
+                                expectedError !== ""
+                                    ? expectedError
+                                    : "revocation commitment could not be computed";
+                            return currentDID;
+                        }
+                        if (revokeDocValue !== expectedRevokeDoc) {
                             currentDID.error = DidError.INVALID;
                             currentDID.message =
                                 "revocation does not commit to the revoked version";
                             return currentDID;
                         }
                     }
-                    // the revocation is published — only an UPDATE building on it
-                    // keeps the DID alive
-                    let updateTermFound = false;
+                    // the revocation is published — only a VALID UPDATE building on
+                    // it keeps the DID alive. D4 ruling: collect EVERY op=3 whose
+                    // `previous` references this revocation, verify each signature
+                    // against the superseded version's OWN document key (delegation is
+                    // not honored — and per D7, the reference itself adopted exactly
+                    // this rule in gem 0.9.4 after the takeover it permitted was
+                    // demonstrated), then require EXACTLY ONE valid survivor. An
+                    // invalid candidate is junk anyone could append to the
+                    // unauthenticated log endpoint — ignored, never an error
+                    // (first-match or naive more-than-one ⇒ error would both hand
+                    // attackers a denial-of-service). Two VALID survivors are a
+                    // genuine fork: ambiguous, fail closed.
                     const revocationHash = (await multiHash(canonical(revocationRecord), LOG_HASH_OPTIONS))[0];
+                    const authorizedKey = currentDID.doc.key.split(":")[0];
+                    const survivors = [];
                     for (const logEl of logArray) {
-                        if (logEl.op === Op.UPDATE) {
-                            if ((logEl.previous ?? []).includes(revocationHash ?? "")) {
-                                updateTermFound = true;
-                                const message = String(logEl.doc);
-                                const signature = String(logEl.sig ?? "");
-                                // The UPDATE must be signed by the current version's own
-                                // authorized document key. Delegation keys are NOT honored
-                                // (finding 1/2): the reference never authenticates DELEGATE
-                                // entries — it flags this `!!!OPEN` — so trusting a delegate
-                                // key (however DAG-connected) would trust an unauthenticated
-                                // key. Delegated-key updates therefore fail closed until an
-                                // authenticated-delegation rule + reference vector exist
-                                // (REFERENCE-MAP §"Security hardening", deviation 9).
-                                const authorizedKey = currentDID.doc.key.split(":")[0];
-                                if (!(await verify(message, signature, authorizedKey))[0]) {
-                                    currentDID.error = DidError.INVALID;
-                                    currentDID.message = "Signature does not match";
-                                    return currentDID;
-                                }
-                                // record the authorization so the UPDATE may be installed
-                                // when the walk reaches it (finding 1)
-                                const updateHash = (await multiHash(canonical(logSlice(logEl)), LOG_HASH_OPTIONS))[0];
-                                if (updateHash !== null)
-                                    verifiedUpdateHashes.add(updateHash);
-                                break;
-                            }
+                        if (logEl.op !== Op.UPDATE)
+                            continue;
+                        if (!(logEl.previous ?? []).includes(revocationHash ?? "")) {
+                            continue;
                         }
+                        const updateHash = (await multiHash(canonical(logSlice(logEl)), LOG_HASH_OPTIONS))[0];
+                        if (updateHash === null)
+                            continue;
+                        const valid = (await verify(String(logEl.doc), String(logEl.sig ?? ""), authorizedKey))[0] === true;
+                        if (valid)
+                            survivors.push(updateHash);
+                        else
+                            junkUpdateHashes.add(updateHash);
                     }
-                    revoked = !updateTermFound;
+                    if (survivors.length > 1) {
+                        currentDID.error = DidError.INVALID;
+                        currentDID.message = "ambiguous UPDATE successors after revocation";
+                        return currentDID;
+                    }
+                    if (survivors.length === 1) {
+                        verifiedUpdateHashes.add(survivors[0]);
+                    }
+                    revoked = survivors.length === 0;
                 }
                 else {
                     // ⇔ the reference's `else … break`: with no published revocation

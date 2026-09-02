@@ -233,7 +233,10 @@ export async function mintPubkeyForm(
  *  `badRevSig` embeds a well-formed signature by the DOCUMENT key (the wrong
  *  key) in the committed REVOKE — a creator who holds only the doc key
  *  precommitting a revocation the revocation key never authorized. Default
- *  resolution honors it (parity); `strictRevocationSig` rejects it. */
+ *  resolution REJECTS it (D2 ruling — verification is mandatory);
+ *  `strictRevocationSig: false` restores legacy pre-0.9.4 parity, which
+ *  honors it. `wrongRevDoc` keeps a valid rev-key signature but commits to
+ *  other content — the D3 doc-commitment check's target, same defaults. */
 export async function mintRevoked(
   payload: unknown,
   opts: { badRevSig?: boolean; wrongRevDoc?: boolean } = {},
@@ -246,7 +249,8 @@ export async function mintRevoked(
 
   // spec-correct REVOKE commitment (§4.1 op=1): doc = hash of the revoked
   // version's {doc, key}. `wrongRevDoc` keeps a VALID rev-key signature but
-  // commits to other content — the strict doc-commitment check's target.
+  // commits to other content — the (default-on) D3 doc-commitment check's
+  // target.
   const keyString = docKey + ":" + revKey;
   const revokeDoc = opts.wrongRevDoc
     ? await hashOf({ doc: { other: "content" }, key: keyString })
@@ -301,6 +305,9 @@ export async function mintUpdateChain(opts: {
   updateSigner: "v1doc" | "delegate" | "v2doc";
   includeDelegate?: boolean;
   delegateConnected?: boolean;
+  /** Append a SECOND validly-signed UPDATE referencing the same revocation —
+   *  a genuine fork: two valid survivors (D4's ambiguous case). */
+  duplicateSuccessor?: boolean;
 }): Promise<{ didV1: string; didV2: string; fetch: MintedDid["fetch"] }> {
   const v1doc = await keypair();
   const v1rev = await keypair();
@@ -396,12 +403,21 @@ export async function mintUpdateChain(opts: {
     sig: await sign(signerPair, didV2),
     previous: [await hashOf(revoke1)],
   };
+  // second valid successor (distinct ts → distinct hash, same valid signer)
+  const duplicate: LogEntry = {
+    ts: ts + 1,
+    op: Op.UPDATE,
+    doc: didV2,
+    sig: await sign(signerPair, didV2),
+    previous: [await hashOf(revoke1)],
+  };
 
   const log: LogEntry[] = [
     create1,
     terminate1,
     revoke1,
     update,
+    ...(opts.duplicateSuccessor ? [duplicate] : []),
     terminate2,
     ...(opts.includeDelegate ? [delegateEntry] : []),
   ];

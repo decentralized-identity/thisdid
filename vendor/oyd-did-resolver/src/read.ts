@@ -6,12 +6,14 @@
  */
 import {
   retrieveDocument,
+  retrieveDocumentRaw,
   retrieveLog,
   DEFAULT_LOCATION,
   DidError,
   LOCATION_PREFIX,
   LOCATION_PREFIX_ESCAPED,
   type DidInfo,
+  type DocRecord,
   type OydOptions,
   type Tuple,
 } from "./basic.js";
@@ -48,13 +50,36 @@ export async function read(
   const didHash = did.replace(/^did:oyd:/, "");
 
   // retrieve DID document
+  let documentRecord: DocRecord;
   const documentResult = await retrieveDocument(didHash, didLocation, options);
-  if (documentResult[0] === null) return [null, documentResult[1]];
+  if (documentResult[0] !== null) {
+    documentRecord = documentResult[0];
+  } else if (documentResult[1] === "revoked") {
+    // D10 ruling: a repository 410 is a HINT, not proof — an independent
+    // verifier SHOULD confirm the published REVOKE cryptographically, and it
+    // can, because `/doc_raw` and `/log` still serve a revoked DID's records
+    // (only `/doc` answers 410). Fetch the version-exact record and continue
+    // the NORMAL verified walk: a log-confirmed revocation reports
+    // deactivated; if the log proves the DID live, cryptographic truth wins
+    // over the hint; unconfirmable records are a transport error, never
+    // silently trusted deactivation.
+    const raw = await retrieveDocumentRaw(didHash, didLocation, options);
+    if (raw[0] === null) {
+      return [
+        null,
+        "repository asserted revocation but records are unavailable" +
+          (raw[1] !== "" ? ": " + raw[1] : ""),
+      ];
+    }
+    documentRecord = raw[0].doc;
+  } else {
+    return [null, documentResult[1]];
+  }
 
   const currentDID: DidInfo = {
     did: requestedDid,
     did_requested: requestedDid,
-    doc: documentResult[0],
+    doc: documentRecord,
     log: [],
     doc_log_id: null,
     termination_log_id: null,
@@ -67,7 +92,7 @@ export async function read(
   // defines %40 as the W3C-conform representation of "@", so both forms are
   // recognized here — the reference splits the log reference on "@" only
   // (its dag_update handles both).
-  let logHash = documentResult[0].log;
+  let logHash = documentRecord.log;
   let logLocation = options.log_location ?? "";
   if (logLocation === "" && options.location) logLocation = options.location;
   if (logLocation === "") {

@@ -42,19 +42,20 @@ const PARITY = [
   "did:oyd:zQmNauTUUdkpi5TcrTZ2524SKM8dJAzuuw4xfW13iHrtY1W%40did2.data-container.net", // non-default location
   "did:oyd:zQmSE1hzumtZ7AoK1qhHf4t5kiKsujMsJSHqoXtWrdd7K7W", // updated DPP DID, varint-framed keys — original id
   "did:oyd:zQmfEb3KgYZjZUPLTHPmFPdcV6peF5itB5NmJ9N6gaxxE8K", // same chain — updated id
+  "did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2", // pubkey-form alias (D8 ruling: repository lookup, not self-certifying)
 ];
 
 /** Real DIDs that resolve to a deactivated (revoked) state. */
 const DEACTIVATED = ["did:oyd:zQmQMvhHrccgcP2XzE2rM4E8MDx9P8D5FWPdDF1DTPikF4F"];
 
-// One real DID — did:oyd:z6MkrJVn… — was DELIBERATELY EXCLUDED from this live
-// corpus: a pubkey-form identifier whose embedded key is in no document
-// version of its own DID (verified raw), which only repository trust resolves.
-// It is documented in full in OYD-DID-CORPUS.md §"Excluded", and its binding
-// behaviour is covered deterministically offline instead — a bound
-// pubkey-form DID resolves and the unbound (z6MkrJVn) shape is rejected — in
-// resolver.test.ts "pubkey-form identifiers (spec §3.2.4 binding)". Keeping it
-// out of the network corpus means every live DID here is expected to pass.
+// did:oyd:z6MkrJVn… (a pubkey-form alias whose embedded key is in no document
+// version of its own DID) was originally excluded here, but the method
+// author's D8 RULING settled it: the pubkey form is a repository lookup, NOT
+// self-certifying, so the default resolves it exactly as the reference does
+// and it now sits in PARITY above. The stricter §3.2.4 binding survives as
+// the `strictPubkeyBinding` opt-in, covered deterministically offline in
+// resolver.test.ts (bound resolves / unbound + rev-key rejected). History in
+// OYD-DID-CORPUS.md.
 
 describe.skipIf(!LIVE)("live real-world did:oyd corpus (OYD_LIVE=1)", () => {
   it.each(PARITY)("resolves and matches the reference: %s", async (did) => {

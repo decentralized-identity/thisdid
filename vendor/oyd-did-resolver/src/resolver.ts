@@ -74,6 +74,7 @@ const INVALID_MARKERS = [
   "don't match",
   "does not match",
   "does not commit",
+  "ambiguous",
   "malformed",
   "wrong number of CREATE",
   "missing TERMINATE",
@@ -153,13 +154,22 @@ export interface OydResolverOptions {
    *  resolver's FOLLOW_ALSOKNOWNAS, which defaults to true there). */
   followAlsoKnownAs?: boolean;
   /** Verify each honored REVOKE's signature against the version's revocation
-   *  key (spec §4.2.3). **OFF by default = reference parity** (the reference
-   *  never verifies this). When ON, a revocation not authorized by the
-   *  revocation key is rejected (`invalidDidDocument`) rather than honored —
-   *  defense-in-depth for a verifier that will not trust issuance history.
-   *  Only the middle case changes: a valid revocation still deactivates, and
-   *  a repository/MITM still cannot forge one (hash commitment). */
+   *  key AND its `doc` commitment to the revoked version's `{doc, key}`
+   *  (spec §4.1 / §4.2.3). **ON by default** — the method author ruled these
+   *  checks mandatory (D2/D3): the reference is adopting them as its own
+   *  default, and every one of the 1,117 production revocations passes both,
+   *  so nothing legitimate breaks. Set `false` to opt OUT into the legacy
+   *  reference-parity behavior (hash-commitment trust only) — useful for
+   *  parity testing against a pre-0.9.4 reference. */
   strictRevocationSig?: boolean;
+  /** Bind a pubkey-form (`z6M…`) identifier to a document key of the DID's
+   *  verified history before serving it. **OFF by default** — the method
+   *  author ruled (D8) that the pubkey form is a repository lookup, NOT
+   *  self-certifying, so the default follows the reference; callers needing
+   *  self-certification should use the hash form. Opting in rejects
+   *  repository-trust-only aliases (the `z6MkrJVn…` shape) as
+   *  `invalidDidDocument`. */
+  strictPubkeyBinding?: boolean;
   /** Override the resource bounds (defaults from security.ts). Exceeding one
    *  is an `internalError` (a service limit), not `invalidDidDocument`. */
   maxLogEntries?: number;
@@ -191,9 +201,13 @@ export async function resolutionResult(
   if (options.followAlsoKnownAs && resolveRotationTarget) {
     options.resolveRotationTarget = resolveRotationTarget;
   }
-  // host opt-ins, all off by default so default resolution stays parity
-  if (config.strictRevocationSig === true) {
-    options.strict_revocation_sig = true;
+  // strict revocation checks default ON (author's D2/D3 rulings — mandatory
+  // intent, zero production breakage); `false` opts out into legacy parity
+  options.strict_revocation_sig = config.strictRevocationSig !== false;
+  // pubkey binding defaults OFF (author's D8 ruling — the pubkey form is a
+  // repository lookup, not self-certifying); an explicit opt-in binds
+  if (config.strictPubkeyBinding === true) {
+    options.strict_pubkey_binding = true;
   }
   if (config.maxLogEntries !== undefined) {
     options.maxLogEntries = config.maxLogEntries;
@@ -253,8 +267,14 @@ export async function resolutionResult(
   // must equal a document key of SOME version in the verified history —
   // compared on the raw 32 key bytes so the two framings (`0xed 0x20` /
   // `0xed 0x01`) match, and across all versions so a rotated key still binds.
+  // Pubkey-form binding is applied only under `strictPubkeyBinding` — the
+  // author's D8 ruling: the pubkey form is a repository lookup, NOT
+  // self-certifying (callers needing self-certification use the hash form),
+  // so the DEFAULT follows the reference. Hash-form identifiers stay bound
+  // to the verified chain unconditionally (they ARE self-certifying).
   const bound = isPubKeyIdentifier(didHash)
-    ? pubkeyBindsToVersion(didHash, result)
+    ? options.strict_pubkey_binding !== true ||
+      pubkeyBindsToVersion(didHash, result)
     : (result.log ?? []).some(
         (el) =>
           (el.op === Op.CREATE || el.op === Op.UPDATE) &&

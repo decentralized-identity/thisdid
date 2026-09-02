@@ -292,7 +292,36 @@ did:oyd:zQmQMvhHrccgcP2XzE2rM4E8MDx9P8D5FWPdDF1DTPikF4F   deactivated (410)
 resolved document (`0xed 0x20` + 32 bytes); compare the trailing 32 raw
 bytes. Values listed under D8.
 
-**Driver test suites:** the package ships an offline suite (72 tests:
-golden vectors captured from the reference deployment + adversarial vectors
-minted with real Ed25519 keys) and an opt-in live corpus
-(`OYD_LIVE=1`, diffs each DID above against `resolver.ownyourdata.eu`).
+**Driver test suites:** the package ships an offline suite (golden vectors
+captured from the reference deployment + adversarial vectors minted with
+real Ed25519 keys) and an opt-in live corpus (`OYD_LIVE=1`, diffs each DID
+above against `resolver.ownyourdata.eu`).
+
+---
+
+## Rulings received (2026-09-02) — all eleven adjudicated
+
+The method author answered every question, confirmed the findings
+("unusually careful… found at least one real defect in the reference"),
+updated the **spec text**, the **live resolver**, and the **Ruby reference**
+(shipped as gem 0.9.4, live on both endpoints), and this driver has been
+updated accordingly:
+
+| D   | Ruling                                                                                                                                                                      | Driver response                                                                 |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| D1  | Unsigned-CREATE tolerance is **permanent** (1,643 legacy CREATEs); present sigs MUST verify; new unsigned CREATEs repo-rejected                                             | Default tolerance kept; `strict_create_sig` remains the opt-in                  |
+| D2  | REVOKE signature verification is **mandatory**; the key separation is a deliberate security property                                                                        | `strictRevocationSig` is now **ON by default** (`false` = legacy parity)        |
+| D3  | Preimage **confirmed exactly**: `multi_hash(canonical({doc, key}))`, digest/encoding per-value, `log` excluded; all 1,117 production revocations pass                       | Enforced by default; digest/encoding now derived from the stored value          |
+| D4  | Correct rule: collect all candidates, verify each, require **exactly one valid survivor** (junk must not deny service)                                                      | Implemented as the default succession rule; junk ignored, forks ambiguous       |
+| D5  | `previous` rules are **descriptive**, except the TERMINATE→REVOKE commitment (normative)                                                                                    | Already matched: commitment enforced, generic graph kept                        |
+| D6  | CLONE is **outside the resolution contract** (to be marked reserved)                                                                                                        | Fail-closed rejection kept, as recommended                                      |
+| D7  | **Real takeover defect confirmed & reproduced**; reference now authorizes UPDATEs only by the superseded version's own doc key (0 of 67 DELEGATE DIDs relied on delegation) | The reference adopted this driver's rule; fail-closed stance unchanged          |
+| D8  | Pubkey form is a **repository lookup, not self-certifying**; the binding is a valid strict option; `z6MkrJVn…` is the sole pre-spec row                                     | Default now resolves it (parity); binding moved to `strictPubkeyBinding` opt-in |
+| D9  | `0xed 0x01` is **canonical**; `0xed 0x20` was an encoding bug ≤ 0.5.6, officially retained                                                                                  | Dual-framing acceptance unchanged; docs note the canonical direction            |
+| D10 | 410 is a **hint**; verifiers SHOULD confirm the REVOKE cryptographically (`/doc_raw` + `/log` still serve)                                                                  | Implemented: deactivation is reported only after the records verify             |
+| D11 | Both forms equivalent; **`%40` preferred**; the reference's `@`-only split is being fixed                                                                                   | Already handled both forms everywhere                                           |
+
+Side effects of the report, both fixed in 0.9.4: a junk op=5 entry with a
+missing `previous` crashed `dag_did` (the `zQmSVzAL…` 500), and an unbounded
+recursion in the repository's log assembly. The author offers reference test
+vectors (positive and adversarial) once the spec-text updates land.

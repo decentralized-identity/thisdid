@@ -3,11 +3,16 @@ import { Resolver } from "did-resolver";
 import { getResolver } from "../resolver.js";
 import { checkRepositoryUrl, MAX_LOG_ENTRIES } from "../security.js";
 import {
-  verify,
+  canonical,
   decodeEd25519PublicKey,
   multiDecode,
   multiEncode,
+  multiHash,
+  verify,
+  DidError,
+  LOG_HASH_OPTIONS,
 } from "../basic.js";
+import { read } from "../read.js";
 import {
   keypair,
   mintForeignTerminate,
@@ -64,6 +69,50 @@ describe("update lifecycle authorization (finding 1)", () => {
     const result = await resolver().resolve(chain.didV1);
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
+  });
+
+  it("junk op=3 appended to the log cannot deny service (D4 ruling)", async () => {
+    // the log endpoint is unauthenticated: anyone can append an unsigned
+    // UPDATE referencing the revocation. It must be IGNORED — not picked
+    // (first-match) and not an error (naive more-than-one ⇒ error) — so the
+    // genuine chain still resolves to v2.
+    const chain = await mintUpdateChain({ updateSigner: "v1doc" });
+    const junked = async (input: RequestInfo | URL) => {
+      const response = await chain.fetch(input);
+      if (new URL(String(input)).pathname.startsWith("/log/")) {
+        const log = (await response.json()) as Array<Record<string, unknown>>;
+        const revoke = log.find((entry) => entry.op === 1);
+        const revocationHash =
+          (await multiHash(canonical(revoke), LOG_HASH_OPTIONS))[0] ?? "";
+        return Response.json([
+          ...log,
+          {
+            ts: 1700000777,
+            op: 3,
+            doc: "zJunkAppendedByAnyone",
+            sig: "zNotARealSignature",
+            previous: [revocationHash],
+          },
+        ]);
+      }
+      return response;
+    };
+    vi.stubGlobal("fetch", vi.fn(junked));
+    const result = await resolver().resolve(chain.didV1);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.canonicalId).toBe(chain.didV2);
+  });
+
+  it("rejects TWO valid UPDATE successors as ambiguous (D4 ruling)", async () => {
+    const chain = await mintUpdateChain({
+      updateSigner: "v1doc",
+      duplicateSuccessor: true,
+    });
+    vi.stubGlobal("fetch", vi.fn(chain.fetch));
+    const result = await resolver().resolve(chain.didV1);
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
+    expect(result.didResolutionMetadata.message).toContain("ambiguous");
   });
 });
 
@@ -416,53 +465,68 @@ describe("resource bounds (finding 5)", () => {
   );
 });
 
-describe("revocation-key authorization (opt-in strictRevocationSig)", () => {
-  const strictResolver = () =>
-    new Resolver(getResolver({ strictRevocationSig: true }));
+describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per D2/D3)", () => {
+  const parityResolver = () =>
+    new Resolver(getResolver({ strictRevocationSig: false }));
 
-  it("DEFAULT honors a revocation not signed by the revocation key (reference parity)", async () => {
+  it("DEFAULT rejects a revocation not signed by the revocation key (D2 ruling)", async () => {
     const did = await mintRevoked({ ok: true }, { badRevSig: true });
     vi.stubGlobal("fetch", vi.fn(did.fetch));
     const result = await resolver().resolve(did.did);
-    expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect(result.didDocumentMetadata.deactivated).toBe(true);
-  });
-
-  it("STRICT rejects a revocation not signed by the revocation key", async () => {
-    const did = await mintRevoked({ ok: true }, { badRevSig: true });
-    vi.stubGlobal("fetch", vi.fn(did.fetch));
-    const result = await strictResolver().resolve(did.did);
     expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
     expect(result.didResolutionMetadata.message).toContain(
       "revocation signature",
     );
   });
 
-  it("STRICT still honors a revocation correctly signed by the revocation key", async () => {
-    const did = await mintRevoked({ ok: true });
-    vi.stubGlobal("fetch", vi.fn(did.fetch));
-    const result = await strictResolver().resolve(did.did);
-    expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect(result.didDocumentMetadata.deactivated).toBe(true);
-  });
-
-  it("STRICT rejects a rev-key-signed REVOKE whose doc does NOT commit to the revoked version", async () => {
+  it("DEFAULT rejects a rev-key-signed REVOKE whose doc does NOT commit to the revoked version (D3 ruling)", async () => {
     // valid revocation-key signature, but `doc` is the hash of OTHER content
     // — spec §4.1 requires REVOKE.doc = hash of the revoked version's
-    // {doc, key} (preimage verified against real repository data, D3)
+    // {doc, key} (preimage confirmed by the method author; all 1,117
+    // production revocations pass it)
     const did = await mintRevoked({ ok: true }, { wrongRevDoc: true });
     vi.stubGlobal("fetch", vi.fn(did.fetch));
-    const result = await strictResolver().resolve(did.did);
+    const result = await resolver().resolve(did.did);
     expect(result.didResolutionMetadata.error).toBe("invalidDidDocument");
     expect(result.didResolutionMetadata.message).toContain("commit");
   });
 
-  it("DEFAULT honors the wrong-doc REVOKE (reference parity)", async () => {
-    const did = await mintRevoked({ ok: true }, { wrongRevDoc: true });
+  it("DEFAULT still honors a revocation correctly signed by the revocation key", async () => {
+    const did = await mintRevoked({ ok: true });
     vi.stubGlobal("fetch", vi.fn(did.fetch));
     const result = await resolver().resolve(did.did);
     expect(result.didResolutionMetadata.error).toBeUndefined();
     expect(result.didDocumentMetadata.deactivated).toBe(true);
+  });
+
+  it("opt-out (strictRevocationSig: false) restores legacy parity for a bad-rev-sig revocation", async () => {
+    const did = await mintRevoked({ ok: true }, { badRevSig: true });
+    vi.stubGlobal("fetch", vi.fn(did.fetch));
+    const result = await parityResolver().resolve(did.did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.deactivated).toBe(true);
+  });
+
+  it("opt-out restores legacy parity for a wrong-doc REVOKE", async () => {
+    const did = await mintRevoked({ ok: true }, { wrongRevDoc: true });
+    vi.stubGlobal("fetch", vi.fn(did.fetch));
+    const result = await parityResolver().resolve(did.did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.deactivated).toBe(true);
+  });
+
+  it("the default is UNIVERSAL: a direct low-level read(did, {}) call still verifies", async () => {
+    // the exported low-level API must not silently bypass the mandatory
+    // D2/D3 checks — omitting the option means ON; only an explicit
+    // `strict_revocation_sig: false` opts out
+    const did = await mintRevoked({ ok: true }, { badRevSig: true });
+    vi.stubGlobal("fetch", vi.fn(did.fetch));
+    const [info] = await read(did.did, {});
+    expect(info).not.toBeNull();
+    expect(info?.error).toBe(DidError.INVALID);
+    expect(info?.message).toContain("revocation signature");
+    const [legacy] = await read(did.did, { strict_revocation_sig: false });
+    expect(legacy?.error).not.toBe(DidError.INVALID);
   });
 
   it("a repository cannot forge a revocation by tampering the published REVOKE sig", async () => {
@@ -578,10 +642,30 @@ describe("repository deactivation assertion is bound to HTTP 410 (finding 1)", (
     });
   const CANARY = "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh";
 
-  it("honors a repository 'revoked' assertion on HTTP 410", async () => {
+  it("confirms a repository 410 'revoked' assertion from the records (D10 ruling)", async () => {
+    // the 410 is a HINT: /doc answers 410, but /doc_raw and /log still serve
+    // the revoked DID's records — the driver walks them and reports
+    // deactivated only on cryptographic confirmation
+    const did = await mintRevoked({ ok: true });
+    const gated = async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname;
+      if (path.startsWith("/doc/")) {
+        return Response.json({ error: "revoked" }, { status: 410 });
+      }
+      return did.fetch(input);
+    };
+    vi.stubGlobal("fetch", vi.fn(gated));
+    const result = await resolver().resolve(did.did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.deactivated).toBe(true);
+  });
+
+  it("does NOT deactivate on a bare 410 hint when the records are unavailable (fail closed)", async () => {
     vi.stubGlobal("fetch", docStub(410, { error: "revoked" }));
     const result = await resolver().resolve(CANARY);
-    expect(result.didDocumentMetadata.deactivated).toBe(true);
+    expect(result.didDocumentMetadata.deactivated).toBeUndefined();
+    expect(result.didResolutionMetadata.error).toBe("internalError");
+    expect(result.didResolutionMetadata.message).toContain("revocation");
   });
 
   it("does NOT deactivate on a 'revoked' body carried by a non-410 status", async () => {

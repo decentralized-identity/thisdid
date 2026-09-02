@@ -29,11 +29,19 @@ export interface OydOptions {
     log_complete?: boolean;
     strict_create_sig?: boolean;
     /** Verify each honored REVOKE's signature against the version's revocation
-     *  key before accepting deactivation or a REVOKE-based UPDATE (spec §4.2.3
-     *  #verify_signature). OFF by default = reference parity (the reference
-     *  never verifies this); a host opts in via
-     *  `getResolver({ strictRevocationSig: true })`. */
+     *  key AND its `doc` commitment to the revoked `{doc, key}` before
+     *  accepting deactivation or a REVOKE-based UPDATE (spec §4.1 / §4.2.3).
+     *  ON unless EXPLICITLY set to `false` — the author's D2/D3 rulings made
+     *  the checks mandatory, so the default is universal: omitting the field
+     *  (e.g. a direct `read(did, {})` caller) still verifies. `false` opts out
+     *  into legacy pre-0.9.4 reference-parity behavior
+     *  (`getResolver({ strictRevocationSig: false })`). */
     strict_revocation_sig?: boolean;
+    /** Bind a pubkey-form identifier to a document key of the verified
+     *  history (spec §3.2.4). OFF by default — the author's D8 ruling: the
+     *  pubkey form is a repository lookup, not self-certifying; opt in via
+     *  `getResolver({ strictPubkeyBinding: true })`. */
+    strict_pubkey_binding?: boolean;
     /** Resource-bound overrides (defaults: `MAX_LOG_ENTRIES` /
      *  `MAX_PREVIOUS_PER_ENTRY` from security.ts). A deployment may raise or
      *  lower them; exceeding one is an `internalError` (a service limit), never

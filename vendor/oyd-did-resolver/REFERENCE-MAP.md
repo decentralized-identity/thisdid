@@ -20,10 +20,11 @@ what the artifacts here support:
   function (the map below), as groundwork for a future formal comparison;
 - every departure from the reference is deliberate and listed under
   **Deliberate deviations** — several are externally observable, which is
-  precisely why they are enumerated for the method author's review (a
-  standalone adjudication dossier — `SPEC-DIVERGENCES.md`, with live
-  evidence and one concrete question per divergence — is maintained outside
-  this package and delivered to the method author directly);
+  precisely why they were put to the method author for adjudication — see
+  [SPEC-DIVERGENCES.md](./SPEC-DIVERGENCES.md), whose D1–D11 questions have
+  now ALL been ruled on (the author confirmed the findings, fixed a real
+  takeover defect the report surfaced, and shipped the changes as gem 0.9.4
+  on the live reference);
 - within the supported profile (ed25519 / sha2-256 / base58btc), the
   package is **behaviorally compatible with the reference resolver for the
   captured vectors**: the spec's own published samples — single-version,
@@ -36,10 +37,11 @@ what the artifacts here support:
   checks under **Security hardening** (stricter than the reference, never
   more permissive) fail closed, rejecting malformed or malicious logs, keys,
   repositories and rotation targets that the trusting first-party reference
-  would accept. All supported valid golden vectors resolve unchanged; the one
-  intentional exception to reference behavior is delegation, which is not honored
-  (§2) — a reference-accepted DID relying on a delegated update key is
-  deliberately rejected.
+  would accept. All supported valid golden vectors resolve unchanged.
+  (Delegation is not honored (§2) — originally a deliberate departure from
+  the reference, and since gem 0.9.4 the reference's own behavior too: the
+  author confirmed unauthenticated delegation was a takeover defect and
+  adopted this driver's rule.)
 
 **Two separate guarantees.** _Resolution compatibility_: all supported valid
 golden vectors resolve to a structurally identical document and metadata as the
@@ -121,15 +123,18 @@ https://ownyourdata.github.io/oydid/.
    revealed about repository behavior (`/doc/{id}` serves the LATEST
    document even for an old version identifier, while `/doc_raw/{hash}` is
    version-exact): every `/doc_raw` response must hash to its version
-   identifier, and the REQUESTED identifier must appear as a version
-   (a CREATE/UPDATE entry) in the verified log chain — or, for a
-   bare-public-key identifier (spec §3.2.4), as a document key of any
-   verified version in that chain (the `version_document_keys` set collected
-   across every CREATE/UPDATE in `dag_update`), not merely the final version's
-   key.
-   The spec binds a pubkey-form identifier to a document key in the DID's
-   history; there is no separate cryptographic signature over the
-   identifier, so this membership check is the binding.
+   identifier, and a REQUESTED hash-form identifier must appear as a version
+   (a CREATE/UPDATE entry) in the verified log chain.
+   _Pubkey-form identifiers follow the author's D8 ruling:_ the pubkey form
+   is a **repository lookup, not self-certifying** (callers needing
+   self-certification use the hash form), so by DEFAULT a `z6M…` identifier
+   resolves exactly as the reference resolves it, with no key-membership
+   check. `getResolver({ strictPubkeyBinding: true })` opts into the
+   stricter §3.2.4 binding — the identifier's raw key must equal a document
+   key of some verified version (the `version_document_keys` set collected
+   across every CREATE/UPDATE in `dag_update`) — which rejects
+   repository-trust-only aliases such as the one pre-spec production row
+   (`z6MkrJVn…`, see OYD-DID-CORPUS.md).
 2. **`followAlsoKnownAs` is a host opt-in, OFF by default** (the reference
    resolver defaults to true). The rotation branch of `dag_update` IS
    ported: a host that opts in (`getResolver({ followAlsoKnownAs: true })`,
@@ -184,49 +189,46 @@ checks have no counterpart in the reference (some address gaps the reference
 author flagged in-code, e.g. the `!!!OPEN` note on delegation). **Every one
 fails closed**: it can only turn malformed or hostile input into a rejection.
 All supported valid golden vectors resolve to the same document unchanged; the
-sole intentional departure is delegation (§2), which is not honored — so a
-reference-accepted DID relying on a delegated update key is deliberately
-rejected, not resolved. Each check is exercised adversarially in
-`src/__tests__/security.test.ts`.
+delegation departure (§2) has since been adopted by the reference itself
+(gem 0.9.4 — the D7 ruling), and the author's production audit found zero
+DIDs relying on a delegated key, so no reference-resolvable DID is affected.
+Each check is exercised adversarially in `src/__tests__/security.test.ts`.
 
-1. **UPDATE authorization is mandatory, not incidental** (`log.ts`). An
-   UPDATE is installed only if its signature was verified against the prior
-   version's authorized keys in a preceding revocation branch; an UPDATE
-   reached without that proof — e.g. spliced directly onto CREATE, or signed
-   by a key that never held authority — is rejected. The reference verifies
-   the update only inside the revocation walk and installs it unconditionally
-   when reached.
-2. **Delegation keys are not honored at all** (`log.ts`, `w3c.ts`). Update
-   authorization uses only the current version's own document key, and the
-   composed document lists no delegate-derived `capabilityDelegation`. The
-   reference never authenticates DELEGATE entries — it derives keys from the
-   raw `full_log` and flags this exact gap `!!!OPEN` — and no
-   authenticated-delegation rule or reference-generated positive vector is
-   available to implement safely, so any DELEGATE key (connected or not,
-   signed or not) is treated as unauthenticated and ignored. A did:oyd that
-   relied on a delegated update key fails closed (its delegated version does
-   not resolve) rather than trust an unauthenticated key. Revisit when the
-   spec defines delegation authorization and a positive vector exists.
-3. **The revocation lookup fails closed** (`log.ts`). A timeout, HTTP error,
-   or malformed/oversized response during the revocation check is an
-   `internalError`, never read as "no revocation exists". The reference
-   guarded the loop `unless log_array.nil?` and served the document.
-   _Optional (`strictRevocationSig`, OFF by default = parity):_ two extra
-   checks on the honored REVOKE. (a) Its signature must verify against the
-   version's revocation key (spec §4.2.3). (b) Its `doc` must COMMIT to the
-   version it revokes — spec §4.1 defines op=1 `doc` as the hash of the
-   version's document and key; the preimage
-   `multi_hash(canonical({doc, key}))` was verified against real repository
-   data (SPEC-DIVERGENCES.md D3), and every real REVOKE-bearing corpus DID
-   passes both checks live in strict mode. By default — like the reference —
-   the REVOKE is honored on the TERMINATE→REVOKE hash commitment alone; that
-   commitment already stops a repository/MITM from substituting a revocation
-   (proven in `security.test.ts`: a tampered REVOKE sig is ignored), but it
-   proves neither that the revocation _key_ authorized it (a creator holding
-   only the document key can precommit an unauthorized revocation) nor that
-   the REVOKE names the version it revokes. The opt-in closes both gaps for a
-   verifier that will not trust issuance history; the default stays
-   reference-parity.
+1. **UPDATE succession follows the author's D4 ruling** (`log.ts`). Every
+   op=3 whose `previous` references the honored revocation is collected; each
+   candidate's signature is verified against the superseded version's OWN
+   document key; EXACTLY ONE valid survivor is required. An invalid candidate
+   is attacker-appendable junk (the log endpoint is unauthenticated) and is
+   ignored — never an error, because first-match or naive
+   more-than-one ⇒ error would both be denial-of-service levers; two VALID
+   survivors are a genuine fork and fail closed as ambiguous. An UPDATE that
+   was never any revocation's candidate — e.g. spliced directly onto
+   CREATE — remains a hard rejection. (The pinned reference took the first
+   match and checked nothing else.)
+2. **Delegation keys are not honored** (`log.ts`, `w3c.ts`) — **and the
+   D7 ruling confirmed this as a real takeover defect in the reference,
+   which has adopted our rule.** A party holding no key of the victim could
+   take over a revoked-but-not-yet-updated DID via an unauthenticated
+   DELEGATE plus a self-signed UPDATE; the author reproduced it, audited all
+   67 DELEGATE-bearing production DIDs (zero rely on delegated keys), and as
+   of gem 0.9.4 the reference authorizes an UPDATE only by the superseded
+   version's own document key — exactly this driver's behavior. Fail-closed
+   rejection remains the recommended stance until a DELEGATE authorization
+   rule and a positive vector exist.
+3. **The revocation lookup fails closed, and revocations are verified BY
+   DEFAULT** (`log.ts`). A timeout, HTTP error, or malformed/oversized
+   response during the revocation check is an `internalError`, never read as
+   "no revocation exists". Per the author's D2/D3 rulings the two REVOKE
+   checks are now **ON by default** (`strictRevocationSig: false` opts out
+   into legacy pre-0.9.4 parity): (a) the REVOKE's signature must verify
+   against the version's revocation key (§4.2.3 — the doc-key/rev-key
+   authority separation is a deliberate security property); (b) its `doc`
+   must commit to the revoked version — the author-confirmed preimage
+   `multi_hash(canonical({doc, key}))`, digest and encoding derived from the
+   stored value itself, which all 1,117 production revocations satisfy. The
+   TERMINATE→REVOKE hash commitment alone (the old default) stops a
+   repository/MITM from substituting a revocation but proves neither
+   revocation-key authorization nor which version is revoked.
 4. **Log topology is bounded, unambiguous, and complete** (`log.ts`,
    `security.ts`): entry-count and back-reference bounds (deployment-
    configurable via `getResolver({ maxLogEntries, maxPreviousRefs })`;
@@ -243,9 +245,10 @@ rejected, not resolved. Each check is exercised adversarially in
    `ts`.
 5. **Validated Ed25519 key framing** (`basic.ts`). A key must carry the
    Ed25519 multicodec code (`0xed`) over exactly 32 key bytes, under one of
-   the two framings the reference actually emits across its history —
-   multihash-style code+length (`0xed 0x20`) or varint multicodec
-   (`0xed 0x01`); like the reference we decode on `code = byte[0]`,
+   the two framings — per the author's D9 ruling, **varint multicodec
+   `0xed 0x01` is canonical** and multihash-style code+length `0xed 0x20`
+   was an encoding bug up to gem 0.5.6, retained officially for
+   compatibility; like the reference we decode on `code = byte[0]`,
    `key = last 32 bytes`, but unlike it we reject any other length byte or
    size (the reference accepted any 34-byte `0xed…` value). Both the document
    key and the revocation key are validated (an invalid revocation key is
@@ -309,9 +312,13 @@ rejected, not resolved. Each check is exercised adversarially in
    silently collapses to the last value, invisible to any post-parse check,
    so the raw text is scanned — are all rejected: canonical JSON feeds
    identifiers, log hashes and signature commitments, so a lossy
-   serialization must never be hashed); and repository error handling is STATUS-driven — `"revoked"` is
-   honored only on HTTP 410 (the reference's deactivation status), 404 maps
-   to not-found, any other failure to a transport error, and the
+   serialization must never be hashed); and repository error handling is
+   STATUS-driven — a 410 `"revoked"` is treated as a HINT per the author's
+   D10 ruling: the driver then fetches the still-served `/doc_raw` + `/log`
+   records and runs the normal verified walk, reporting `deactivated` only
+   on cryptographic confirmation (a bare hint with unavailable records is a
+   transport error, and a log that proves the DID live wins over the hint);
+   404 maps to not-found, any other failure to a transport error, and the
    repository's message text can never steer the DIF error classification
    (it could otherwise echo marker substrings into `errorCodeFor`).
 
@@ -375,19 +382,21 @@ transliterated but not positively vectored. Everything outside the supported
 profile (p256, non-sha2-256 digests, non-base58btc encodings) is
 deliberately rejected, not resolved.
 
-**REVOKE `doc` commitment — validated under the strict opt-in.** Spec §4.1
+**REVOKE `doc` commitment — validated BY DEFAULT (D3 ruling).** Spec §4.1
 defines the op=1 REVOKE `doc` as the _hash of the document and key_ of the
 version being revoked. The preimage was determined empirically against real
 repository data — `multi_hash(canonical({doc, key}))` of the revoked
-version's record (SPEC-DIVERGENCES.md D3) — and `strictRevocationSig` now
-enforces it alongside the revocation-key signature: a correctly-key-signed
-REVOKE whose `doc` names other content is rejected in strict mode
-(`security.test.ts`), and every real REVOKE-bearing corpus DID passes both
-checks live. The DEFAULT does not enforce it (the reference performs neither
-check — parity). Still deliberately outside the default profile, as
-strict-spec-mode candidates awaiting the method author's rulings: mandatory
-CREATE signatures, exactly-one-UPDATE-successor, and operation-specific
-predecessor cardinality — each would reject inputs the reference resolves.
+version's record, digest/encoding derived from the stored value itself — and
+the method author confirmed it exactly, verifying **all 1,117 production
+revocations pass with zero exceptions**, so enforcement breaks no legacy
+DID. It runs by default together with the revocation-key signature check
+(`strictRevocationSig: false` opts out); every real REVOKE-bearing corpus
+DID passes both checks live. Author rulings resolved the remaining scope
+questions: unsigned legacy CREATEs stay tolerated permanently (D1 —
+`strict_create_sig` remains the opt-in), UPDATE succession uses the
+valid-survivor rule (D4, implemented), and operation-specific predecessor
+rules are descriptive, not normative (D5), except the TERMINATE→REVOKE
+commitment, which is enforced.
 
 **Deferred independently — stricter TypeScript compiler settings.**
 Enabling `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and

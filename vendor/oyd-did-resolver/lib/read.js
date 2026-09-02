@@ -4,7 +4,7 @@
  * (#read). Same walk: retrieve the DID document, retrieve and DAG-order the
  * provenance log, then dag_update to the current version.
  */
-import { retrieveDocument, retrieveLog, DEFAULT_LOCATION, DidError, LOCATION_PREFIX, LOCATION_PREFIX_ESCAPED, } from "./basic.js";
+import { retrieveDocument, retrieveDocumentRaw, retrieveLog, DEFAULT_LOCATION, DidError, LOCATION_PREFIX, LOCATION_PREFIX_ESCAPED, } from "./basic.js";
 import { dagDid, dag2array, dag2arrayTerminate, dagUpdate } from "./log.js";
 /** ⇔ read (oydid.rb:65) · spec §3.2 #read */
 export async function read(did, options) {
@@ -34,13 +34,37 @@ export async function read(did, options) {
         didLocation = DEFAULT_LOCATION;
     const didHash = did.replace(/^did:oyd:/, "");
     // retrieve DID document
+    let documentRecord;
     const documentResult = await retrieveDocument(didHash, didLocation, options);
-    if (documentResult[0] === null)
+    if (documentResult[0] !== null) {
+        documentRecord = documentResult[0];
+    }
+    else if (documentResult[1] === "revoked") {
+        // D10 ruling: a repository 410 is a HINT, not proof — an independent
+        // verifier SHOULD confirm the published REVOKE cryptographically, and it
+        // can, because `/doc_raw` and `/log` still serve a revoked DID's records
+        // (only `/doc` answers 410). Fetch the version-exact record and continue
+        // the NORMAL verified walk: a log-confirmed revocation reports
+        // deactivated; if the log proves the DID live, cryptographic truth wins
+        // over the hint; unconfirmable records are a transport error, never
+        // silently trusted deactivation.
+        const raw = await retrieveDocumentRaw(didHash, didLocation, options);
+        if (raw[0] === null) {
+            return [
+                null,
+                "repository asserted revocation but records are unavailable" +
+                    (raw[1] !== "" ? ": " + raw[1] : ""),
+            ];
+        }
+        documentRecord = raw[0].doc;
+    }
+    else {
         return [null, documentResult[1]];
+    }
     const currentDID = {
         did: requestedDid,
         did_requested: requestedDid,
-        doc: documentResult[0],
+        doc: documentRecord,
         log: [],
         doc_log_id: null,
         termination_log_id: null,
@@ -52,7 +76,7 @@ export async function read(did, options) {
     // defines %40 as the W3C-conform representation of "@", so both forms are
     // recognized here — the reference splits the log reference on "@" only
     // (its dag_update handles both).
-    let logHash = documentResult[0].log;
+    let logHash = documentRecord.log;
     let logLocation = options.log_location ?? "";
     if (logLocation === "" && options.location)
         logLocation = options.location;

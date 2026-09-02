@@ -325,12 +325,19 @@ async function mintRevokedDid(payload: Record<string, unknown>): Promise<{
   const docKey = await packKey(docPair);
   const revKey = await packKey(revPair);
 
-  // revocation record (hashed without `previous` for the TERMINATE ref)
+  // revocation record (hashed without `previous` for the TERMINATE ref);
+  // spec-correct commitment (§4.1 op=1): doc = hash of the version's
+  // {doc, key}, signed by the revocation key — passes the default-on
+  // strict revocation checks (D2/D3 rulings)
+  const revokeDoc = await hashOf({
+    doc: payload,
+    key: docKey + ":" + revKey,
+  });
   const revocationBase = {
     ts,
     op: Op.REVOKE,
-    doc: "revocation",
-    sig: await sign(revPair, "revocation"),
+    doc: revokeDoc,
+    sig: await sign(revPair, revokeDoc),
   };
   const terminate: LogEntry = {
     ts,
@@ -467,27 +474,39 @@ describe("pubkey-form identifiers (spec §3.2.4 binding)", () => {
     expect(vmHexes).toContain(idHex);
   });
 
-  it("rejects a pubkey-form DID whose key is NOT a document key (the z6MkrJVn shape)", async () => {
-    // A well-formed pubkey-form identifier the same repository serves, but
-    // whose key is in no version of the DID — resolvable only by trusting the
-    // repository. This is the offline analog of did:oyd:z6MkrJVn… (OYD-DID-CORPUS.md
-    // §"Excluded"): the reference resolves it permissively; we fail closed.
+  it("DEFAULT resolves an unbound pubkey-form id via repository lookup (D8 ruling)", async () => {
+    // The method author ruled the pubkey form is a repository lookup, NOT
+    // self-certifying — so by default an identifier whose key is in no
+    // version (the z6MkrJVn shape) resolves exactly as the reference
+    // resolves it. Self-certification callers use the hash form.
     const m = await mintPubkeyForm({ hello: "world" });
     vi.stubGlobal("fetch", vi.fn(m.fetch));
     const r = await resolver().resolve(m.unboundDid);
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocument?.id).toBe(m.unboundDid);
+  });
+
+  it("strictPubkeyBinding rejects the unbound (z6MkrJVn) shape", async () => {
+    const m = await mintPubkeyForm({ hello: "world" });
+    vi.stubGlobal("fetch", vi.fn(m.fetch));
+    const strict = new Resolver(getResolver({ strictPubkeyBinding: true }));
+    const r = await strict.resolve(m.unboundDid);
     expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
     expect(r.didResolutionMetadata.message).toContain("don't match");
   });
 
-  it("rejects a pubkey-form DID addressed by its REVOCATION key (spec binds the document key only)", async () => {
-    // The revocation key is a real key of the DID but NOT an identifier form
-    // (spec §3.2.4 #pubkey_identifier is defined on the document key). It must
-    // not bind, even though it is one of the record's two keys.
+  it("strictPubkeyBinding rejects a rev-key-addressed id but keeps a bound one resolving", async () => {
+    // spec §3.2.4 #pubkey_identifier is defined on the DOCUMENT key: under
+    // the opt-in, the revocation key must not bind even though it is one of
+    // the record's two keys — while the genuine doc-key id still resolves.
     const m = await mintPubkeyForm({ hello: "world" });
     vi.stubGlobal("fetch", vi.fn(m.fetch));
-    const r = await resolver().resolve(m.revDid);
-    expect(r.didResolutionMetadata.error).toBe("invalidDidDocument");
-    expect(r.didResolutionMetadata.message).toContain("don't match");
+    const strict = new Resolver(getResolver({ strictPubkeyBinding: true }));
+    const rejected = await strict.resolve(m.revDid);
+    expect(rejected.didResolutionMetadata.error).toBe("invalidDidDocument");
+    const bound = await strict.resolve(m.did);
+    expect(bound.didResolutionMetadata.error).toBeUndefined();
+    expect(bound.didDocument?.id).toBe(m.did);
   });
 });
 

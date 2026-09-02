@@ -12,7 +12,7 @@ pnpm run test:live        # OYD_LIVE=1 vitest run — hits the network
 The offline golden-vector suite never touches the network; this list is the
 real-world / regression layer on top of it.
 
-## Resolves identically to the reference (9)
+## Resolves identically to the reference (10)
 
 | DID                                                                                 | shape                             |
 | ----------------------------------------------------------------------------------- | --------------------------------- |
@@ -25,6 +25,7 @@ real-world / regression layer on top of it.
 | `did:oyd:zQmNauTUUdkpi5TcrTZ2524SKM8dJAzuuw4xfW13iHrtY1W%40did2.data-container.net` | non-default location              |
 | `did:oyd:zQmSE1hzumtZ7AoK1qhHf4t5kiKsujMsJSHqoXtWrdd7K7W`                           | updated DPP DID, varint key frame |
 | `did:oyd:zQmfEb3KgYZjZUPLTHPmFPdcV6peF5itB5NmJ9N6gaxxE8K`                           | same chain, updated identifier    |
+| `did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2`                          | pubkey-form alias (D8 ruling)     |
 
 For each, `didDocument` **and** `didDocumentMetadata` match the reference
 field-for-field (deep structural equality via `toEqual`, not raw-byte
@@ -41,15 +42,21 @@ resolved only after the key-framing fix below — their keys are varint-framed
 | --------------------------------------------------------- | ------------------------------------ |
 | `did:oyd:zQmQMvhHrccgcP2XzE2rM4E8MDx9P8D5FWPdDF1DTPikF4F` | revoked → `deactivated: true` (both) |
 
-## Excluded from the corpus (documented, not tested live)
+## The `z6MkrJVn…` case — settled by the author's D8 ruling
 
-`did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2` is **deliberately
-left out** of the live corpus above. The reference resolver (and therefore the
-DIF Universal Resolver, which is fed by it) resolves it, but this driver
-rejects it as `invalidDidDocument`. This is not a hidden regression — it is a
-documented artifact of the reference's repository trust, and its binding
-behaviour is instead covered **offline and deterministically** (see the end of
-this section), so the network corpus can stay uniformly green.
+`did:oyd:z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2` was originally
+**excluded** from this corpus: its embedded key is in no document version of
+its own DID, and this driver's then-default §3.2.4 binding rejected what the
+reference resolves. The question went to the method author
+(SPEC-DIVERGENCES.md D8) and the ruling settled it: **the pubkey form is a
+repository lookup, explicitly not self-certifying** — callers needing
+self-certification use the hash form — and this id is a pre-spec artifact,
+**the only such row in the entire production store**. The spec is being
+updated to say so. Accordingly the driver's default now resolves it exactly
+as the reference does (it sits in the parity table above), and the stricter
+binding survives as the `strictPubkeyBinding` opt-in, still covered
+offline and deterministically (see the end of this section). The forensics
+below are kept as the record that motivated the ruling.
 
 **What the DID is.** A _pubkey-form_ identifier — the id embeds an Ed25519
 public key (`0xed 0x01` varint framing) rather than a document hash:
@@ -80,28 +87,28 @@ checking the embedded key is a document key (this id lived in the reference's
 reproduce that trust. `b00d…` is most likely a _minting artifact_ (the alias
 was created from the wrong key), not a document key.
 
-**Nothing is lost by excluding it.** Its `alsoKnownAs` twin
+**Its `alsoKnownAs` twin remains the self-certifying route.** The twin
 `did:oyd:zQmYSyd…` is the **hash-form** identifier of the very same DID — it is
 self-certifying (id = multihash of the record), it is in the parity table
 above, and this driver resolves it to a structurally identical document
 (deep-equality) against the reference. The same DID document is fully
 resolvable through its proper identifier.
 
-**How the binding is covered instead.** `resolver.test.ts` → "pubkey-form
-identifiers (spec §3.2.4 binding)" mints, offline and deterministically, (a) a
-pubkey-form DID whose key **is** a document key → resolves, and (b) the exact
-`z6MkrJVn` shape — a well-formed pubkey-form id whose key is **not** a document
-key of the record the repository serves → rejected `invalidDidDocument`. So the
-spec-§3.2.4 binding, in both directions, is a network-free regression test.
+**How the binding is covered.** `resolver.test.ts` → "pubkey-form
+identifiers (spec §3.2.4 binding)" mints, offline and deterministically:
+by DEFAULT the unbound (`z6MkrJVn`) shape resolves via repository lookup
+exactly as the reference resolves it, and under
+`getResolver({ strictPubkeyBinding: true })` (a) a pubkey-form DID whose key
+**is** a document key resolves, while (b) the unbound shape and a
+rev-key-addressed id are rejected `invalidDidDocument`. Both directions of
+the §3.2.4 binding stay network-free regression tests.
 
-**Open questions for the OYDID author** (this is flagged, not a bug claim):
-is `z6MkrJVn` a pre-spec legacy artifact the reference keeps working for
-compatibility, or is there an intended binding under which its key belongs to
-the DID? And how many such repo-trust-only pubkey-form aliases exist? There is
-no public enumeration of `did:oyd` DIDs, so the global count is not knowable
-from outside OwnYourData; the class is structurally confined to pubkey-form
-aliases (hash-form DIDs cannot have it — they are hash-committed). Our
-rejection is the spec-correct behaviour for a well-formed pubkey-form id.
+**The former open questions — answered by the ruling (D8):** it IS a
+pre-spec artifact (an alias minted from a key that is not the document's),
+kept resolvable for compatibility; there is **exactly one** such row in the
+entire production store; and the binding check is a legitimate strict
+option, not a conformance requirement — the spec will state that the pubkey
+form is not self-certifying.
 
 ## Bugs this corpus caught (fixed)
 
@@ -130,6 +137,7 @@ the parity DIDs above (and, for the framing, an offline regression test):
 
 Re-run `pnpm run test:live`. Every DID in the corpus is expected to pass; a
 `PARITY` entry that starts failing means the reference output changed (or a
-regression). If the OYDID author resolves the `z6MkrJVn` question (e.g. by
-pointing to a correctly-minted pubkey-form DID), add that DID to the parity
-table and update the Excluded section accordingly.
+regression). The corpus was last re-validated against the gem 0.9.4
+reference deployment (post-rulings). Candidate addition: the DID whose junk
+op=5 entry used to 500 the reference (`zQmSVzAL…` — full identifier pending
+from the author) once confirmed resolving on both sides.

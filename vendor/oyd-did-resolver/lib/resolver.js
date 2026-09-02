@@ -25,6 +25,7 @@ const INVALID_MARKERS = [
     "don't match",
     "does not match",
     "does not commit",
+    "ambiguous",
     "malformed",
     "wrong number of CREATE",
     "missing TERMINATE",
@@ -106,9 +107,13 @@ export async function resolutionResult(did, config = {}, resolveRotationTarget) 
     if (options.followAlsoKnownAs && resolveRotationTarget) {
         options.resolveRotationTarget = resolveRotationTarget;
     }
-    // host opt-ins, all off by default so default resolution stays parity
-    if (config.strictRevocationSig === true) {
-        options.strict_revocation_sig = true;
+    // strict revocation checks default ON (author's D2/D3 rulings — mandatory
+    // intent, zero production breakage); `false` opts out into legacy parity
+    options.strict_revocation_sig = config.strictRevocationSig !== false;
+    // pubkey binding defaults OFF (author's D8 ruling — the pubkey form is a
+    // repository lookup, not self-certifying); an explicit opt-in binds
+    if (config.strictPubkeyBinding === true) {
+        options.strict_pubkey_binding = true;
     }
     if (config.maxLogEntries !== undefined) {
         options.maxLogEntries = config.maxLogEntries;
@@ -159,8 +164,14 @@ export async function resolutionResult(did, config = {}, resolveRotationTarget) 
     // must equal a document key of SOME version in the verified history —
     // compared on the raw 32 key bytes so the two framings (`0xed 0x20` /
     // `0xed 0x01`) match, and across all versions so a rotated key still binds.
+    // Pubkey-form binding is applied only under `strictPubkeyBinding` — the
+    // author's D8 ruling: the pubkey form is a repository lookup, NOT
+    // self-certifying (callers needing self-certification use the hash form),
+    // so the DEFAULT follows the reference. Hash-form identifiers stay bound
+    // to the verified chain unconditionally (they ARE self-certifying).
     const bound = isPubKeyIdentifier(didHash)
-        ? pubkeyBindsToVersion(didHash, result)
+        ? options.strict_pubkey_binding !== true ||
+            pubkeyBindsToVersion(didHash, result)
         : (result.log ?? []).some((el) => (el.op === Op.CREATE || el.op === Op.UPDATE) &&
             stripLocation(el.doc).replace(/^did:oyd:/, "") === didHash);
     if (!bound) {
