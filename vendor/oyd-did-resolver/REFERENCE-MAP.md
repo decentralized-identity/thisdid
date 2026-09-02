@@ -389,9 +389,8 @@ is wanted. What the artifacts do establish:
 Remaining scope notes. **Delegation (op 5) is intentionally unsupported**
 (Security hardening §2): a delegated-key update fails closed, so there is no
 positive delegation behavior to vector — supporting it safely requires a
-spec-defined authorization rule and a reference-generated vector first; both
-delegation attack paths (disconnected and connected-but-unauthenticated) are
-covered. CLONE (op 4) is likewise not handled (nor is it by the reference's
+spec-defined authorization rule and a reference-generated vector first;
+negative delegation cases are covered. CLONE (op 4) is likewise not handled (nor is it by the reference's
 `dag_update`, so both reject it). Bare-public-key identifiers (`z6M…`) are
 transliterated but not positively vectored. Everything outside the supported
 profile (p256, non-sha2-256 digests, non-base58btc encodings) is
