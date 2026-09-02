@@ -325,3 +325,15 @@ Side effects of the report, both fixed in 0.9.4: a junk op=5 entry with a
 missing `previous` crashed `dag_did` (the `zQmSVzAL…` 500), and an unbounded
 recursion in the repository's log assembly. The author offers reference test
 vectors (positive and adversarial) once the spec-text updates land.
+
+**Post-rulings follow-up — replay handling (D4 corollary).** We reported
+that `dag_did` denies resolution when fed a log containing a byte-identical
+copy of an existing entry (a replayed CREATE trips the CREATE count, a
+replayed tangling TERMINATE the terminate count). Author confirmation: the
+production append endpoint already rejects byte-identical duplicates
+server-side (`Log.stored?` plus a UNIQUE index on the entry hash), so the
+honest store is not reachable this way — but the resolver-level fragility is
+real for logs from uncontrolled sources, our keep-first entry-hash dedup
+before counting is "exactly the right hardening" and D4-consistent, and the
+reference is adopting the same collapse in `dag_did` as defense-in-depth —
+the second rule from this driver adopted upstream, after D7.

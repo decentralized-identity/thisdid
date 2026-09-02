@@ -233,8 +233,20 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    `security.ts`): entry-count and back-reference bounds (deployment-
    configurable via `getResolver({ maxLogEntries, maxPreviousRefs })`;
    exceeding one is an `internalError` service-limit, not
-   `invalidDidDocument`); a duplicate-hash rejection (so a `previous`
-   reference resolves to exactly one entry); a **dangling-reference
+   `invalidDidDocument`); a **replay-dedup at log ingestion** (byte-identical
+   copies of an existing entry are collapsed keep-first, keyed on the same
+   full-entry hash `previous` references resolve to — a duplicate-laden log
+   from an uncontrolled source must not deny resolution (D4 corollary).
+   Author-confirmed context: the production append endpoint already rejects
+   byte-identical duplicates server-side (`Log.stored?` + a UNIQUE index),
+   so the honest store is not reachable this way; the pinned reference's
+   `dag_did` errors on a replayed CREATE or tangling TERMINATE via its
+   structural counts, and the author is adding this same collapse there as
+   defense-in-depth. Until that ships this is an accept-more availability
+   deviation that can only ever yield the identical verified document, since
+   byte-identical entries carry the original's hashes and signatures); a
+   duplicate-hash rejection retained as an internal invariant (so a
+   `previous` reference resolves to exactly one entry); a **dangling-reference
    rejection** (every `previous` hash must resolve to an entry in the returned
    log — among the ops this driver resolves there are no external references;
    CLONE, the one op the spec defines with a cross-DID predecessor, is not

@@ -478,7 +478,16 @@ function hasDuplicateMember(text) {
  *  is rejected before the body is read, and the body itself is streamed
  *  against a byte counter. */
 async function fetchJson(url, options) {
-    const maxBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    // host-supplied bounds are honored only as finite positive integers —
+    // NaN or ±Infinity would silently DISABLE the size gate
+    // (`length > NaN` is always false) and break the timeout signal; a bad
+    // value falls back to the default, mirroring dagDid's resource-bound
+    // normalization
+    const positiveOr = (value, fallback) => typeof value === "number" && Number.isInteger(value) && value > 0
+        ? value
+        : fallback;
+    const maxBytes = positiveOr(options.maxResponseBytes, DEFAULT_MAX_RESPONSE_BYTES);
+    const timeoutMs = positiveOr(options.timeoutMs, DEFAULT_TIMEOUT_MS);
     // SSRF guard (finding 6): validate the destination before any request,
     // and refuse to follow redirects (which could hop to a blocked host).
     const policyError = checkRepositoryUrl(url, options.repositoryPolicy);
@@ -491,7 +500,7 @@ async function fetchJson(url, options) {
         const response = await fetch(url, {
             headers: { accept: "application/json" },
             redirect: "manual",
-            signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         });
         if (response.type === "opaqueredirect" ||
             (response.status >= 300 && response.status < 400)) {

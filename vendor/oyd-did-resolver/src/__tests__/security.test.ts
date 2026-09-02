@@ -103,6 +103,38 @@ describe("update lifecycle authorization (finding 1)", () => {
     expect(result.didDocumentMetadata.canonicalId).toBe(chain.didV2);
   });
 
+  it.each(["create", "terminate", "revoke", "update"] as const)(
+    "byte-identical replay of an existing %s entry cannot deny resolution",
+    async (pick) => {
+      // an unauthenticated append of a COPY of an existing entry must be
+      // collapsed, not fatal — without dedup a replayed CREATE trips the
+      // CREATE count and a replayed tangling TERMINATE the terminate count
+      // (as they do in the pinned reference), and the rest trip the
+      // duplicate-hash rejection
+      const chain = await mintUpdateChain({ updateSigner: "v1doc" });
+      const dup = async (input: RequestInfo | URL) => {
+        const response = await chain.fetch(input);
+        if (new URL(String(input)).pathname.startsWith("/log/")) {
+          const log = (await response.json()) as Array<Record<string, unknown>>;
+          const target =
+            pick === "create"
+              ? log.find((e) => e.op === 2)
+              : pick === "terminate"
+                ? [...log].reverse().find((e) => e.op === 0) // the tangling one
+                : pick === "revoke"
+                  ? log.find((e) => e.op === 1)
+                  : log.find((e) => e.op === 3);
+          return Response.json([...log, { ...target }]);
+        }
+        return response;
+      };
+      vi.stubGlobal("fetch", vi.fn(dup));
+      const result = await resolver().resolve(chain.didV1);
+      expect(result.didResolutionMetadata.error).toBeUndefined();
+      expect(result.didDocumentMetadata.canonicalId).toBe(chain.didV2);
+    },
+  );
+
   it("rejects TWO valid UPDATE successors as ambiguous (D4 ruling)", async () => {
     const chain = await mintUpdateChain({
       updateSigner: "v1doc",
@@ -552,6 +584,28 @@ describe("revocation-key authorization (strictRevocationSig, DEFAULT ON per D2/D
     expect(result.didResolutionMetadata.error).toBeUndefined();
     expect(result.didDocumentMetadata.deactivated).toBeUndefined();
     expect(result.didDocument).not.toBeNull();
+  });
+});
+
+describe("fetch-bound normalization (host-controlled options)", () => {
+  it("ignores an invalid maxResponseBytes (NaN) — the default size gate still applies", async () => {
+    // `length > NaN` is always false: an un-normalized bad override would
+    // silently disable the response-size gate through the low-level API
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("x", {
+            headers: { "content-length": String(10 * 1024 * 1024) },
+          }),
+      ),
+    );
+    const [info, message] = await read(
+      "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+      { maxResponseBytes: NaN },
+    );
+    expect(info).toBeNull();
+    expect(message).toContain("response too large");
   });
 });
 

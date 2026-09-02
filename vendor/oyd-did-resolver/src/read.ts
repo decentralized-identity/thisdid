@@ -17,7 +17,13 @@ import {
   type OydOptions,
   type Tuple,
 } from "./basic.js";
-import { dagDid, dag2array, dag2arrayTerminate, dagUpdate } from "./log.js";
+import {
+  dagDid,
+  dag2array,
+  dag2arrayTerminate,
+  dagUpdate,
+  dedupeLogEntries,
+} from "./log.js";
 
 /** ⇔ read (oydid.rb:65) · spec §3.2 #read */
 export async function read(
@@ -112,12 +118,18 @@ export async function read(
   // by the DOCUMENT'S `log` hash (⇔ oydid.rb:87 `retrieve_log(log_hash,…)`),
   // NOT the DID hash: for a pubkey-form identifier (`z6M…`) the DID hash has
   // no `/log` entry, and only the log-hash endpoint carries the chain.
-  const [logArray, logMessage] = await retrieveLog(
+  const [rawLogArray, logMessage] = await retrieveLog(
     logHash,
     logLocation,
     options,
   );
-  if (logArray === null) return [null, logMessage];
+  if (rawLogArray === null) return [null, logMessage];
+  // replay guard (D4 corollary): collapse byte-identical appended copies of
+  // existing entries before any counting or graph work — an unauthenticated
+  // replay must not deny resolution (a duplicated CREATE or tangling
+  // TERMINATE would otherwise trip the structural counts, as it does in the
+  // pinned reference)
+  const logArray = await dedupeLogEntries(rawLogArray);
 
   const [dag, createIndex, terminateIndex, dagMessage] = await dagDid(
     logArray,

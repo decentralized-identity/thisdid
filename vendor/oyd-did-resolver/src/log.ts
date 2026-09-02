@@ -67,6 +67,38 @@ function logSlice(entry: LogEntry): Record<string, unknown> {
   return slice;
 }
 
+/** Collapse byte-identical replayed log entries, keeping the FIRST
+ *  occurrence (D4 corollary). A duplicate-laden log from a source the
+ *  resolver does not control — a custom `%40` repository, a hostile
+ *  mirror — would otherwise deny resolution: a replayed CREATE or tangling
+ *  TERMINATE trips the structural counts (as it does in the pinned
+ *  reference's `dag_did`). The production repository's append endpoint
+ *  already rejects byte-identical duplicates server-side (author-confirmed:
+ *  `Log.stored?` + a UNIQUE index on the entry hash), and the author is
+ *  adding this same collapse to the reference `dag_did` as defense-in-depth
+ *  — so this guards the untrusted-source case, not the honest store. A
+ *  byte-identical entry IS the same logical record — entries are
+ *  content-addressed by the same full-entry hash that `previous` references
+ *  resolve to — so collapsing repeats preserves every hash and signature
+ *  property while removing the denial-of-service lever. Entries that differ
+ *  anywhere (including `previous`) keep distinct hashes and are NOT
+ *  collapsed, so a genuine fork (two distinct valid UPDATEs) still fails
+ *  closed as ambiguous. */
+export async function dedupeLogEntries(logs: LogEntry[]): Promise<LogEntry[]> {
+  const seen = new Set<string>();
+  const unique: LogEntry[] = [];
+  for (const el of logs) {
+    const hash = (
+      await multiHash(canonical(logSlice(el)), LOG_HASH_OPTIONS)
+    )[0];
+    const key = hash ?? JSON.stringify(logSlice(el));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(el);
+  }
+  return unique;
+}
+
 /** ⇔ match_log_did? (log.rb:18) · spec §4.2.3 #verify_signature */
 export async function matchLogDid(
   log: LogEntry,
@@ -471,8 +503,12 @@ export async function dagUpdate(
         // "no revocation exists" and serve a possibly-revoked document.
         let revocationRecord: LogEntry | null = null;
         const revocTerm = stripLocation(el.doc);
-        const [logArray] = await retrieveLog(didHash, logLocation, options);
-        if (logArray === null) {
+        const [rawRevocationLog] = await retrieveLog(
+          didHash,
+          logLocation,
+          options,
+        );
+        if (rawRevocationLog === null) {
           // whatever the cause — timeout, HTTP error, malformed or oversized
           // response — the revocation check could not be completed, which is
           // an operational failure, never "no revocation exists"
@@ -480,6 +516,9 @@ export async function dagUpdate(
           currentDID.message = "revocation log unavailable";
           return currentDID;
         }
+        // replay guard: collapse byte-identical appended copies before the
+        // candidate scan (a replayed valid UPDATE must count once, not twice)
+        const logArray = await dedupeLogEntries(rawRevocationLog);
         for (const logEl of logArray) {
           const structure: LogEntry = { ...logEl };
           if (logEl.op === Op.REVOKE) {
@@ -575,7 +614,9 @@ export async function dagUpdate(
             await multiHash(canonical(revocationRecord), LOG_HASH_OPTIONS)
           )[0];
           const authorizedKey = currentDID.doc.key.split(":")[0];
-          const survivors: string[] = [];
+          // a Set, not an array: even if a replayed copy slipped past the
+          // ingestion dedup, the same hash must count as ONE survivor
+          const survivors = new Set<string>();
           for (const logEl of logArray) {
             if (logEl.op !== Op.UPDATE) continue;
             if (!(logEl.previous ?? []).includes(revocationHash ?? "")) {
@@ -593,18 +634,18 @@ export async function dagUpdate(
                   authorizedKey,
                 )
               )[0] === true;
-            if (valid) survivors.push(updateHash);
+            if (valid) survivors.add(updateHash);
             else junkUpdateHashes.add(updateHash);
           }
-          if (survivors.length > 1) {
+          if (survivors.size > 1) {
             currentDID.error = DidError.INVALID;
             currentDID.message = "ambiguous UPDATE successors after revocation";
             return currentDID;
           }
-          if (survivors.length === 1) {
-            verifiedUpdateHashes.add(survivors[0]);
+          for (const survivor of survivors) {
+            verifiedUpdateHashes.add(survivor);
           }
-          revoked = survivors.length === 0;
+          revoked = survivors.size === 0;
         } else {
           // ⇔ the reference's `else … break`: with no published revocation
           // record the walk ends at this TERMINATE entry
