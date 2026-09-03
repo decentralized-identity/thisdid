@@ -115,12 +115,12 @@ export function producesRepresentation(accept) {
 class InvalidVersionError extends Error {
 }
 /**
- * An XML datetime, the form DID Resolution requires, with a UTC designator or
- * an explicit offset. Every field is captured because each one is range-checked
+ * An XML Schema dateTime with a timezone, the form DID Resolution requires.
+ * Every field is captured because each one is range-checked
  * below: `Date.parse` normalizes an impossible date into a real one rather than
  * rejecting it, so it cannot be the judge of whether a date exists.
  */
-const XML_DATETIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/;
+const XML_DATETIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/;
 const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 function daysInMonth(year, month) {
     if (month === 2 && year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) {
@@ -163,7 +163,7 @@ function parseVersionTime(value) {
         throw new InvalidVersionError("versionTime must be an XML datetime carrying a UTC designator or an " +
             `explicit offset; got '${value}'`);
     }
-    const [, year, month, day, hour, minute, second, sign, offsetHour, offsetMinute,] = match.map((field) => (field === undefined ? field : field));
+    const [, year, month, day, hour, minute, second, fraction, sign, offsetHour, offsetMinute,] = match.map((field) => (field === undefined ? field : field));
     const y = Number(year);
     const mo = Number(month);
     const d = Number(day);
@@ -176,19 +176,36 @@ function parseVersionTime(value) {
     const h = Number(hour);
     const mi = Number(minute);
     const sec = Number(second);
-    if (h > 23 || mi > 59 || sec > 59) {
+    // `24:00:00` is XML Schema's end-of-day form and denotes the following day's
+    // midnight (xmlschema11-2 §3.3.8, endOfDayFrag). It is a defined lexical
+    // mapping onto one unambiguous instant, not a value being coerced into a
+    // different one, so honouring it answers exactly the question asked.
+    const endOfDay = h === 24;
+    if (endOfDay) {
+        if (mi !== 0 ||
+            sec !== 0 ||
+            (fraction !== undefined && /[^0]/.test(fraction))) {
+            throw new InvalidVersionError("versionTime hour 24 is only the end-of-day form 24:00:00");
+        }
+    }
+    else if (h > 23 || mi > 59 || sec > 59) {
         throw new InvalidVersionError(`versionTime ${hour}:${minute}:${second} is not a time of day`);
     }
     let offsetSeconds = 0;
     if (sign !== undefined) {
         const oh = Number(offsetHour);
         const om = Number(offsetMinute);
-        if (oh > 23 || om > 59) {
-            throw new InvalidVersionError(`versionTime carries an impossible UTC offset ${sign}${offsetHour}:${offsetMinute}`);
+        // XML Schema admits offsets of ±00:00 through ±13:59, plus exactly ±14:00 —
+        // the range real timezones occupy. Anything wider is not an XML datetime,
+        // whatever instant it might seem to denote.
+        if (!((oh <= 13 && om <= 59) || (oh === 14 && om === 0))) {
+            throw new InvalidVersionError("versionTime carries a UTC offset outside XML Schema's ±14:00 range: " +
+                `${sign}${offsetHour}:${offsetMinute}`);
         }
         offsetSeconds = (oh * 3600 + om * 60) * (sign === "-" ? -1 : 1);
     }
-    return Math.floor(Date.UTC(y, mo - 1, d, h, mi, sec) / 1000) - offsetSeconds;
+    const seconds = Math.floor(Date.UTC(y, mo - 1, d, endOfDay ? 0 : h, mi, sec) / 1000);
+    return seconds + (endOfDay ? 86400 : 0) - offsetSeconds;
 }
 /** `YYYY-MM-DDTHH:MM:SSZ` for an error message about a block's timestamp. */
 function utcSeconds(unixSeconds) {

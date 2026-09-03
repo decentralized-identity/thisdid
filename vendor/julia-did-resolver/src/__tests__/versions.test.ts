@@ -210,9 +210,15 @@ describe("version options that cannot be honoured are refused", () => {
     "2026-04-31T00:00:00Z", // April has no 31st
     "2026-02-29T00:00:00Z", // 2026 is not a leap year
     "2100-02-29T00:00:00Z", // nor is 2100 — divisible by 100, not by 400
-    "2026-01-01T24:00:00Z", // hour 24
+    "2026-01-01T25:00:00Z", // hour 25
     "2026-01-01T23:60:00Z", // minute 60
     "2026-01-01T23:59:60Z", // leap second
+    "2026-08-01T24:00:01Z", // hour 24 is the end-of-day form only
+    "2026-08-01T24:30:00Z",
+    "2026-08-01T24:00:00.5Z", // a non-zero fraction is not end-of-day
+    "2026-01-01T00:00:00+14:01", // beyond XML Schema's ±14:00
+    "2026-01-01T00:00:00+23:59",
+    "2026-01-01T00:00:00-14:30",
     "2026-01-01T00:00:00+25:00", // impossible offset
     "2026-01-01T00:00:00+00:60", // impossible offset minutes
     "2026-01-01T00:00:00-99:99",
@@ -252,6 +258,38 @@ describe("version options that cannot be honoured are refused", () => {
       versions.push(result.didDocumentMetadata.versionId);
     }
     expect(versions[0]).toBe(versions[1]);
+  });
+
+  for (const versionTime of [
+    "2026-01-01T00:00:00+14:00",
+    "2026-01-01T00:00:00-14:00",
+    "2026-01-01T00:00:00+13:59",
+  ]) {
+    it(`accepts the in-range offset '${versionTime}'`, async () => {
+      const { didResolutionMetadata: meta } = await resolve(
+        ORG_DID,
+        { client: fixtureClient(ORG_CALLS) },
+        { versionTime },
+      );
+      expect(meta.error).not.toBe("invalidDidUrl");
+    });
+  }
+
+  it("reads 24:00:00 as the following midnight", async () => {
+    // XML Schema's end-of-day form (§3.3.8, endOfDayFrag). It names one
+    // unambiguous instant, so honouring it answers the question asked — unlike
+    // a date that does not exist, which has no instant to name.
+    const endOfDay = await resolve(
+      ORG_DID,
+      { client: fixtureClient(ORG_CALLS) },
+      { versionTime: "2026-08-01T24:00:00Z" },
+    );
+    const nextMidnight = await resolve(
+      ORG_DID,
+      { client: fixtureClient(ORG_CALLS) },
+      { versionTime: "2026-08-02T00:00:00Z" },
+    );
+    expect(endOfDay).toEqual(nextMidnight);
   });
 
   it("truncates sub-second precision rather than rejecting it", async () => {
