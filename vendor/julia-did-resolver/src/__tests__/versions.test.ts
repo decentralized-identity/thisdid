@@ -10,7 +10,12 @@ import { resolve } from "../resolver.js";
 import { ALIAS_DID, ORG_DID, fixtureClient, readFixture } from "./fixtures.js";
 import { traceHistory } from "../chain.js";
 import { parseDid } from "../identifier.js";
-import { StateError, revealedVerifiedState } from "../state.js";
+import {
+  StateError,
+  deriveVerifiedState,
+  revealedVerifiedState,
+  verifyState,
+} from "../state.js";
 import { coinId } from "../chain.js";
 import { toHex } from "../clvm.js";
 
@@ -19,6 +24,10 @@ const ORG_CALLS = "rpc_calls_julia_org.json";
 
 const ALIAS_GEN1 =
   "0xe3d06a75d3e2c9ed7b71e18646dbf900d17d0cc55fd6584539ea9f72c01f58aa";
+const ALIAS_GEN2 =
+  "0x0e04c04dbb693f72eb5151753bf7b69ec468476945fe50d684e03609cf390f29";
+const ALIAS_GEN3 =
+  "0x6db248a37284af64ddc068ee80968363c96d1929ba006e3dc514312e34d2ac33";
 const ORG_GEN1 =
   "0xa61c53bf8dd53c55da7d5ac8b53667c00ca36c87370c67497f20e79cc72e4084";
 const ORG_GEN2 =
@@ -31,6 +40,7 @@ const ORG_GEN4 =
 describe("resolution by version ID replays the reference resolver", () => {
   const cases: Array<[string, string, string, string]> = [
     [ALIAS_DID, ALIAS_CALLS, ALIAS_GEN1, "expected_version_ArD2_gen1.json"],
+    [ALIAS_DID, ALIAS_CALLS, ALIAS_GEN2, "expected_version_ArD2_gen2.json"],
     [ORG_DID, ORG_CALLS, ORG_GEN1, "expected_version_julia_org_gen1.json"],
     [ORG_DID, ORG_CALLS, ORG_GEN2, "expected_version_julia_org_gen2.json"],
     [ORG_DID, ORG_CALLS, ORG_GEN3, "expected_version_julia_org_gen3.json"],
@@ -265,5 +275,105 @@ describe("the revealed-state route is self-checking", () => {
     ).toEqual([ORG_GEN1, ORG_GEN2, ORG_GEN3, ORG_GEN4]);
     expect(history.generations.at(-1)?.spent).toBe(false);
     expect(history.generations.slice(0, -1).every((g) => g.spent)).toBe(true);
+  });
+});
+
+/**
+ * The personal alias was rekeyed on 2026-09-02. Generation 3 carries a
+ * different authentication root — and a different singleton puzzle hash — from
+ * the two before it, which makes it the first mainnet state *change* this
+ * package has ever been tested against. Every other recording is a spend that
+ * left state untouched, so ADR 0001's transition machinery had only ever been
+ * proved against vectors captured from the compiled Chialisp. These cases
+ * guard it against the chain itself.
+ */
+describe("a real rekey, derived and proved against the chain", () => {
+  it("identifies the operation rather than falling back to a search", async () => {
+    const client = fixtureClient(ALIAS_CALLS);
+    const launcherId = parseDid(ALIAS_DID);
+    const history = await traceHistory(client, launcherId);
+    expect(history.generations).toHaveLength(3);
+
+    const current = history.generations[2];
+    const parent = history.generations[1];
+    expect(current.spent).toBe(false);
+    // The rekey is visible in the coins themselves: the child commits to a
+    // different state than its parent did.
+    expect(toHex(parent.coin.puzzleHash)).not.toBe(
+      toHex(current.coin.puzzleHash),
+    );
+
+    const spend = await client.getPuzzleAndSolution(
+      coinId(parent.coin),
+      parent.spentBlockIndex,
+    );
+    const derived = deriveVerifiedState(
+      spend,
+      parent.coin.puzzleHash,
+      current.coin.puzzleHash,
+      launcherId,
+    );
+    expect(derived.operation).toBe("rekey");
+    // "identified" means the child's puzzle hash named the transition outright.
+    // A fall back to "exhaustive" would still be correct, but it would mean the
+    // identification table had stopped matching the chain.
+    expect(derived.source).toBe("identified");
+
+    // The spend reveals the OLD state verbatim; the new one is derived, and is
+    // accepted only because it reproduces generation 3's own puzzle hash.
+    const revealed = revealedVerifiedState(
+      spend,
+      parent.coin.puzzleHash,
+      launcherId,
+    );
+    expect(verifyState(revealed.state, current.coin.puzzleHash)).toBe(false);
+    expect(verifyState(derived.state, current.coin.puzzleHash)).toBe(true);
+    expect(toHex(derived.state.authentication!.merkleRoot)).not.toBe(
+      toHex(revealed.state.authentication!.merkleRoot),
+    );
+  });
+
+  it("changes the authentication root between the versions", async () => {
+    const before = await resolve(
+      ALIAS_DID,
+      { client: fixtureClient(ALIAS_CALLS) },
+      { versionId: ALIAS_GEN2 },
+    );
+    const after = await resolve(
+      ALIAS_DID,
+      { client: fixtureClient(ALIAS_CALLS) },
+      { versionId: ALIAS_GEN3 },
+    );
+    const root = (r: typeof before) =>
+      (r.didDocument?.juliaAuthentication as { merkleRoot: string }).merkleRoot;
+    expect(root(before)).not.toBe(root(after));
+    for (const result of [before, after]) {
+      expect(result.didResolutionMetadata["did:julia:stateVerified"]).toBe(
+        true,
+      );
+    }
+  });
+
+  it("keeps a retired key listed for the versions it governed", async () => {
+    const governed = await resolve(
+      ALIAS_DID,
+      { client: fixtureClient(ALIAS_CALLS) },
+      { versionId: ALIAS_GEN2 },
+    );
+    const current = await resolve(ALIAS_DID, {
+      client: fixtureClient(ALIAS_CALLS),
+    });
+    expect(governed.didDocument?.verificationMethod).toHaveLength(1);
+    expect(current.didDocument).not.toHaveProperty("verificationMethod");
+  });
+
+  it("chains generation 2 forward to the rekey", async () => {
+    const { didDocumentMetadata: meta } = await resolve(
+      ALIAS_DID,
+      { client: fixtureClient(ALIAS_CALLS) },
+      { versionId: ALIAS_GEN2 },
+    );
+    expect(meta.nextVersionId).toBe(ALIAS_GEN3);
+    expect(meta.nextUpdate).toBe("2026-09-02T11:34:09Z");
   });
 });

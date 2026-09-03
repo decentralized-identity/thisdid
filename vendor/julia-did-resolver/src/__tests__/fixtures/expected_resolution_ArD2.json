@@ -6,27 +6,13 @@
    "https://not.bot/ns/did-julia/v1"
   ],
   "id": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX",
-  "verificationMethod": [
-   {
-    "id": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk",
-    "type": "Multikey",
-    "controller": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX",
-    "publicKeyMultibase": "z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
-   }
-  ],
-  "authentication": [
-   "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
-  ],
-  "assertionMethod": [
-   "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
-  ],
   "juliaAuthentication": {
-   "merkleRoot": "0x4dd0f8d8ff9869ecfab8d49ea96757e3f3c0a5f9345a5cf03bfa253a42712357",
+   "merkleRoot": "0x76e9c885bf0fa6b637ac3da01c652081ff4d8ab7521ccb8542fd14c2fd5a786c",
    "classDepth": 1,
    "requiredClasses": 1,
    "classes": [
     {
-     "classId": "0xa0ec22f33862573137ad49d2b7af224d4d722b73bf5c0ecc27edf688e614892f",
+     "classId": "0xcce929457b710a08b1e060a2968561ac958388945836589baa7f837903f1df39",
      "requiredMembers": 1
     }
    ]
@@ -40,8 +26,8 @@
   }
  },
  "didDocumentMetadata": {
-  "versionId": "0x0e04c04dbb693f72eb5151753bf7b69ec468476945fe50d684e03609cf390f29",
-  "updated": "2026-08-02T22:02:19Z"
+  "versionId": "0x6db248a37284af64ddc068ee80968363c96d1929ba006e3dc514312e34d2ac33",
+  "updated": "2026-09-02T11:34:09Z"
  },
  "didResolutionMetadata": {
   "contentType": "application/did+ld+json",

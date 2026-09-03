@@ -1,0 +1,54 @@
+{
+ "didDocument": {
+  "@context": [
+   "https://www.w3.org/ns/did/v1",
+   "https://w3id.org/security/multikey/v1",
+   "https://not.bot/ns/did-julia/v1"
+  ],
+  "id": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX",
+  "verificationMethod": [
+   {
+    "id": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk",
+    "type": "Multikey",
+    "controller": "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX",
+    "publicKeyMultibase": "z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
+   }
+  ],
+  "authentication": [
+   "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
+  ],
+  "assertionMethod": [
+   "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX#z3tEGcUFd9MoqHs65VRn6QB5t8SYEshaWvXnxbGzUzSCRCeLvMFjCtcTFRjLYUzdEAQPWk"
+  ],
+  "juliaAuthentication": {
+   "merkleRoot": "0x4dd0f8d8ff9869ecfab8d49ea96757e3f3c0a5f9345a5cf03bfa253a42712357",
+   "classDepth": 1,
+   "requiredClasses": 1,
+   "classes": [
+    {
+     "classId": "0xa0ec22f33862573137ad49d2b7af224d4d722b73bf5c0ecc27edf688e614892f",
+     "requiredMembers": 1
+    }
+   ]
+  },
+  "juliaCustodians": [],
+  "juliaRecovery": {
+   "configured": true,
+   "recoveryAgents": true,
+   "delayBlocks": 4320,
+   "prerotation": "disabled"
+  }
+ },
+ "didDocumentMetadata": {
+  "versionId": "0x0e04c04dbb693f72eb5151753bf7b69ec468476945fe50d684e03609cf390f29",
+  "created": "2026-08-02T22:02:19Z",
+  "updated": "2026-08-02T22:02:19Z",
+  "nextVersionId": "0x6db248a37284af64ddc068ee80968363c96d1929ba006e3dc514312e34d2ac33",
+  "nextUpdate": "2026-09-02T11:34:09Z"
+ },
+ "didResolutionMetadata": {
+  "contentType": "application/did+ld+json",
+  "did:julia:stateVerified": true,
+  "did:julia:currentPuzzle": true
+ }
+}
