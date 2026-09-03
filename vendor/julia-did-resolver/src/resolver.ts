@@ -180,8 +180,23 @@ export interface JuliaResolutionRequest extends DIDResolutionOptions {
 /** A version option the caller wrote wrong — an invalid DID URL, not a miss. */
 class InvalidVersionError extends Error {}
 
+/**
+ * An XML datetime, the form DID Resolution requires, with a UTC designator or
+ * an explicit offset. Every field is captured because each one is range-checked
+ * below: `Date.parse` normalizes an impossible date into a real one rather than
+ * rejecting it, so it cannot be the judge of whether a date exists.
+ */
 const XML_DATETIME =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/;
+
+const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2 && year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) {
+    return 29;
+  }
+  return MONTH_LENGTHS[month - 1];
+}
 
 /**
  * A did:julia version ID is the coin ID of a singleton generation (§8.5): 32
@@ -199,23 +214,77 @@ function parseVersionId(value: string): Uint8Array {
 }
 
 /**
- * XML datetime -> POSIX seconds. Sub-second precision is truncated: the DID
- * Resolution specification requires datetimes without it, and a Chia block's
- * timestamp has one-second resolution anyway.
+ * XML datetime -> POSIX seconds.
+ *
+ * Every field is range-checked against the calendar, so a date that does not
+ * exist is rejected rather than rolled forward into one that does. `Date.parse`
+ * cannot do this: it normalizes, turning `2026-02-30T00:00:00Z` into March 2nd
+ * and `2026-02-29T00:00:00Z` into March 1st, and it accepts hour 24 as the next
+ * day. A resolver that answered those with the version current on the
+ * normalized date would be answering a different question than the caller
+ * asked, which is the one failure they cannot detect. The Python reference
+ * resolver rejects exactly this set, and the two must not disagree about which
+ * requests are valid.
+ *
+ * Sub-second precision is truncated — the DID Resolution specification requires
+ * datetimes without it, and a Chia block's timestamp has one-second resolution
+ * anyway.
  */
 function parseVersionTime(value: string): number {
-  const text = value.trim();
-  if (!XML_DATETIME.test(text)) {
+  const match = XML_DATETIME.exec(value.trim());
+  if (match === null) {
     throw new InvalidVersionError(
       "versionTime must be an XML datetime carrying a UTC designator or an " +
         `explicit offset; got '${value}'`,
     );
   }
-  const parsed = Date.parse(text);
-  if (Number.isNaN(parsed)) {
-    throw new InvalidVersionError(`versionTime '${value}' is not a real time`);
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second,
+    sign,
+    offsetHour,
+    offsetMinute,
+  ] = match.map((field) => (field === undefined ? field : field)) as string[];
+  const y = Number(year);
+  const mo = Number(month);
+  const d = Number(day);
+  if (mo < 1 || mo > 12) {
+    throw new InvalidVersionError(
+      `versionTime month must be in 1..12; got ${mo}`,
+    );
   }
-  return Math.floor(parsed / 1000);
+  if (d < 1 || d > daysInMonth(y, mo)) {
+    throw new InvalidVersionError(
+      `versionTime day ${d} does not exist in month ${mo} of ${y}`,
+    );
+  }
+  const h = Number(hour);
+  const mi = Number(minute);
+  const sec = Number(second);
+  if (h > 23 || mi > 59 || sec > 59) {
+    throw new InvalidVersionError(
+      `versionTime ${hour}:${minute}:${second} is not a time of day`,
+    );
+  }
+
+  let offsetSeconds = 0;
+  if (sign !== undefined) {
+    const oh = Number(offsetHour);
+    const om = Number(offsetMinute);
+    if (oh > 23 || om > 59) {
+      throw new InvalidVersionError(
+        `versionTime carries an impossible UTC offset ${sign}${offsetHour}:${offsetMinute}`,
+      );
+    }
+    offsetSeconds = (oh * 3600 + om * 60) * (sign === "-" ? -1 : 1);
+  }
+
+  return Math.floor(Date.UTC(y, mo - 1, d, h, mi, sec) / 1000) - offsetSeconds;
 }
 
 /** `YYYY-MM-DDTHH:MM:SSZ` for an error message about a block's timestamp. */

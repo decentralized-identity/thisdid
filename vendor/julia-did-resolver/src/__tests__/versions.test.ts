@@ -192,11 +192,30 @@ describe("version options that cannot be honoured are refused", () => {
     });
   }
 
+  // Kept identical, case for case, to REFUSED_TIMES in the Python suite: the
+  // two resolvers must agree about which requests are even valid. Date.parse
+  // normalizes rather than rejects — 2026-02-30 becomes March 2nd, hour 24
+  // becomes the next day — so answering with the version current on the
+  // normalized date would answer a different question than the caller asked.
   for (const versionTime of [
     "yesterday",
-    "2026-08-01",
-    "2026-08-01T00:00:00",
-    "2026-13-01T00:00:00Z",
+    "",
+    "2026-08-01", // date only, no time
+    "2026-08-01T00:00:00", // no UTC designator or offset
+    "2026-13-01T00:00:00Z", // month 13
+    "2026-00-10T00:00:00Z", // month 0
+    "2026-01-32T00:00:00Z", // day 32
+    "2026-01-00T00:00:00Z", // day 0
+    "2026-02-30T00:00:00Z", // February has no 30th
+    "2026-04-31T00:00:00Z", // April has no 31st
+    "2026-02-29T00:00:00Z", // 2026 is not a leap year
+    "2100-02-29T00:00:00Z", // nor is 2100 — divisible by 100, not by 400
+    "2026-01-01T24:00:00Z", // hour 24
+    "2026-01-01T23:60:00Z", // minute 60
+    "2026-01-01T23:59:60Z", // leap second
+    "2026-01-01T00:00:00+25:00", // impossible offset
+    "2026-01-01T00:00:00+00:60", // impossible offset minutes
+    "2026-01-01T00:00:00-99:99",
   ]) {
     it(`rejects the malformed version time '${versionTime}'`, async () => {
       const { didResolutionMetadata: meta } = await resolve(
@@ -207,6 +226,47 @@ describe("version options that cannot be honoured are refused", () => {
       expect(meta.error).toBe("invalidDidUrl");
     });
   }
+
+  for (const versionTime of ["2028-02-29T00:00:00Z", "2000-02-29T00:00:00Z"]) {
+    it(`accepts the real leap day '${versionTime}'`, async () => {
+      const { didResolutionMetadata: meta } = await resolve(
+        ORG_DID,
+        { client: fixtureClient(ORG_CALLS) },
+        { versionTime },
+      );
+      expect(meta.error).not.toBe("invalidDidUrl");
+    });
+  }
+
+  it("reads an offset time as the same instant as its UTC equivalent", async () => {
+    const versions = [];
+    for (const versionTime of [
+      "2026-08-01T00:00:00Z",
+      "2026-07-31T20:00:00-04:00",
+    ]) {
+      const result = await resolve(
+        ORG_DID,
+        { client: fixtureClient(ORG_CALLS) },
+        { versionTime },
+      );
+      versions.push(result.didDocumentMetadata.versionId);
+    }
+    expect(versions[0]).toBe(versions[1]);
+  });
+
+  it("truncates sub-second precision rather than rejecting it", async () => {
+    const withFraction = await resolve(
+      ORG_DID,
+      { client: fixtureClient(ORG_CALLS) },
+      { versionTime: "2026-08-01T00:00:00.500Z" },
+    );
+    const without = await resolve(
+      ORG_DID,
+      { client: fixtureClient(ORG_CALLS) },
+      { versionTime: "2026-08-01T00:00:00Z" },
+    );
+    expect(withFraction).toEqual(without);
+  });
 
   it("refuses versionId and versionTime together", async () => {
     const { didResolutionMetadata: meta } = await resolve(
