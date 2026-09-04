@@ -35,10 +35,11 @@ export const ROUTE_CHAINS: Record<string, Step[]> = {
   iota: ["local", "archon", "godiddy"],
   tz: ["local", "archon", "godiddy"],
   empe: ["local", "archon", "godiddy"],
-  // did:oyd (OYDID) — the OwnYourData public resolver is the authoritative
-  // source (the DID is derived from the document and verified against a linked
-  // provenance log), so it leads; godiddy/archon are best-effort fallbacks.
-  oyd: ["oyd", "godiddy", "archon"],
+  // did:oyd (OYDID) — ThisDID's transliterated verifying driver first
+  // (identifier/log commitments + Ed25519 chain checked locally), with the
+  // OwnYourData public resolver as the method-authoritative probation
+  // verifier and fallback; godiddy/archon are best-effort tails.
+  oyd: ["local", "oyd", "godiddy", "archon"],
 };
 
 export function chainFor(method: string): Step[] {

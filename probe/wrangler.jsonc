@@ -49,6 +49,7 @@
     { "binding": "DRIVER_DHT", "service": "thisdid-driver-dht" },
     { "binding": "DRIVER_TZ", "service": "thisdid-driver-tz" },
     { "binding": "DRIVER_ION", "service": "thisdid-driver-ion" },
+    { "binding": "DRIVER_OYD", "service": "thisdid-driver-oyd" },
   ],
   // Connected to the main resolver Worker through its D1 database + KV
   // namespace (same ids as ../wrangler.jsonc): probes are appended to D1,

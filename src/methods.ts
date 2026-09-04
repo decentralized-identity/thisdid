@@ -239,6 +239,15 @@ export const FEATURED_METHODS: MethodMeta[] = [
     local: true,
   },
   {
+    id: "oyd",
+    glyph: "Y",
+    probation: true,
+    desc: "Self-verifying OYDID provenance logs, checked hop by hop",
+    network: "OYDID (provenance log)",
+    example: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
+    local: true,
+  },
+  {
     id: "ion",
     glyph: "O",
     probation: true,
@@ -363,6 +372,7 @@ export const LOCAL_DRIVER_METHODS = [
   "dht",
   "tz",
   "ion",
+  "oyd",
 ];
 
 /**
@@ -390,6 +400,7 @@ export const PROBATION_METHODS: Set<string> = new Set([
   "dht",
   "tz",
   "ion",
+  "oyd",
 ]);
 
 /** True when ThisDID advertises a resolution route for the method. */
@@ -402,7 +413,6 @@ export function isSupportedMethod(method: string): boolean {
 const UPSTREAM_NETWORKS: Record<string, string> = {
   algo: "Algorand MainNet",
   nfd: "Algorand NFDomains",
-  oyd: "OYDID (provenance log)",
   dht: "Mainline DHT · Pkarr",
 };
 
