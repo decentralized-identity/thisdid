@@ -29,7 +29,8 @@ is **stricter than the first-party reference on hostile input** — a stance
 the method author confirmed when adjudicating every divergence this driver
 raised, in a report shared with them during close collaboration, with the
 reference adopting this driver's document-key-only update-authorization rule
-in gem 0.9.4. The checks: UPDATE succession by the author's valid-survivor rule (every
+in gem 0.9.4 and its repeat-collapse at log ingestion in gem 0.9.5. The
+checks: UPDATE succession by the author's valid-survivor rule (every
 candidate signature-verified against the superseded version's own key; junk
 appends ignored, genuine forks rejected as ambiguous; delegation not
 honored), **default-on revocation verification** (the REVOKE's signature

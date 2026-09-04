@@ -38,8 +38,8 @@ export declare class Dag {
  *
  *  This guards logs from sources the resolver does not control (a custom
  *  `%40` repository, a mirror); the production repository rejects duplicate
- *  entries server-side, and the same collapse is being adopted in the
- *  reference as defense-in-depth. */
+ *  entries server-side, and since gem 0.9.5 the reference applies the same
+ *  five-field collapse (`dedup_log`) as defense-in-depth. */
 export declare function dedupeLogEntries(logs: LogEntry[]): Promise<LogEntry[]>;
 /** ⇔ match_log_did? (log.rb:18) · spec §4.2.3 #verify_signature */
 export declare function matchLogDid(log: LogEntry, doc: {

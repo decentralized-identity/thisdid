@@ -129,7 +129,7 @@ the parity DIDs above (and, for the framing, an offline regression test):
 
 Re-run `pnpm run test:live`. Every DID in the corpus is expected to pass; a
 `PARITY` entry that starts failing means the reference output changed (or a
-regression). The corpus was last re-validated against the gem 0.9.4
-reference deployment (post-rulings). One further DID is a candidate for the
+regression). The corpus was last re-validated against the gem 0.9.5
+reference deployment (post-rulings, 2026-09-04): every entry passed. One further DID is a candidate for the
 parity table once the author confirms its identifier and it resolves on both
 sides.

@@ -23,9 +23,9 @@ export interface OydResolverOptions {
     /** Verify each honored REVOKE's signature against the version's revocation
      *  key AND its `doc` commitment to the revoked version's `{doc, key}`
      *  (spec §4.1 / §4.2.3). **ON by default** — the method author ruled these
-     *  checks mandatory: the reference is adopting them as its own
-     *  default, and every one of the 1,117 production revocations passes both,
-     *  so nothing legitimate breaks. Set `false` to opt OUT into the legacy
+     *  checks mandatory (adopted by the reference as of gem 0.9.4), and every
+     *  one of the 1,117 production revocations passes both, so nothing
+     *  legitimate breaks. Set `false` to opt OUT into the legacy
      *  reference-parity behavior (hash-commitment trust only) — useful for
      *  parity testing against a pre-0.9.4 reference. */
     strictRevocationSig?: boolean;

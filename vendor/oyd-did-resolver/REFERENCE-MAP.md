@@ -23,7 +23,8 @@ what the artifacts here support:
   precisely why they were put to the method author for adjudication, in a
   divergence report shared with them during close collaboration. Every
   question in it has been ruled on: the author acted on the findings and
-  shipped the resulting changes as gem 0.9.4 on the live reference;
+  shipped the resulting changes as gem 0.9.4, then 0.9.5, on the live
+  reference;
 - within the supported profile (ed25519 / sha2-256 / base58btc), the
   package is **behaviorally compatible with the reference resolver for the
   captured vectors**: the spec's own published samples — single-version,
@@ -183,9 +184,9 @@ they exist: the reference is a first-party toolkit that trusts its own
 repository and Ruby's dynamic typing. An independent verifier that resolves
 attacker-influenced logs from arbitrary repositories cannot. The following
 checks had no counterpart in the pinned reference when this driver was
-written; several have since been adopted upstream in gem 0.9.4 (delegation
-authorization §2, revocation verification §3, and the repeat-collapse in §4),
-so the two implementations now agree on those. **Every one fails closed**: it
+written; several have since been adopted upstream (delegation authorization
+§2 and revocation verification §3 in gem 0.9.4, the repeat-collapse in §4 in
+gem 0.9.5), so the two implementations now agree on those. **Every one fails closed**: it
 can only turn malformed or hostile input into a rejection.
 All supported valid golden vectors resolve to the same document unchanged; the
 delegation departure (§2) has since been adopted by the reference itself
@@ -240,9 +241,9 @@ Each check is exercised adversarially in `src/__tests__/security.test.ts`.
    log-entry hash `previous` references resolve on — are collapsed
    keep-first, so a duplicate-laden log from a source the resolver does not
    control still resolves to the same document. The production repository
-   rejects duplicate entries server-side, and the author is adopting the
-   same collapse in the reference as defense-in-depth; until that ships this
-   is an accept-more availability deviation that can only ever yield the
+   rejects duplicate entries server-side, and since gem 0.9.5 the reference
+   applies the same five-field collapse (`dedup_log`) as defense-in-depth,
+   so the two implementations agree; the collapse can only ever yield the
    identical verified document, since a protocol-identical entry carries the
    original's hashes and signatures. Entries differing within those five
    fields stay distinct, so a genuine fork remains ambiguous); a

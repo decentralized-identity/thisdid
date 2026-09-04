@@ -86,8 +86,8 @@ function logSlice(entry: LogEntry): Record<string, unknown> {
  *
  *  This guards logs from sources the resolver does not control (a custom
  *  `%40` repository, a mirror); the production repository rejects duplicate
- *  entries server-side, and the same collapse is being adopted in the
- *  reference as defense-in-depth. */
+ *  entries server-side, and since gem 0.9.5 the reference applies the same
+ *  five-field collapse (`dedup_log`) as defense-in-depth. */
 export async function dedupeLogEntries(logs: LogEntry[]): Promise<LogEntry[]> {
   const seen = new Set<string>();
   const unique: LogEntry[] = [];
