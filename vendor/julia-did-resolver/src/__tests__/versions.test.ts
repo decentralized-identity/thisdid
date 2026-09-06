@@ -6,7 +6,7 @@
  * what the Python reference resolver wrote for the same version request.
  */
 import { describe, expect, it } from "vitest";
-import { resolve } from "../resolver.js";
+import { parseVersionTime, resolve } from "../resolver.js";
 import { ALIAS_DID, ORG_DID, fixtureClient, readFixture } from "./fixtures.js";
 import { traceHistory } from "../chain.js";
 import { parseDid } from "../identifier.js";
@@ -222,6 +222,8 @@ describe("version options that cannot be honoured are refused", () => {
     "2026-01-01T00:00:00+25:00", // impossible offset
     "2026-01-01T00:00:00+00:60", // impossible offset minutes
     "2026-01-01T00:00:00-99:99",
+    "0000-01-01T00:00:00Z", // XML Schema's 1 BCE, outside 0001..9999
+    "9999-12-31T24:00:00Z", // end of day here names midnight of year 10000
   ]) {
     it(`rejects the malformed version time '${versionTime}'`, async () => {
       const { didResolutionMetadata: meta } = await resolve(
@@ -474,4 +476,32 @@ describe("a real rekey, derived and proved against the chain", () => {
     expect(meta.nextVersionId).toBe(ALIAS_GEN3);
     expect(meta.nextUpdate).toBe("2026-09-02T11:34:09Z");
   });
+});
+
+/**
+ * Kept identical to VERSION_TIME_EPOCHS in the Python suite. Resolution outcome
+ * alone cannot police this: every year before the DID existed answers
+ * `notFound` whether it was read as 0001 or as 1901, so the arithmetic has to
+ * be asserted where it can be seen. `Date.UTC` applies a legacy 1900 offset to
+ * years 0..99 — exactly the kind of silent substitution that stays invisible
+ * through the public API, which is why this resolver does not use it.
+ */
+describe("the instant a version time denotes", () => {
+  const cases: Array<[string, number]> = [
+    ["0001-01-01T00:00:00Z", -62135596800],
+    ["0099-01-01T00:00:00Z", -59042995200],
+    ["1901-01-01T00:00:00Z", -2177452800],
+    ["1970-01-01T00:00:00Z", 0],
+    ["2026-09-02T11:34:09Z", 1788348849],
+    ["2026-08-01T24:00:00Z", 1785628800],
+    ["2026-08-02T00:00:00Z", 1785628800],
+    ["2026-01-01T00:00:00+14:00", 1767175200],
+    ["2026-01-01T00:00:00-14:00", 1767276000],
+    ["9999-12-31T23:59:59Z", 253402300799],
+  ];
+  for (const [versionTime, epoch] of cases) {
+    it(`reads ${versionTime} as ${epoch}`, () => {
+      expect(parseVersionTime(versionTime)).toBe(epoch);
+    });
+  }
 });

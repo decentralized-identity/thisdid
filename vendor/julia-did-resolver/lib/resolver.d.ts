@@ -62,6 +62,24 @@ export interface JuliaResolutionRequest extends DIDResolutionOptions {
     versionTime?: string;
 }
 /**
+ * XML datetime -> POSIX seconds.
+ *
+ * Every field is range-checked against the calendar, so a date that does not
+ * exist is rejected rather than rolled forward into one that does. `Date.parse`
+ * cannot do this: it normalizes, turning `2026-02-30T00:00:00Z` into March 2nd
+ * and `2026-02-29T00:00:00Z` into March 1st, and it accepts hour 24 as the next
+ * day. A resolver that answered those with the version current on the
+ * normalized date would be answering a different question than the caller
+ * asked, which is the one failure they cannot detect. The Python reference
+ * resolver rejects exactly this set, and the two must not disagree about which
+ * requests are valid.
+ *
+ * Sub-second precision is truncated — the DID Resolution specification requires
+ * datetimes without it, and a Chia block's timestamp has one-second resolution
+ * anyway.
+ */
+export declare function parseVersionTime(value: string): number;
+/**
  * Resolve a did:julia DID to a DID resolution result (spec §7.2, §8).
  *
  * With no version option this reads the singleton's current state. With

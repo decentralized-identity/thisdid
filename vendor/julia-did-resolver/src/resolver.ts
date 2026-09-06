@@ -230,7 +230,7 @@ function parseVersionId(value: string): Uint8Array {
  * datetimes without it, and a Chia block's timestamp has one-second resolution
  * anyway.
  */
-function parseVersionTime(value: string): number {
+export function parseVersionTime(value: string): number {
   const match = XML_DATETIME.exec(value.trim());
   if (match === null) {
     throw new InvalidVersionError(
@@ -254,6 +254,15 @@ function parseVersionTime(value: string): number {
   const y = Number(year);
   const mo = Number(month);
   const d = Number(day);
+  // XML Schema admits year 0000 (1 BCE under astronomical numbering) and
+  // expanded years beyond four digits; this resolver accepts 0001..9999, the
+  // range both implementations can represent exactly, and refuses the rest
+  // rather than mapping it somewhere it does not belong.
+  if (y < 1) {
+    throw new InvalidVersionError(
+      `versionTime year must be in 0001..9999; got ${year}`,
+    );
+  }
   if (mo < 1 || mo > 12) {
     throw new InvalidVersionError(
       `versionTime month must be in 1..12; got ${mo}`,
@@ -304,10 +313,27 @@ function parseVersionTime(value: string): number {
     offsetSeconds = (oh * 3600 + om * 60) * (sign === "-" ? -1 : 1);
   }
 
-  const seconds = Math.floor(
-    Date.UTC(y, mo - 1, d, endOfDay ? 0 : h, mi, sec) / 1000,
+  if (endOfDay && y === 9999 && mo === 12 && d === 31) {
+    // The end-of-day form of the last representable day names midnight of year
+    // 10000, which is outside the range above. Refusing it is the same rule
+    // applied to the instant the value denotes rather than to the digits it is
+    // written with.
+    throw new InvalidVersionError(
+      "versionTime 9999-12-31T24:00:00 names midnight of year 10000, outside " +
+        "the 0001..9999 range this resolver accepts",
+    );
+  }
+
+  // NOT `Date.UTC(y, ...)`: it applies a legacy 1900 offset to years 0 through
+  // 99, so `0001-01-01` would silently become 1901 — a different instant than
+  // the caller named, answered as though it were theirs. `setUTCFullYear` has
+  // no such rule.
+  const moment = new Date(0);
+  moment.setUTCFullYear(y, mo - 1, d);
+  moment.setUTCHours(endOfDay ? 0 : h, mi, sec, 0);
+  return (
+    Math.floor(moment.getTime() / 1000) + (endOfDay ? 86400 : 0) - offsetSeconds
   );
-  return seconds + (endOfDay ? 86400 : 0) - offsetSeconds;
 }
 
 /** `YYYY-MM-DDTHH:MM:SSZ` for an error message about a block's timestamp. */
