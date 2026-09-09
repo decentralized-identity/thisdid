@@ -38,6 +38,37 @@ cryptographically re-bound to the address before inclusion, and a mismatch is su
 key dropped) rather than served. Every valid account DID resolves — did:tz is a generative
 method with no notFound.
 
+
+
+
+
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-tz`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-tz did:tz:tz3cqThj23Feu55KDynm7Vg81mCMpWDgzQZq
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `TZ_TZKT_MAINNET_URL` | comma-separated TzKT API base URLs for mainnet (`tzktUrls.mainnet`) |
+| `TZ_TZKT_SHADOWNET_URL` | comma-separated TzKT API base URLs for shadownet (`tzktUrls.shadownet`) |
+| `TZ_CHAIN_ID_MAINNET` | override the pinned chain id for mainnet (`chainIds.mainnet`) |
+| `TZ_CHAIN_ID_SHADOWNET` | override the pinned chain id for shadownet (`chainIds.shadownet`) |
+| `TZ_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+
 ## Test provenance
 
 The suite replays live-captured revealed mainnet delegates for ALL THREE curves (including

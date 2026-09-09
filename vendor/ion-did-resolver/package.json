@@ -11,6 +11,9 @@
       "default": "./lib/index.js"
     }
   },
+  "bin": {
+    "thisdid-resolve-ion": "./lib/bin.js"
+  },
   "files": [
     "lib",
     "LICENSE"

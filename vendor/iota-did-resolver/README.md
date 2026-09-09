@@ -44,6 +44,34 @@ Fail-closed rules:
   not the placeholder) returns `invalidDidDocument`, never a partial document.
 - `notExists` from consensus is `notFound` and never falls through to another endpoint.
 
+
+
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-iota`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-iota did:iota:0xb42eed86158e2465c7dc2b35706c23af22ad38508bd7b4037a2b3bb6f42c1fa0
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `IOTA_RPC_MAINNET_URL` | comma-separated JSON-RPC endpoints for mainnet (`rpcUrls.iota`) |
+| `IOTA_RPC_TESTNET_URL` | comma-separated JSON-RPC endpoints for testnet (`rpcUrls.testnet`) |
+| `IOTA_RPC_DEVNET_URL` | comma-separated JSON-RPC endpoints for devnet (`rpcUrls.devnet`) |
+| `IOTA_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+
 ## Test provenance
 
 The suite replays two PRODUCTION mainnet Identity objects captured live on 24 Aug 2026 —

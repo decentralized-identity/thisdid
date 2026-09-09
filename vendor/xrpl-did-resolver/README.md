@@ -72,3 +72,28 @@ network-id) and a wall-clock bound. Defaults are the keyless public endpoints:
 `xrplcluster.com` (0), `s.altnet.rippletest.net:51234` (1), `s.devnet.rippletest.net:51234` (2).
 
 Sole runtime dependency: `@noble/hashes`.
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-xrpl`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-xrpl did:xrpl:0:r9BUM9z14j7bLFzQHRfurWNdNKYSABdGtE
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `XRPL_RPC_MAINNET_URL` | comma-separated JSON-RPC endpoints for mainnet (`rpcUrls["0"]`) |
+| `XRPL_RPC_TESTNET_URL` | comma-separated JSON-RPC endpoints for testnet (`rpcUrls["1"]`) |
+| `XRPL_RPC_DEVNET_URL` | comma-separated JSON-RPC endpoints for devnet (`rpcUrls["2"]`) |
+| `XRPL_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |

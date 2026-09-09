@@ -1,0 +1,47 @@
+{
+  "name": "@thisdid/ethr-did-resolver",
+  "version": "1.0.0",
+  "description": "DIF did-resolver driver for did:ethr — the DIF ethr-did-resolver core (ERC-1056), custodied in the ThisDID fork, with a standalone command-line resolver configured from the environment.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "bin": {
+    "thisdid-resolve-ethr": "./lib/bin.js"
+  },
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "test:live": "ETHR_LIVE=1 vitest run",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "ethr-did-resolver": "link:../forks/ethr-did-resolver/packages/ethr-did-resolver"
+  },
+  "devDependencies": {
+    "did-resolver": "^4.1.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "did-resolver": ">=4.1.0"
+  }
+}

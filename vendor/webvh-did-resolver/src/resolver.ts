@@ -12,17 +12,48 @@
  * registry itself.
  */
 import { resolveDID } from "didwebvh-ts";
-import type { Verifier } from "didwebvh-ts";
+import type { FetchPolicy, Verifier } from "didwebvh-ts";
 import type {
   DIDDocument,
   DIDResolutionResult,
   ResolverRegistry,
 } from "did-resolver";
+import {
+  loadNodeGuard,
+  settleDestinationGuard,
+  type DestinationGuard,
+} from "./destination-guard.js";
+
+export {
+  DestinationGuardError,
+  detectRuntime,
+  settleDestinationGuard,
+  type DestinationGuard,
+  type Runtime,
+} from "./destination-guard.js";
 
 export interface WebvhResolverOptions {
   /** Data-integrity proof verifier. Defaults to WebCrypto Ed25519. */
   verifier?: Verifier;
+  /**
+   * Fetch boundaries for the DID log, referenced logs and witness files
+   * (timeout, byte cap, redirect limit, private-host policy, fetch
+   * implementation) — added by the ThisDID fork of didwebvh-ts; every default
+   * fails closed. The policy travels with each resolution, so resolvers with
+   * different boundaries coexist in one process.
+   */
+  fetchPolicy?: FetchPolicy;
+  /**
+   * Who checks the addresses a hostname resolves to (the core checks literal
+   * names only): "node" binds this package's connect-time guard (default on
+   * Node), "platform" trusts a runtime that cannot reach private destinations
+   * (default on Cloudflare Workers), "caller" trusts the fetch in use
+   * (required with `fetchPolicy.fetch`). Elsewhere it must be declared.
+   */
+  destinationGuard?: DestinationGuard;
 }
+
+export type { FetchPolicy } from "didwebvh-ts";
 
 /** Legacy uppercase error codes normalized to their DIF equivalents. */
 const ERROR_CODES: Record<string, string> = {
@@ -61,8 +92,12 @@ function classify(meta: Record<string, unknown>): {
   if (/^Invalid did:webvh identifier/i.test(detail)) {
     return { error: "invalidDid", message: detail };
   }
+  if (/blocked by fetch policy/i.test(detail)) {
+    // The identifier points at a destination the policy refuses; definitive.
+    return { error: "invalidDid", message: detail };
+  }
   if (
-    /HTTP error|fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|network|abort/i.test(
+    /HTTP error|fetch failed|timed out|exceeds \d+ bytes|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|network|abort/i.test(
       detail,
     )
   ) {
@@ -116,8 +151,33 @@ function errorResult(classified: {
   };
 }
 
+/**
+ * Register did:webvh. Throws `DestinationGuardError` for a configuration that
+ * would leave the transport unchecked (see destination-guard.ts).
+ */
 export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
   const verifier = options?.verifier ?? webCryptoEd25519Verifier;
+  const basePolicy = options?.fetchPolicy;
+  const guard = settleDestinationGuard({
+    destinationGuard: options?.destinationGuard,
+    fetch: basePolicy?.fetch,
+    allowPrivateHosts: basePolicy?.allowPrivateHosts,
+  });
+
+  // Under "node" the policy's fetch is the connect-time guard, loaded on first
+  // use so the module that imports node:dns and undici never reaches a Worker
+  // bundle. The settled policy is computed once per resolver.
+  let settled: Promise<FetchPolicy | undefined> | undefined;
+  const policy = (): Promise<FetchPolicy | undefined> =>
+    (settled ??=
+      guard === "node"
+        ? loadNodeGuard().then((node) => ({
+            ...(basePolicy ?? {}),
+            fetch: node.guardedFetch({
+              allowPrivateHosts: basePolicy?.allowPrivateHosts,
+            }),
+          }))
+        : Promise.resolve(basePolicy));
 
   const webvh = async (
     did: string,
@@ -125,10 +185,20 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
     _resolver: unknown,
     resolutionOptions: { versionId?: unknown; versionTime?: unknown } = {},
   ): Promise<DIDResolutionResult> => {
+    let fetchPolicy: FetchPolicy | undefined;
+    try {
+      fetchPolicy = await policy();
+    } catch (error) {
+      return errorResult({
+        error: "internalError",
+        message: `connect-time destination guard unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     let result: Awaited<ReturnType<typeof resolveDID>>;
     try {
       result = await resolveDID(did, {
         verifier,
+        ...(fetchPolicy ? { fetchPolicy } : {}),
         ...(typeof resolutionOptions.versionId === "string"
           ? { versionId: resolutionOptions.versionId }
           : {}),

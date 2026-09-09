@@ -37,6 +37,30 @@ const resolver = new Resolver(
 const result = await resolver.resolve("did:plc:z72i7hdynmk6r22z27h6tvur");
 ```
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-plc`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-plc did:plc:z72i7hdynmk6r22z27h6tvur
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `PLC_DIRECTORY_URL` | PLC directory base URL (`directoryUrl`; default `https://plc.directory`) |
+| `PLC_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`, default 6000) |
+
 ## License
 
 Apache-2.0

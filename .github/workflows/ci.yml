@@ -34,6 +34,8 @@ jobs:
       - name: Install TypeScript DID Resolver dependencies
         working-directory: vendor/did-resolver
         run: pnpm install --frozen-lockfile
+      - name: Install forked driver cores (vendor/forks)
+        run: npm run install:forks
       - name: Install ThisDID vendored driver dependencies
         run: |
           for d in $(npm run -s vendor:list); do
@@ -44,6 +46,10 @@ jobs:
       - name: Verify TypeScript DID Resolver
         working-directory: vendor/did-resolver
         run: pnpm run lint && pnpm run format:check && pnpm run test && pnpm run build
+      - name: Build forked driver cores (the wrappers compile against them)
+        run: npm run build:forks
+      - name: Verify forked driver cores (upstream suites under vitest)
+        run: npm run test:forks
       - name: Verify ThisDID vendored driver packages
         run: |
           for d in $(npm run -s vendor:list); do

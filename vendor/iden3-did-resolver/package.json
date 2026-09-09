@@ -11,6 +11,9 @@
       "default": "./lib/index.js"
     }
   },
+  "bin": {
+    "thisdid-resolve-iden3": "./lib/bin.js"
+  },
   "files": [
     "lib",
     "LICENSE"

@@ -41,6 +41,35 @@ const resolver = new Resolver(
 );
 ```
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-near`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+NEAR_RPC_MAINNET_URL=https://… npx thisdid-resolve-near did:near:alice.near
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `NEAR_RPC_MAINNET_URL` | NEAR JSON-RPC endpoint for mainnet |
+| `NEAR_RPC_TESTNET_URL` | NEAR JSON-RPC endpoint for testnet |
+| `NEAR_REGISTRY_CONTRACT_MAINNET` | DID registry contract account for base58 identifiers on mainnet (optional) |
+| `NEAR_REGISTRY_CONTRACT_TESTNET` | DID registry contract account for base58 identifiers on testnet (optional) |
+| `NEAR_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+
+At least one network must be configured, or the command exits 2.
+
 ## Identifier forms
 
 | Form                                | Example                          | Resolution                                                     |

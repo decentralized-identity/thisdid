@@ -42,6 +42,33 @@ Keyless by default: public mirrors for `mainnet`, `testnet`, `previewnet` are bu
 exposes optional `HEDERA_MIRROR_{MAINNET,TESTNET}_URL` vars). An unknown network returns
 `notConfigured`. All reads are paginated with a 1 MiB response bound.
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-hedera`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-hedera did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `HEDERA_MIRROR_MAINNET_URL` | mirror-node REST base URL for mainnet (`mirrorUrls.mainnet`) |
+| `HEDERA_MIRROR_TESTNET_URL` | mirror-node REST base URL for testnet (`mirrorUrls.testnet`) |
+| `HEDERA_MIRROR_PREVIEWNET_URL` | mirror-node REST base URL for previewnet (`mirrorUrls.previewnet`) |
+| `HEDERA_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+| `HEDERA_MAX_MESSAGES` | fail-closed bound on topic history (`maxMessages`) |
+
 ## Test provenance
 
 Fixtures are the raw HCS messages of

@@ -243,8 +243,8 @@ describe("Tier 1 driver Workers", () => {
     const body = await resolve(keyWorker, did);
     expect(body.driver).toMatchObject({
       method: "key",
-      packageName: "key-did-resolver",
-      packageVersion: "4.0.0",
+      packageName: "@thisdid/key-did-resolver",
+      packageVersion: "1.0.0",
     });
     expect(body.result.didDocument?.id).toBe(did);
   });

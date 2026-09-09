@@ -1,8 +1,10 @@
 # Tier 1 driver Workers
 
 Each directory here is a private Cloudflare Worker deployment unit. It imports one DID method
-resolver package (published npm or ThisDID-vendored) and runs it with DIF's TypeScript
-`did-resolver` core.
+resolver package from `vendor/` and runs it with DIF's TypeScript `did-resolver` core. A Worker
+holds no resolution logic: every package resolves on its own, and ships a standalone command
+(`thisdid-resolve-<method>`, see below) that takes the same environment variables the Worker
+reads.
 
 The mother Worker invokes these Workers through Service Bindings using the versioned contract in
 `contract.ts`. `workers_dev` and preview URLs are disabled, so the driver Workers do not expose
@@ -14,11 +16,11 @@ All twenty-four active drivers:
 
 | Binding            | Worker name                | Resolver package                                       | Configuration                                     |
 | ------------------ | -------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
-| `DRIVER_WEB`       | `thisdid-driver-web`       | `web-did-resolver@2.0.32`                              | None                                              |
-| `DRIVER_KEY`       | `thisdid-driver-key`       | `key-did-resolver@4.0.0`                               | None                                              |
-| `DRIVER_PKH`       | `thisdid-driver-pkh`       | `pkh-did-resolver@2.0.0`                               | None                                              |
-| `DRIVER_PEER`      | `thisdid-driver-peer`      | `peer-did-resolver@2.0.0`                              | None                                              |
-| `DRIVER_ETHR`      | `thisdid-driver-ethr`      | `ethr-did-resolver@14.1.2`                             | Secrets per enabled network (`ETH_RPC_*`)         |
+| `DRIVER_WEB`       | `thisdid-driver-web`       | `@thisdid/web-did-resolver@1.0.0` (fork of `web-did-resolver@2.0.32`) | None                                   |
+| `DRIVER_KEY`       | `thisdid-driver-key`       | `@thisdid/key-did-resolver@1.0.0` (fork of js-did `key-did-resolver@4.0.0`) | None                        |
+| `DRIVER_PKH`       | `thisdid-driver-pkh`       | `@thisdid/pkh-did-resolver@1.0.0` (fork of js-did `pkh-did-resolver@2.0.0`) | None                        |
+| `DRIVER_PEER`      | `thisdid-driver-peer`      | `@thisdid/peer-did-resolver@1.0.0` (forks of `peer-did-resolver@2.0.0` + `did-peer@0.0.22`) | None |
+| `DRIVER_ETHR`      | `thisdid-driver-ethr`      | `@thisdid/ethr-did-resolver@1.0.0` (fork of `ethr-did-resolver@14.1.2`) | Secrets per enabled network (`ETH_RPC_*`) |
 | `DRIVER_WEBVH`     | `thisdid-driver-webvh`     | `@thisdid/webvh-did-resolver@1.0.0` (vendored wrapper) | None                                              |
 | `DRIVER_PLC`       | `thisdid-driver-plc`       | `@thisdid/plc-did-resolver@1.0.0` (vendored wrapper)   | `PLC_DIRECTORY_URL` var (default `plc.directory`) |
 | `DRIVER_EBSI`      | `thisdid-driver-ebsi`      | `@cef-ebsi/ebsi-did-resolver@4.1.0`                    | `EBSI_DID_REGISTRY` var (pilot registry)          |
@@ -39,14 +41,20 @@ All twenty-four active drivers:
 | `DRIVER_TZ`        | `thisdid-driver-tz`        | `@thisdid/tz-did-resolver@1.0.0` (clean-room)          | None (keyless; optional `TZ_TZKT_*` vars)         |
 | `DRIVER_ION`       | `thisdid-driver-ion`       | `@thisdid/ion-did-resolver@1.0.0` (clean-room)         | Optional `ION_RESOLUTION_ENDPOINT` (unset)        |
 
-Every entrypoint registers a DIF `getResolver()` package directly. Six consume published npm
-packages; the rest consume ThisDID-custodied `@thisdid/*` packages vendored under `vendor/`, in
-two families:
+Every entrypoint registers a DIF `getResolver()` package directly. All but one consume
+ThisDID-custodied `@thisdid/*` packages vendored under `vendor/` (the exception is `ebsi`,
+deliberately left on the registry package — see
+[`vendor/forks/README.md`](../../vendor/forks/README.md) for how the forks are consumed). Two
+families:
 
-- **Wrappers** — `@thisdid/webvh-did-resolver` and `@thisdid/plc-did-resolver` are thin DIF
-  standard wrappers whose only runtime dependency is the upstream method library (`didwebvh-ts`,
-  `@atproto/identity`); the wrapper adds the registry contract plus required glue (a WebCrypto
-  Ed25519 proof verifier for webvh; a workerd-safe directory fetch for plc).
+- **Wrappers** — `@thisdid/web-did-resolver`, `@thisdid/key-did-resolver`,
+  `@thisdid/pkh-did-resolver`, `@thisdid/peer-did-resolver`, `@thisdid/ethr-did-resolver`,
+  `@thisdid/webvh-did-resolver` and `@thisdid/plc-did-resolver`
+  are thin DIF standard wrappers whose only runtime dependency is the upstream method library,
+  consumed from the GoPlausible forks under `vendor/forks/` (pinned to the releases production
+  ran from the registry) rather than from npm; the wrapper adds the registry contract, the
+  standalone CLI, and required glue (a WebCrypto Ed25519 proof verifier for webvh; a
+  workerd-safe directory fetch for plc; environment → network configuration for ethr).
 - **Clean-room implementations** — built where no workerd-compatible package exists or the
   existing one is unsafe: `near` (replaces a chain carrying the unpatched elliptic
   CVE-2025-14505 and a native addon), `jwk` (dependency-free, fully offline), `cid` (a
@@ -65,6 +73,16 @@ two families:
   mother's chain falls through to upstreams). Each vendored package
   documents its trust model, fail-closed behavior, test-vector provenance, and exit criteria in
   its own README under [`vendor/`](../../vendor/).
+
+## Standalone command line
+
+Every `@thisdid/*` package ships a `thisdid-resolve-<method>` command (`node lib/bin.js <did>`
+from a checkout, `npx thisdid-resolve-<method> <did>` once published). It resolves with the
+package alone — no Worker, no resolver service — and prints the DIF resolution result as JSON:
+exit 0 resolved, 1 the resolver reported an error, 2 usage or configuration error. Configuration
+comes from the **same environment variables the Worker reads** (`ETH_RPC_MAINNET_URL`,
+`SOL_RPC_MAINNET_BASE_URL` + `ALCHEMY_API_KEY`, `CID_GATEKEEPER_URL`, …), so a `.dev.vars` file
+or a copy of the production secrets drives both; each package README lists its table.
 
 ## Configuration and security conventions
 

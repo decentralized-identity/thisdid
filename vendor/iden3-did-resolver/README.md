@@ -33,6 +33,37 @@ are size-bounded and ABI-decoded defensively. An unconfigured network returns `n
 resolving without chain access could misreport rotated or revoked identity state. Malformed
 identifiers (checksum, type bytes, network bytes) are rejected offline as `invalidDid`.
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-iden3`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-iden3 did:iden3:polygon:amoy:xC8VZLUUfo5p9DWUawReh7QSstmYN6zR7qsQhQCsw
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `IDEN3_RPC_POLYGON_MAIN_URL` | complete JSON-RPC endpoint for Polygon mainnet (`networks["polygon:main"]`) |
+| `IDEN3_RPC_POLYGON_AMOY_URL` | complete JSON-RPC endpoint for Polygon Amoy (`networks["polygon:amoy"]`) |
+| `IDEN3_RPC_POLYGON_MAIN_BASE_URL` | Alchemy base URL (ends with `/`), needs `ALCHEMY_API_KEY` |
+| `IDEN3_RPC_POLYGON_AMOY_BASE_URL` | Alchemy base URL (ends with `/`), needs `ALCHEMY_API_KEY` |
+| `ALCHEMY_API_KEY` | appended to the `*_BASE_URL` variables |
+| `POLYGONID_RPC_POLYGON_*` | accepted as aliases of the `IDEN3_*` variables (the `IDEN3_*` value wins) |
+| `IDEN3_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+
+A network without an endpoint reports `notConfigured` rather than guessing a public RPC.
+
 ## Test provenance
 
 Fixtures are raw `eth_call` returns captured live on Amoy together with Archon's document for

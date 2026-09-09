@@ -47,6 +47,34 @@ parsing result is served (a forged or corrupted payload returns `invalidDidDocum
 1072-byte BEP44 payload cap, DNS pointer-jump cap, alias syntax checks. A relay 404 is the
 DHT's real answer (`notFound`) and never falls through; transport failures try the next relay.
 
+
+
+
+
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-dht`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-dht did:dht:o4dksfbqk85ogzdb5osziw6befigbuxmuxkuxq8434q89uj56uyy
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `DHT_RELAY_URLS` | comma-separated Pkarr relay URLs (`relayUrls`; default: the public relays) |
+| `DHT_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+
 ## Test provenance
 
 The suite replays a LIVE relay capture (a real published Pkarr record, 156 bytes, captured

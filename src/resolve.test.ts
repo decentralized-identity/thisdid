@@ -257,6 +257,61 @@ describe("resolveDid", () => {
     );
   });
 
+  it("labels the network from didDocumentMetadata.method when the driver reports one", async () => {
+    // GoPlausible's did:algo resolver reports the ledger it answered from
+    // under the DID Resolution method-specific slot.
+    const ALGO_DID =
+      "did:algo:testnet:addr:GOPLAUSIBLETESTNETADDRESSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const answer = (methodSlot?: Record<string, unknown>) =>
+      vi.fn(async () =>
+        Response.json({
+          didDocument: { id: ALGO_DID, verificationMethod: [] },
+          didDocumentMetadata: {
+            created: "2026-09-08T00:00:00Z",
+            ...(methodSlot ? { method: methodSlot } : {}),
+          },
+          didResolutionMetadata: {},
+        }),
+      );
+
+    vi.stubGlobal(
+      "fetch",
+      answer({ type: "addr", blockchain: "Algorand", network: "testnet" }),
+    );
+    let result = await resolveDid(ALGO_DID, env);
+    expect(result.didResolutionMetadata.provider).toBe("GoPlausible");
+    expect(result.didResolutionMetadata.network).toBe("Algorand TestNet");
+    // The slot itself is passed through untouched for clients.
+    expect(result.didDocumentMetadata.method).toEqual({
+      type: "addr",
+      blockchain: "Algorand",
+      network: "testnet",
+    });
+
+    // Without the slot (or with an incomplete one) the static label stands.
+    vi.stubGlobal("fetch", answer());
+    result = await resolveDid(ALGO_DID, env);
+    expect(result.didResolutionMetadata.network).toBe("Algorand MainNet");
+    vi.stubGlobal("fetch", answer({ type: "addr", network: "" }));
+    result = await resolveDid(ALGO_DID, env);
+    expect(result.didResolutionMetadata.network).toBe("Algorand MainNet");
+
+    // Method metadata crosses a resolver trust boundary. Unknown ledgers and
+    // blockchain names cannot inject an arbitrary network label.
+    vi.stubGlobal(
+      "fetch",
+      answer({ type: "addr", blockchain: "Algorand", network: "evilnet" }),
+    );
+    result = await resolveDid(ALGO_DID, env);
+    expect(result.didResolutionMetadata.network).toBe("Algorand MainNet");
+    vi.stubGlobal(
+      "fetch",
+      answer({ type: "addr", blockchain: "Ethereum", network: "testnet" }),
+    );
+    result = await resolveDid(ALGO_DID, env);
+    expect(result.didResolutionMetadata.network).toBe("Algorand MainNet");
+  });
+
   it("probation-verifies the local cid driver against Archon's Gatekeeper", async () => {
     const CID_DID =
       "did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq";

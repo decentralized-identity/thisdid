@@ -11,7 +11,11 @@
     "esModuleInterop": true,
     "allowJs": false,
     "verbatimModuleSyntax": false,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "did-resolver": ["./vendor/did-resolver"],
+      "@thisdid/*": ["./vendor/*"]
+    }
   },
   "include": [
     "src/**/*.ts",

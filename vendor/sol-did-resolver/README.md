@@ -37,6 +37,37 @@ Fail-closed rules:
   deriving program can ever allocate data at its own PDA.
 - Malformed account bytes return `invalidDidDocument`, not a partial document.
 
+
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-sol`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+SOL_RPC_MAINNET_URL=https://… npx thisdid-resolve-sol did:sol:ygGfLvAyuRymPNv2fJDK1ZMpdy59m8cV5dak6A8uHKa
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `SOL_RPC_MAINNET_URL` | complete JSON-RPC endpoint for mainnet-beta (`rpcUrls.mainnet`) |
+| `SOL_RPC_DEVNET_URL` | complete JSON-RPC endpoint for devnet (`rpcUrls.devnet`) |
+| `SOL_RPC_TESTNET_URL` | complete JSON-RPC endpoint for testnet (`rpcUrls.testnet`) |
+| `SOL_RPC_{MAINNET,DEVNET,TESTNET}_BASE_URL` | Alchemy base URL (ends with `/`), needs `ALCHEMY_API_KEY` |
+| `ALCHEMY_API_KEY` | appended to the `*_BASE_URL` variables |
+| `SOL_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`, default 6000) |
+
+At least one cluster must be configured, or the command exits 2; a DID on an unconfigured cluster reports `notConfigured`.
+
 ## Test provenance
 
 The suite replays a captured live devnet account for

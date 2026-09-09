@@ -9,7 +9,14 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./node": {
+      "types": "./lib/node-guard.d.ts",
+      "default": "./lib/node-guard.js"
     }
+  },
+  "bin": {
+    "thisdid-resolve-webvh": "./lib/bin.js"
   },
   "files": [
     "lib",
@@ -19,7 +26,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.0.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.1"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -29,7 +36,8 @@
     "format:check": "prettier --check \"src/**/*.ts\""
   },
   "dependencies": {
-    "didwebvh-ts": "2.8.0"
+    "didwebvh-ts": "link:../forks/didwebvh-ts",
+    "undici": "7.29.0"
   },
   "devDependencies": {
     "did-resolver": "^4.1.0",

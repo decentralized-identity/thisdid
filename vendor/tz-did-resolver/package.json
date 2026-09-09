@@ -1,7 +1,7 @@
 {
   "name": "@thisdid/tz-did-resolver",
   "version": "1.0.0",
-  "description": "did:tz resolver for the DIF did-resolver interface \u2014 Tezos layer-1 derivation per the Spruce spec, with BLAKE2b-verified public-key discovery via TzKT.",
+  "description": "did:tz resolver for the DIF did-resolver interface — Tezos layer-1 derivation per the Spruce spec, with BLAKE2b-verified public-key discovery via TzKT.",
   "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -10,6 +10,9 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     }
+  },
+  "bin": {
+    "thisdid-resolve-tz": "./lib/bin.js"
   },
   "files": [
     "lib",

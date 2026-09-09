@@ -37,3 +37,27 @@ const result = await resolver.resolve(
 Runs anywhere `fetch`, `TextEncoder`, and `atob` exist — including Cloudflare
 Workers. Dependencies are pure JS: `@noble/curves`, `@noble/hashes`,
 `multiformats`.
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-cid`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-cid did:cid:bagaaieraoqzjgi6537vyu3h3rtetki5g4bk6stzyqplcmwpqgqxp7fewowcq
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `CID_GATEKEEPER_URL` | Archon Gatekeeper base URL (`gatekeeperUrl`; default: the public deployment) |
+| `CID_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+| `CID_MAX_EVENTS` | bound on the operation chain length (`maxEvents`) |

@@ -11,6 +11,9 @@
       "default": "./lib/index.js"
     }
   },
+  "bin": {
+    "thisdid-resolve-plc": "./lib/bin.js"
+  },
   "files": [
     "lib",
     "LICENSE"
@@ -29,7 +32,7 @@
     "format:check": "prettier --check \"src/**/*.ts\""
   },
   "dependencies": {
-    "@atproto/identity": "0.5.9"
+    "@atproto/identity": "link:../forks/atproto/packages/identity"
   },
   "devDependencies": {
     "did-resolver": "^4.1.0",

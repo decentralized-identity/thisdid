@@ -4,21 +4,28 @@
 [submodule "vendor/forks/web-did-resolver"]
 	path = vendor/forks/web-did-resolver
 	url = https://github.com/GoPlausible/web-did-resolver
+	branch = thisdid
 [submodule "vendor/forks/ethr-did-resolver"]
 	path = vendor/forks/ethr-did-resolver
 	url = https://github.com/GoPlausible/ethr-did-resolver
+	branch = thisdid
 [submodule "vendor/forks/js-did"]
 	path = vendor/forks/js-did
 	url = https://github.com/GoPlausible/js-did
+	branch = thisdid
 [submodule "vendor/forks/peer-did-resolver"]
 	path = vendor/forks/peer-did-resolver
 	url = https://github.com/GoPlausible/peer-did-resolver
+	branch = thisdid
 [submodule "vendor/forks/did-peer"]
 	path = vendor/forks/did-peer
 	url = https://github.com/GoPlausible/did-peer
+	branch = thisdid
 [submodule "vendor/forks/didwebvh-ts"]
 	path = vendor/forks/didwebvh-ts
 	url = https://github.com/GoPlausible/didwebvh-ts
+	branch = thisdid
 [submodule "vendor/forks/atproto"]
 	path = vendor/forks/atproto
 	url = https://github.com/GoPlausible/atproto
+	branch = thisdid

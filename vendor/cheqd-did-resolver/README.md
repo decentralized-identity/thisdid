@@ -27,6 +27,30 @@ const result = await resolver.resolve("did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN"
 
 Options: `resolverUrl` (defaults to the official deployment), `timeoutMs` (default 6000).
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-cheqd`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-cheqd did:cheqd:mainnet:Ps1ysXP2Ae6GBfxNhNQNKN
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `CHEQD_RESOLVER_URL` | base URL of a cheqd DID Resolver (`resolverUrl`; default: the official deployment) |
+| `CHEQD_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`, default 6000) |
+
 ## License
 
 Apache-2.0

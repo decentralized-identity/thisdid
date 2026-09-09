@@ -98,6 +98,35 @@ const { didDocument } = await resolver.resolve("did:oyd:zQm…");
 const keyDoc = dereferenceFragment(didDocument, "key-doc");
 ```
 
+### Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-oyd`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-oyd did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` select a version, `--compact`
+prints single-line JSON, `--help` prints the full reference. Host options are
+read from the environment, so the same variables serve a shell, a `.dev.vars`
+file, or a deployment:
+
+| Variable                    | Effect                                                              |
+| --------------------------- | ------------------------------------------------------------------- |
+| `OYD_FOLLOW_ALSO_KNOWN_AS`  | `1` — follow a revoked DID's rotation target (`followAlsoKnownAs`)  |
+| `OYD_STRICT_REVOCATION_SIG` | `0` — opt out of the revocation checks (`strictRevocationSig`)      |
+| `OYD_STRICT_PUBKEY_BINDING` | `1` — bind pubkey-form ids to a verified doc key                    |
+| `OYD_MAX_LOG_ENTRIES`       | integer — `maxLogEntries`                                            |
+| `OYD_MAX_PREVIOUS_REFS`     | integer — `maxPreviousRefs`                                          |
+| `OYD_ALLOW_HOSTS`           | comma-separated `repositoryPolicy.allowHosts`                        |
+| `OYD_ALLOW_PRIVATE_HOSTS`   | `1` — `repositoryPolicy.allowPrivateHosts`                           |
+| `OYD_ALLOW_SCHEMES`         | comma-separated `repositoryPolicy.schemes` (default `https`)         |
+
 Further host options: `strictRevocationSig` is **ON by default** (the
 author's rulings made revocation-key signature + doc-commitment
 verification mandatory; `getResolver({ strictRevocationSig: false })` opts

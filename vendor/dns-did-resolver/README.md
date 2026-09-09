@@ -33,6 +33,31 @@ const result = await resolver.resolve("did:dns:danubetech.com");
 Options: `dohUrl` (default `https://cloudflare-dns.com/dns-query`), `timeoutMs` (default 6000),
 `maxKeys` (default 10).
 
+
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-dns`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-dns did:dns:danubetech.com
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. Host options are read from the environment, under the same names the ThisDID
+Worker uses, so one `.dev.vars` file drives both:
+
+| Variable | Effect |
+| --- | --- |
+| `DOH_URL` | DNS-over-HTTPS JSON endpoint (`dohUrl`; default: Cloudflare's) |
+| `DNS_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`) |
+| `DNS_MAX_KEYS` | bound on the `_keyN` records walked (`maxKeys`) |
+
 ## License
 
 Apache-2.0

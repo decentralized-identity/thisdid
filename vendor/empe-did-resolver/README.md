@@ -39,6 +39,34 @@ Fail-closed rules:
 - A document whose `id` names another DID (or another network's namespace) returns
   `invalidDidDocument`.
 
+## Command line
+
+The package ships a standalone resolver command, `thisdid-resolve-empe`, that
+needs nothing but Node 20+ — no resolver service, no Worker:
+
+```sh
+npx thisdid-resolve-empe did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f
+# from a checkout: node lib/bin.js <did>
+```
+
+It prints the DIF resolution result as JSON on stdout and exits 0 when the
+DID resolved, 1 when the resolver reported an error
+(`didResolutionMetadata.error`), 2 on a usage or configuration error.
+`--version-id <id>` and `--version-time <iso>` are passed through as
+resolution options, `--compact` prints single-line JSON, `--help` prints the
+full reference. The endpoints are read from the environment under the ThisDID
+Worker's variable names, so the same `.dev.vars` or secret set serves both:
+
+| Variable               | Effect                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `EMPE_RPC_MAINNET_URL` | Tendermint RPC base URL for Empeiria mainnet (`rpcUrls.mainnet`; none by default)         |
+| `EMPE_RPC_TESTNET_URL` | Tendermint RPC base URL for `empe-testnet-2` (`rpcUrls.testnet`; default the public node) |
+| `EMPE_TIMEOUT_MS`      | integer — per-request wall-clock bound (`timeoutMs`, default 6000)                        |
+
+All variables are optional. A comma-separated list in an `*_URL` variable
+names fallback endpoints, tried in order on transport failures. Without
+`EMPE_RPC_MAINNET_URL`, a mainnet DID exits 1 with `notConfigured`.
+
 ## Test provenance
 
 The suite replays the live testnet capture for the catalog example

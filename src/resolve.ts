@@ -187,6 +187,43 @@ interface ResolveContext {
   env: Env;
 }
 
+/** Ledger spellings for the `network` label when a driver reports one. */
+const NETWORK_STYLES: Record<string, string> = {
+  mainnet: "MainNet",
+  testnet: "TestNet",
+  betanet: "BetaNet",
+  devnet: "DevNet",
+};
+
+/**
+ * The `network` label for the banner. Drivers that know which ledger they
+ * answered from report it under `didDocumentMetadata.method`
+ * (`{ type, blockchain, network }` — the DID Resolution 1.0 method-specific
+ * slot; GoPlausible's did:algo / did:nfd resolver does this). Prefer that over
+ * the static per-method label so a TestNet identifier is not labelled
+ * MainNet; fall back to the method's default label otherwise.
+ */
+function networkLabel(method: string, result: DIDResolutionResult): string {
+  // This extension is currently defined only by GoPlausible's Algorand
+  // methods. Do not let arbitrary resolver metadata relabel another method's
+  // trust domain in the public response.
+  if (method !== "algo" && method !== "nfd") return networkFor(method);
+
+  const slot = result.didDocumentMetadata?.method;
+  if (slot && typeof slot === "object") {
+    const { blockchain, network } = slot as Record<string, unknown>;
+    if (
+      typeof blockchain === "string" &&
+      typeof network === "string" &&
+      blockchain.trim().toLowerCase() === "algorand"
+    ) {
+      const ledger = NETWORK_STYLES[network.trim().toLowerCase()];
+      if (ledger !== undefined) return `Algorand ${ledger}`;
+    }
+  }
+  return networkFor(method);
+}
+
 /** Stamp the winning attempt with ThisDID route metadata. */
 function finalize(
   attempt: Attempt,
@@ -200,7 +237,7 @@ function finalize(
     route: stepRoute(attempt.step),
     provider: providerTag(attempt.step),
     resolver: resolverLabel(attempt.step, ctx.method),
-    network: networkFor(ctx.method),
+    network: networkLabel(ctx.method, result),
     durationMs: Math.max(1, Date.now() - ctx.started),
     chain: ctx.chainLabel,
     attempted: ctx.attempts.map((a) => a.step),

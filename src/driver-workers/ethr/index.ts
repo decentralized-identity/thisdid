@@ -1,5 +1,5 @@
 import type { ResolverRegistry } from "did-resolver";
-import { getResolver } from "ethr-did-resolver";
+import { getResolver } from "@thisdid/ethr-did-resolver";
 import {
   JsonRpcProvider,
   type JsonRpcPayload,
@@ -98,8 +98,10 @@ class LoggingJsonRpcProvider extends JsonRpcProvider {
 
 const driver = createDriverWorker<EthrEnv>({
   method: "ethr",
-  packageName: "ethr-did-resolver",
-  packageVersion: "14.1.2",
+  // The DIF ethr-did-resolver core (14.1.2) from the ThisDID fork under
+  // vendor/forks, through the @thisdid wrapper that also carries the CLI.
+  packageName: "@thisdid/ethr-did-resolver",
+  packageVersion: "1.0.0",
   // ethers JsonRpcProvider retains asynchronous request/batch state. Reusing
   // that provider in a later stateless Worker invocation can strand its promise
   // in the previous request context, which Cloudflare cancels as a hung request.
