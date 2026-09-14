@@ -113,6 +113,11 @@ export function App() {
     setResolving(false);
     setProgress(0);
     setTab("overview");
+    // A `/did:...` deep link stays in the address bar after it resolved; drop
+    // it so the bar reads https://thisdid.com and a reload starts clean.
+    if (window.location.pathname !== "/") {
+      window.history.replaceState(null, "", "/");
+    }
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 

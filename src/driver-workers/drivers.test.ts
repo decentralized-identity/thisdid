@@ -319,7 +319,31 @@ describe("Tier 1 driver Workers", () => {
         expect(String(input)).toBe(
           `https://plc.test/${encodeURIComponent(did)}`,
         );
-        return Response.json({ id: did });
+        // The wrapper validates the directory's answer as a did:plc document
+        // (JSON-LD context, Multikey material), so the stub serves a real one.
+        return Response.json({
+          "@context": [
+            "https://www.w3.org/ns/did/v1",
+            "https://w3id.org/security/multikey/v1",
+          ],
+          id: did,
+          verificationMethod: [
+            {
+              id: `${did}#atproto`,
+              type: "Multikey",
+              controller: did,
+              publicKeyMultibase:
+                "zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF",
+            },
+          ],
+          service: [
+            {
+              id: "#atproto_pds",
+              type: "AtprotoPersonalDataServer",
+              serviceEndpoint: "https://pds.test",
+            },
+          ],
+        });
       }),
     );
     const body = await resolve(plcWorker, did, {

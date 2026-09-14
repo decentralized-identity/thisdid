@@ -26,6 +26,12 @@ const result = await resolver.resolve(
 did:peer needs no configuration and no network access: the identifier
 encodes its own document.
 
+## Representation
+
+`accept` is honoured: `application/did+json` strips the JSON-LD context,
+`application/did+ld+json` keeps it, and any other value is
+`representationNotSupported`.
+
 ## Command line
 
 The package ships a standalone resolver command, `thisdid-resolve-peer`, that

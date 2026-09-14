@@ -15,11 +15,23 @@ import { Resolver } from "did-resolver";
 import { getResolver } from "@thisdid/pkh-did-resolver";
 
 const resolver = new Resolver(getResolver());
-const result = await resolver.resolve("did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb");
+const result = await resolver.resolve(
+  "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb",
+);
 ```
 
 did:pkh needs no configuration and no network access: the identifier encodes
 its own document.
+
+## Namespaces
+
+eip155, bip122, tezos and solana — the networks in the did:pkh specification's
+Networks table. Every account is validated against its CAIP-10 namespace
+profile before a document is produced (hex address and EIP-55 checksum,
+base58check or bech32 with a decoded witness program, Tezos base58check with
+the method type chosen by prefix, an on-curve Ed25519 key for Solana); anything
+else — including Arweave, which has a test vector but no Networks row — is
+`invalidDid`.
 
 ## Command line
 

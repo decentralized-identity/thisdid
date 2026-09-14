@@ -10,7 +10,7 @@ patched in place.
 | Path                                                                 | Upstream                                 | Pinned release                                                        | Consumed by                                                                     |
 | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `web-did-resolver/`                                                  | decentralized-identity/web-did-resolver  | `2.0.32` (tag)                                                        | `vendor/web-did-resolver` (`@thisdid/web-did-resolver`)                         |
-| `ethr-did-resolver/`                                                 | decentralized-identity/ethr-did-resolver | `ethr-did-resolver@14.1.2` (tag)                                      | `vendor/ethr-did-resolver` (`@thisdid/ethr-did-resolver`)                       |
+| `ethr-did-resolver/`                                                 | decentralized-identity/ethr-did-resolver | upstream `master` (`5d72109`) + `thisdid`                             | `vendor/ethr-did-resolver` (`@thisdid/ethr-did-resolver`)                       |
 | `peer-did-resolver/`                                                 | veramolabs/peer-did-resolver             | `2.0.0` (tag)                                                         | `vendor/peer-did-resolver` (`@thisdid/peer-did-resolver`)                       |
 | `did-peer/`                                                          | aviarytech/did-peer                      | `0.0.22` (commit `dc98ef8`)                                           | `peer-did-resolver/` above                                                      |
 | `didwebvh-ts/`                                                       | decentralized-identity/didwebvh-ts       | `v2.8.0` (tag)                                                        | `vendor/webvh-did-resolver`                                                     |
@@ -27,7 +27,9 @@ alone (no Bun, Yarn, microbundle, SvelteKit or Hardhat toolchains):
   routable unicast literals (`src/address-policy.ts`, a positive
   classification with its own parser; all failing closed) — the first of two
   layers, the wrapper's `destinationGuard` being the connection-level second
-  and sharing the same classification — returns
+  and sharing the same classification — validates the retrieved document
+  against the DID Core data model instead of comparing only its `id`
+  (`src/document.ts`: structure, exactly one well-formed verification-material property per method, relationship references resolved against every method in the document in a second pass, a JSON-LD `@context` starting with the DID Core context) with the material itself decoded (`src/key-material.ts`), and returns no document on any error, returns
   transport-class errors for network failures, and no longer needs
   `cross-fetch` (global fetch, injectable). The upstream jest suite runs under
   vitest in the fork, extended with the boundary cases. The `example/` demo app
@@ -39,7 +41,12 @@ alone (no Bun, Yarn, microbundle, SvelteKit or Hardhat toolchains):
   `src/utils/address-policy.ts`, a positive classification with its own
   parser) — the first of two layers: the wrapper's `destinationGuard` adds
   the connection-level check of what each name resolves to, with the same
-  classification. The policy
+  classification. Also corrected on the v0.5 path (the entry-hash chain was
+  compared with itself and the timestamps carried a TODO), bounded in its
+  `deriveHash` cache, inclusive at an entry's own `versionTime`, strict about
+  witness thresholds, and every signed `state` is validated as a DID Core
+  document (`src/utils/did-document.ts`, with real key-material checks in
+  `src/utils/key-material.ts`). The policy
   travels with each resolution:
   `ResolutionOptions.fetchPolicy` is threaded through `resolveDID` →
   `fetchLogFromIdentifier`, `fetchWitnessProofs` and
@@ -54,6 +61,66 @@ alone (no Bun, Yarn, microbundle, SvelteKit or Hardhat toolchains):
   `test/package-scripts.test.ts` are excluded because they shell out through
   Bun. `test/resolve-http.test.ts` stubs `fetch` with real `Response`
   objects and expects the bounded request options (marked "ThisDID fork").
+- `did-peer`: additionally **corrected and hardened** — numalgo 2 maps all six
+  purpose codes (`A` assertion, `E` key agreement, `V` authentication, `I`
+  capability invocation, `D` capability delegation, `S` service) to their own
+  relationships instead of handling only `V`/`E`/`S` and promoting every `V`
+  key into `assertionMethod`; an unknown purpose code is an error. New
+  `src/lib/multikey.ts` decodes and validates every key (multibase,
+  multicodec, per-codec length, curve point) and requires it to fit its
+  purpose, for numalgo 0 and 2 alike. `isPeerDID` accepts the base64url
+  alphabet the library's own encoder emits, and decoded services are
+  validated (type, DID-URL or relative id, DIDComm endpoint object with a
+  required `uri`, routing keys, accept list).
+- `js-did`: additionally **corrected and hardened** — `key-did-resolver`
+  enforces the did:key multicodec length table, decodes secp256k1 points,
+  reports an unsupported multicodec explicitly, and emits the DID Core context
+  plus the suite contexts (it emitted the legacy `w3id.org/did/v1` alias);
+  `pkh-did-resolver` validates accounts against the CAIP-10 namespace profiles
+  (`src/validate.ts`: eip155 hex + EIP-55, bip122 base58check/bech32 per
+  chain, with the bech32 witness program decoded and length-checked per
+  BIP-173/141, tezos base58check, solana on-curve Ed25519 keys) and types
+  verification methods from the method's Networks table (Tezos by address
+  prefix, Solana `Ed25519VerificationKey2018`). A Solana document is the Read
+  algorithm's single `#blockchainAccountId` method, not the test vector's
+  shape, which contradicts that algorithm and DID Core §5.2.1 (reported).
+  Arweave, which has a vector but no Networks row, is refused as unsupported.
+- `ethr-did-resolver`: the `thisdid` branch carries exactly the two changes
+  proposed upstream — malformed, empty or repeated `versionId`/`versionTime`
+  selectors are `invalidOptions` instead of resolving another version, and
+  every resolution failure, including connectivity, timeout, server and archive-node errors, returns `internalError` instead of `notFound`. The history budget and the
+  calendar-checked `versionTime` were dropped on 2026-09-14 because the
+  maintainer did not take them.
+- `did-peer`: additionally **corrected and hardened** — numalgo 2 maps all six
+  purpose codes (`A` assertion, `E` key agreement, `V` authentication, `I`
+  capability invocation, `D` capability delegation, `S` service) to their own
+  relationships instead of handling only `V`/`E`/`S` and promoting every `V`
+  key into `assertionMethod`; an unknown purpose code is an error. New
+  `src/lib/multikey.ts` decodes and validates every key (multibase,
+  multicodec, per-codec length, curve point) and requires it to fit its
+  purpose, for numalgo 0 and 2 alike. `isPeerDID` accepts the base64url
+  alphabet the library's own encoder emits, and decoded services are
+  validated (type, DID-URL or relative id, DIDComm endpoint object with a
+  required `uri`, routing keys, accept list).
+- `js-did`: additionally **corrected and hardened** — `key-did-resolver`
+  enforces the did:key multicodec length table, decodes secp256k1 points,
+  reports an unsupported multicodec explicitly, and emits the DID Core context
+  plus the suite contexts (it emitted the legacy `w3id.org/did/v1` alias);
+  `pkh-did-resolver` validates accounts against the CAIP-10 namespace profiles
+  (`src/validate.ts`: eip155 hex + EIP-55, bip122 base58check/bech32 per
+  chain, with the bech32 witness program decoded and length-checked per
+  BIP-173/141, tezos base58check, solana on-curve Ed25519 keys) and types
+  verification methods from the method's Networks table (Tezos by address
+  prefix, Solana `Ed25519VerificationKey2018`). A Solana document is the Read
+  algorithm's single `#blockchainAccountId` method, not the test vector's
+  shape, which contradicts that algorithm and DID Core §5.2.1 (reported).
+  Arweave, which has a vector but no Networks row, is refused as unsupported.
+- `ethr-did-resolver`: the `thisdid` branch carries exactly the two changes
+  proposed upstream — malformed, empty or repeated `versionId`/`versionTime`
+  selectors are `invalidOptions` instead of resolving another version, and
+  every resolution failure, including connectivity, timeout, server and archive-node errors, returns `internalError` instead of `notFound`. The history budget and the
+  calendar-checked `versionTime` were dropped on 2026-09-14 because the
+  maintainer did not take them.
 - `web-did-resolver`, `peer-did-resolver`, `did-peer`: `tsconfig.thisdid.json`
   (plain `tsc`, ESM output); `package.json` trimmed to the runtime
   dependencies pinned at the versions production already ran (`cross-fetch`
@@ -67,18 +134,15 @@ alone (no Bun, Yarn, microbundle, SvelteKit or Hardhat toolchains):
   `json-canonicalize` 2.0.1 publishes only TypeScript sources, so the script
   bundles it from `src/` exactly as Bun did. `version` is set to `2.8.0`, the
   release the `v2.8.0` tag published (the tagged manifest still said 2.7.4).
-- `ethr-did-resolver`: the workspace's own `tsc` build; the package's
-  devDependencies are reduced to `typescript` and `vitest` so the install no
-  longer pulls Hardhat. `vitest.thisdid.config.ts` runs the six test files
-  that need neither a chain nor the network (`config`, `extended-id`,
-  `helpers`, `index`, `logParser`, `wrap-did-document` — 70 tests);
-  `networks.integration` calls public RPC endpoints and runs only with
-  `ETHR_LIVE_TESTS=1`. The other thirteen files (`cachedProvider.*`,
-  `errors`, `nonce`, `resolve.*`, `resolver.*`) deploy the registry on a
-  Hardhat chain through `src/__tests__/testUtils.ts` and are **not run here**;
-  they stay covered by the wrapper's suite and the live corpus. (`pnpm peers
-check` reports vite's `@types/node` peer range against the workspace's
-  pinned 22.7.5 — a warning only.)
+- `ethr-did-resolver`: **no ThisDID-specific files.** The fork is upstream
+  `master` plus the two upstream-bound changes on `thisdid`; it installs from
+  upstream's own frozen lockfile with upstream's pinned pnpm 12.4.1 (Hardhat
+  included). ThisDID's wiring lives in the root `package.json`: `build:forks`
+  builds only the resolver package (`pnpm --filter ethr-did-resolver run
+build`), and `test:forks` runs upstream's full suite on the in-process
+  Hardhat chain (`HARDHAT_CONFIG=hardhat.config.mts vitest run`) except
+  `networks.integration.test.ts`, which calls public RPC endpoints — 18 files,
+  172 tests.
 - `js-did`: the `thisdid` branch keeps only `packages/key-did-resolver` and
   `packages/pkh-did-resolver` in the tree and the pnpm workspace, with their
   dependencies pinned to the versions production ran and a fresh two-importer

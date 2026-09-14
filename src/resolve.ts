@@ -6,6 +6,7 @@
 import { parse, type DIDResolutionResult } from "did-resolver";
 import {
   chainFor,
+  stepAllowed,
   providerTag,
   stepRoute,
   upstreamSupports,
@@ -91,10 +92,25 @@ async function runStep(
     }
     // godiddy / archon / goplausible are all DIF Universal Resolver GET
     // endpoints (Archon's cid Gatekeeper speaks the same result shape).
+    const method = parse(did)?.method ?? "";
+    // Hard stop, independent of how the chain was built: GoPlausible serves
+    // did:algo and did:nfd only, so no other DID is ever sent to it.
+    if (!stepAllowed(step, method)) {
+      return {
+        step,
+        failure: {
+          error: "methodNotSupported",
+          metadata: {
+            error: "methodNotSupported",
+            message: `${resolverLabel(step, method)} does not serve did:${method}; step skipped without a request`,
+          },
+        },
+      };
+    }
     const token = step === "godiddy" ? env.GODIDDY_API_KEY : undefined;
     const upstream = await fetchUpstream(
       did,
-      upstreamBase(step, env, parse(did)?.method),
+      upstreamBase(step, env, method),
       token,
       signal,
     );

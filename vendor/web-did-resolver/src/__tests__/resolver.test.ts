@@ -142,3 +142,61 @@ describe.skipIf(!process.env.WEB_LIVE)("did:web live", () => {
     expect(result.didDocument?.id).toBe(did);
   });
 });
+
+describe("representation negotiation (accept)", () => {
+  const serve = (document: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response(JSON.stringify(document), { status: 200 }),
+      ),
+    );
+  const registry = () => getResolver({ ...caller, allowPrivateHosts: true });
+  const did = "did:web:localhost%3A8443";
+
+  it("returns plain JSON without the context for application/did+json", async () => {
+    serve(DOC);
+    const result = await new Resolver(registry()).resolve(did, {
+      accept: "application/did+json",
+    });
+    expect(result.didResolutionMetadata.contentType).toBe(
+      "application/did+json",
+    );
+    expect(result.didDocument?.["@context"]).toBeUndefined();
+    expect(result.didDocument?.id).toBe(did);
+  });
+
+  it("returns JSON-LD with the DID Core context for application/did+ld+json, adding it to a plain document", async () => {
+    const { "@context": _context, ...plain } = DOC;
+    serve(plain);
+    const result = await new Resolver(registry()).resolve(did, {
+      accept: "application/did+ld+json",
+    });
+    expect(result.didResolutionMetadata.contentType).toBe(
+      "application/did+ld+json",
+    );
+    expect(result.didDocument?.["@context"]).toBe(
+      "https://www.w3.org/ns/did/v1",
+    );
+  });
+
+  it("refuses a representation it cannot produce", async () => {
+    serve(DOC);
+    const result = await new Resolver(registry()).resolve(did, {
+      accept: "text/plain",
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe(
+      "representationNotSupported",
+    );
+    expect(result.didResolutionMetadata.contentType).toBeUndefined();
+  });
+
+  it("leaves the driver's choice when accept is absent", async () => {
+    serve(DOC);
+    const result = await new Resolver(registry()).resolve(did);
+    expect(result.didResolutionMetadata.contentType).toBe(
+      "application/did+ld+json",
+    );
+  });
+});

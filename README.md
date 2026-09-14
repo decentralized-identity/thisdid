@@ -302,8 +302,11 @@ Every DID method is resolved through an **ordered fallback chain** defined in
   XRPL JSON-RPC — mainnet, testnet, and devnet by network-id); each Worker uses its
   published (or vendored) package with the vendored `did-resolver` core. See
   [`src/driver-workers/`](src/driver-workers/README.md).
-- **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) Universal Resolver
-  (`goplausible.xyz/api/1.0/identifiers`), the Algorand-native resolver. Open, no key.
+- **`goplausible`** — routed to the [GoPlausible](https://goplausible.com) resolver
+  (`goplausible.xyz/api/1.0/identifiers`), the Algorand-native resolver. It serves `did:algo`
+  and `did:nfd` **only** (since 2026-09-10 it has no fallback for other methods), and ThisDID
+  never sends it any other DID: `chainFor()` drops the step for every other method and the step
+  runner refuses it even from a misconfigured chain. Open, no key.
 - **`godiddy`** — routed to the [Godiddy](https://godiddy.com) Universal Resolver
   (`api.godiddy.com`, by Danube Tech). **Requires an API key** (`Authorization: Bearer`).
 - **`archon`** — routed to the [Archon](https://archon.technology) Universal Resolver

@@ -84,7 +84,7 @@ export const PROVIDERS: ProviderProfile[] = [
     id: "goplausible",
     tag: "GoPlausible",
     name: "GoPlausible",
-    kind: "Algorand-native Universal Resolver",
+    kind: "Algorand-native resolver (did:algo and did:nfd only)",
     operator: "GoPlausible",
     baseUrl: "https://goplausible.xyz/api/1.0/identifiers/",
     auth: "Open — no key",

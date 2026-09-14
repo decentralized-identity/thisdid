@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { planChain, resolveDid } from "./resolve";
+import {
+  chainFor,
+  GOPLAUSIBLE_METHODS,
+  ROUTE_CHAINS,
+  UPSTREAM_METHOD_SUPPORT,
+} from "./resolvers/registry";
+import { ALL_METHODS } from "./methods";
 import type { Env } from "./types";
 import { resetHealthCache, type HealthSnapshot } from "./routing/health";
 import { fetchUpstream } from "./resolvers/upstream";
@@ -815,5 +822,49 @@ describe("probation verification", () => {
       provider: "godiddy",
       reason: "upstreamUnavailable",
     });
+  });
+});
+
+describe("GoPlausible serves did:algo and did:nfd only (2026-09-10)", () => {
+  it("keeps the goplausible step out of every other method's chain", () => {
+    expect([...GOPLAUSIBLE_METHODS].sort()).toEqual(["algo", "nfd"]);
+    expect(UPSTREAM_METHOD_SUPPORT.goplausible).toBe(GOPLAUSIBLE_METHODS);
+    expect(ALL_METHODS).toEqual(expect.arrayContaining(["algo", "nfd"]));
+    for (const method of ALL_METHODS) {
+      if (GOPLAUSIBLE_METHODS.has(method)) {
+        expect(chainFor(method)[0], method).toBe("goplausible");
+        continue;
+      }
+      expect(chainFor(method), method).not.toContain("goplausible");
+    }
+    expect(chainFor("not-a-catalogued-method")).not.toContain("goplausible");
+  });
+
+  it("drops a misconfigured goplausible step for another method without sending a request", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(input instanceof Request ? input.url : String(input));
+        return Response.json({
+          didResolutionMetadata: {},
+          didDocument: { id: "did:web:example.com" },
+          didDocumentMetadata: {},
+        });
+      }),
+    );
+    ROUTE_CHAINS.web = ["goplausible", "godiddy"];
+    try {
+      const result = await resolveDid("did:web:example.com", env);
+      expect(result.didResolutionMetadata.attempted).not.toContain(
+        "goplausible",
+      );
+      expect(result.didResolutionMetadata.provider).toBe("godiddy");
+      expect(urls.some((u) => u.startsWith("https://goplausible.test"))).toBe(
+        false,
+      );
+    } finally {
+      delete ROUTE_CHAINS.web;
+    }
   });
 });

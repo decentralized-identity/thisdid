@@ -18,11 +18,40 @@ describe("did:peer DIF wrapper", () => {
     expect(result.didDocument?.verificationMethod?.length).toBeGreaterThan(0);
   });
 
-  it("reports an unresolvable identifier as notFound, not an exception", async () => {
+  it("reports an unresolvable identifier as invalidDid, not an exception", async () => {
     const result = await new Resolver(getResolver()).resolve(
       "did:peer:9notanumalgo",
     );
     expect(result.didDocument).toBeNull();
-    expect(result.didResolutionMetadata.error).toBe("notFound");
+    expect(result.didResolutionMetadata.error).toBe("invalidDid");
+  });
+});
+
+describe("representation negotiation (accept)", () => {
+  const did = "did:peer:0z6MkqRYqQiSgvZQdnBytw86Qbs2ZWUkGv22od935YF4s8M7V";
+  it("strips the context for application/did+json and keeps it for application/did+ld+json", async () => {
+    const plain = await new Resolver(getResolver()).resolve(did, {
+      accept: "application/did+json",
+    });
+    expect(plain.didResolutionMetadata.contentType).toBe(
+      "application/did+json",
+    );
+    expect(plain.didDocument?.["@context"]).toBeUndefined();
+    const linked = await new Resolver(getResolver()).resolve(did, {
+      accept: "application/did+ld+json",
+    });
+    expect(linked.didResolutionMetadata.contentType).toBe(
+      "application/did+ld+json",
+    );
+    expect(Array.isArray(linked.didDocument?.["@context"])).toBe(true);
+  });
+  it("refuses a representation it cannot produce", async () => {
+    const result = await new Resolver(getResolver()).resolve(did, {
+      accept: "application/did+cbor",
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe(
+      "representationNotSupported",
+    );
   });
 });

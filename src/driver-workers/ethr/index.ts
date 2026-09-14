@@ -13,6 +13,10 @@ import {
 } from "../runtime";
 
 interface EthrEnv {
+  /** "1" enables per-request RPC parameter and response tracing. Development
+   *  only: those payloads carry the Ethereum address being resolved (call data,
+   *  log topics), which resolution logs should not retain. Default off. */
+  ETHR_RPC_TRACE?: string;
   /** Public Alchemy base URLs (wrangler vars, trailing `/`); the token is the
    *  ALCHEMY_API_KEY secret appended after it. The legacy full-URL secrets
    *  remain as fallbacks until they are deleted. */
@@ -52,6 +56,7 @@ class LoggingJsonRpcProvider extends JsonRpcProvider {
     url: string,
     chainId: number,
     private readonly networkLabel: string,
+    private readonly trace: boolean = false,
   ) {
     super(url, chainId);
   }
@@ -61,11 +66,18 @@ class LoggingJsonRpcProvider extends JsonRpcProvider {
   ): Promise<JsonRpcResult[]> {
     const requests = Array.isArray(payload) ? payload : [payload];
     const started = Date.now();
+    // Operational logging records what was called and how it went, never the
+    // call payloads: JSON-RPC params and log topics carry the Ethereum address
+    // being resolved, and resolution logs that retain identities enable the
+    // tracking and profiling the DID Resolution privacy guidance warns about.
+    // ETHR_RPC_TRACE=1 opts a development deployment back into full payloads.
     console.info("ethr.rpc.request", {
       network: this.networkLabel,
       methods: requests.map((request) => request.method),
-      ids: requests.map((request) => request.id),
-      params: logValue(requests.map((request) => request.params)),
+      count: requests.length,
+      ...(this.trace
+        ? { params: logValue(requests.map((request) => request.params)) }
+        : {}),
     });
     try {
       const responses = await super._send(payload);
@@ -73,7 +85,7 @@ class LoggingJsonRpcProvider extends JsonRpcProvider {
         network: this.networkLabel,
         methods: requests.map((request) => request.method),
         durationMs: Date.now() - started,
-        responses: logValue(responses),
+        ...(this.trace ? { responses: logValue(responses) } : {}),
       });
       return responses;
     } catch (rawError) {
@@ -107,6 +119,7 @@ const driver = createDriverWorker<EthrEnv>({
   // in the previous request context, which Cloudflare cancels as a hung request.
   cacheResolver: false,
   registry: (env) => {
+    const trace = env.ETHR_RPC_TRACE === "1";
     const mainnetUrl =
       alchemyRpcUrl(env.ETH_RPC_MAINNET_BASE_URL, env.ALCHEMY_API_KEY) ??
       env.ETH_RPC_MAINNET_URL;
@@ -119,7 +132,12 @@ const driver = createDriverWorker<EthrEnv>({
             {
               name: "mainnet",
               chainId: 1,
-              provider: new LoggingJsonRpcProvider(mainnetUrl, 1, "mainnet"),
+              provider: new LoggingJsonRpcProvider(
+                mainnetUrl,
+                1,
+                "mainnet",
+                trace,
+              ),
             },
           ]
         : []),
@@ -132,6 +150,7 @@ const driver = createDriverWorker<EthrEnv>({
                 sepoliaUrl,
                 11155111,
                 "sepolia",
+                trace,
               ),
             },
           ]

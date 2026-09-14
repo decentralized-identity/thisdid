@@ -31,11 +31,11 @@ runtime dependency.
    literal names only; what a name resolves to is decided at the connection, by whoever
    `destinationGuard` names:
 
-   | `destinationGuard` | Meaning                                                                                                                                                                                                                                                                                                                                                                            | Default               |
-   | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+   | `destinationGuard` | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Default               |
+   | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
    | `"node"`           | the package's connect-time guard: each hostname is resolved once, any answer that is not a globally routable unicast address (IANA special-purpose, transition, multicast and reserved ranges included) refuses the connection, and the socket opens only to the validated addresses, so a name that changes its answer between check and connection (DNS rebinding) cannot reach an internal destination; every redirect hop is a new guarded connection | on Node               |
-   | `"platform"`       | the runtime cannot open connections to private destinations (Cloudflare Workers); the ThisDID driver Worker declares it explicitly                                                                                                                                                                                                                                                 | on Cloudflare Workers |
-   | `"caller"`         | the fetch in use enforces the policy at connection time, or runs behind a proxy that does; required whenever you supply your own `fetch`                                                                                                                                                                                                                                           | never                 |
+   | `"platform"`       | the runtime cannot open connections to private destinations (Cloudflare Workers); the ThisDID driver Worker declares it explicitly                                                                                                                                                                                                                                                                                                                        | on Cloudflare Workers |
+   | `"caller"`         | the fetch in use enforces the policy at connection time, or runs behind a proxy that does; required whenever you supply your own `fetch`                                                                                                                                                                                                                                                                                                                  | never                 |
 
    In any other runtime `getResolver()` throws `DestinationGuardError` rather than resolve with
    an unchecked transport: declare the boundary explicitly. The guard itself is exported from
@@ -57,6 +57,19 @@ const result = await resolver.resolve(
   "did:webvh:Qmb3KLhAKJ9wZx1gTPzcPfCxviRkiEJ4RGdHNviaedGu3i:opsecid.github.io",
 );
 ```
+
+## Resolution options
+
+`versionId` (the method's `<number>-<entryHash>` form), `versionTime` (an XML
+datetime in UTC without fractional seconds, `YYYY-MM-DDTHH:MM:SSZ`, on a real
+calendar date) and `versionNumber` (a positive integer) select a historical
+version. They are read from the resolution options and from the DID URL query
+(`did:webvh:…?versionNumber=2`), which the method requires resolvers to honour;
+a selector may appear once, only one may be used at a time, and a value given
+both ways must agree. Anything else is `invalidOptions` rather than a
+resolution of some other version. `accept` negotiates the representation:
+`application/did+json` (context stripped), `application/did+ld+json`
+(default), anything else `representationNotSupported`.
 
 ## Command line
 

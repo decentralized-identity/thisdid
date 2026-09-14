@@ -37,6 +37,19 @@ const resolver = new Resolver(
 const result = await resolver.resolve("did:plc:z72i7hdynmk6r22z27h6tvur");
 ```
 
+The wrapper also validates what the upstream package does not on its resolution
+path: the `did:plc` identifier (24 base32 characters) before the directory is
+contacted, and the returned document against the DID Core data model plus the
+did:plc profile. A malformed identifier is `invalidDid`; a malformed document
+is `invalidDidDocument`.
+
+The document validation is complete for the did:plc profile: every
+verification method must carry exactly one material property and it must be a
+`publicKeyMultibase` of a key type the directory publishes (secp256k1 or
+P-256), of the right length and on the curve; the JSON-LD `@context` is
+required and must start with the DID Core context. `accept` is honoured
+(`application/did+json` strips the context, `application/did+ld+json` keeps
+it, anything else is `representationNotSupported`).
 
 ## Command line
 
@@ -56,10 +69,10 @@ resolution options, `--compact` prints single-line JSON, `--help` prints the
 full reference. Host options are read from the environment, under the same names the ThisDID
 Worker uses, so one `.dev.vars` file drives both:
 
-| Variable | Effect |
-| --- | --- |
+| Variable            | Effect                                                                   |
+| ------------------- | ------------------------------------------------------------------------ |
 | `PLC_DIRECTORY_URL` | PLC directory base URL (`directoryUrl`; default `https://plc.directory`) |
-| `PLC_TIMEOUT_MS` | per-request bound in ms (`timeoutMs`, default 6000) |
+| `PLC_TIMEOUT_MS`    | per-request bound in ms (`timeoutMs`, default 6000)                      |
 
 ## License
 

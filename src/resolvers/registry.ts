@@ -5,7 +5,9 @@
  *   - `local`   → resolved by an isolated TypeScript driver Worker through a Service Binding.
  *   - `godiddy` → routed to the godiddy Universal Resolver.
  *   - `archon`  → routed to the archon Universal Resolver.
- *   - `goplausible` → routed to the GoPlausible (Algorand-native) resolver.
+ *   - `goplausible` → routed to the GoPlausible (Algorand-native) resolver, which
+ *     serves did:algo and did:nfd ONLY (its generic Universal Resolver fallback
+ *     was removed on 2026-09-10); no other method may ever reach it.
  *   - `oyd`     → routed to the OwnYourData OYDID resolver (did:oyd).
  *
  * The chain is tried in order; the first step that returns a usable DID document
@@ -42,8 +44,27 @@ export const ROUTE_CHAINS: Record<string, Step[]> = {
   oyd: ["local", "oyd", "godiddy", "archon"],
 };
 
+/**
+ * The only methods GoPlausible resolves. Since 2026-09-10 the GoPlausible
+ * resolver has no fallback for other methods, so a request for any other DID
+ * is wasted traffic at best. This set is the single source of truth: chain
+ * construction (`chainFor`) drops the step for every other method, and the
+ * step runner refuses to issue the request even if a chain were to carry it.
+ */
+export const GOPLAUSIBLE_METHODS: ReadonlySet<string> = new Set([
+  "algo",
+  "nfd",
+]);
+
+/** Whether a step may be used for the method at all (independent of health). */
+export function stepAllowed(step: Step, method: string): boolean {
+  return step !== "goplausible" || GOPLAUSIBLE_METHODS.has(method);
+}
+
 export function chainFor(method: string): Step[] {
-  return ROUTE_CHAINS[method] ?? DEFAULT_CHAIN;
+  return (ROUTE_CHAINS[method] ?? DEFAULT_CHAIN).filter((step) =>
+    stepAllowed(step, method),
+  );
 }
 
 /** Whether a step resolves inside the Worker (`local`) or via an upstream. */
@@ -57,7 +78,7 @@ export function stepRoute(step: Step): "local" | "upstream" {
  * Godiddy's set is its advertised catalog. Archon is a full Universal Resolver
  * deployment: resolution-verified 2026-08-17 for iden3/cid/web/ebsi/near/
  * webvh/plc; its did:jwk driver currently fails (HTTP 500), so jwk is
- * deliberately excluded. GoPlausible is the Algorand-native resolver.
+ * deliberately excluded. GoPlausible resolves did:algo and did:nfd only.
  */
 export const UPSTREAM_METHOD_SUPPORT: Partial<
   Record<Step, ReadonlySet<string>>
@@ -102,7 +123,7 @@ export const UPSTREAM_METHOD_SUPPORT: Partial<
     "tz",
     "empe",
   ]),
-  goplausible: new Set(["algo", "nfd"]),
+  goplausible: GOPLAUSIBLE_METHODS,
   oyd: new Set(["oyd"]),
 };
 

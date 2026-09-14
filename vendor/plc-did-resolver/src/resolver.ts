@@ -9,9 +9,11 @@
  *  - `DidPlcResolver.resolveNoCheck` fetches with `redirect: "error"`, which
  *    Cloudflare workerd's fetch does not implement (only `follow`/`manual`).
  *    The subclass below uses `redirect: "manual"` and treats any redirect as a
- *    failure — the same security posture, runnable on workerd. Document
- *    validation stays with the package (`BaseResolver.resolve` →
- *    `validateDidDoc`).
+ *    failure — the same security posture, runnable on workerd.
+ *  - Identifier and document validation (`document.ts`): the package's
+ *    resolver path never checks the did:plc syntax before querying the
+ *    directory, and validates documents with a schema its own authors mark
+ *    deprecated and less spec-compliant. Both are enforced here.
  *  - The package's error classes are mapped to DIF resolution error codes.
  *
  * Retired in favor of upstream if @atproto/identity gains a DIF registry
@@ -27,6 +29,13 @@ import type {
   DIDResolutionResult,
   ResolverRegistry,
 } from "did-resolver";
+import {
+  assertDidPlc,
+  assertValidPlcDocument,
+  InvalidPlcDid,
+  InvalidPlcDocument,
+} from "./document.js";
+import { applyRepresentation } from "./representation.js";
 
 export interface PlcResolverOptions {
   /** PLC directory base. Defaults to the method's canonical public directory. */
@@ -107,8 +116,15 @@ export function getResolver(options?: PlcResolverOptions): ResolverRegistry {
     options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   );
 
-  const plc = async (did: string): Promise<DIDResolutionResult> => {
+  const plc = async (
+    did: string,
+    _parsed: unknown,
+    _resolver: unknown,
+    resolutionOptions: { accept?: unknown } = {},
+  ): Promise<DIDResolutionResult> => {
     try {
+      // Refuse a malformed identifier before it reaches the directory.
+      assertDidPlc(did);
       const doc = await resolver.resolve(did);
       if (!doc) {
         return {
@@ -117,20 +133,33 @@ export function getResolver(options?: PlcResolverOptions): ResolverRegistry {
           didDocumentMetadata: {},
         };
       }
-      return {
-        didResolutionMetadata: { contentType: "application/did+ld+json" },
-        didDocument: doc as unknown as DIDDocument,
-        didDocumentMetadata: {},
-      };
+      // The directory's answer must be a usable DID document, not merely JSON
+      // the deprecated schema tolerates.
+      assertValidPlcDocument(doc, did);
+      // DID Core representation negotiation.
+      return applyRepresentation(
+        {
+          didResolutionMetadata: { contentType: "application/did+ld+json" },
+          didDocument: doc as unknown as DIDDocument,
+          didDocumentMetadata: {},
+        },
+        resolutionOptions.accept,
+      );
     } catch (error) {
       const code =
+        error instanceof InvalidPlcDid ||
         error instanceof PoorlyFormattedDidError
           ? "invalidDid"
-          : error instanceof PoorlyFormattedDidDocumentError
+          : error instanceof InvalidPlcDocument ||
+              error instanceof PoorlyFormattedDidDocumentError
             ? "invalidDidDocument"
             : "internalError";
+      const message =
+        error instanceof InvalidPlcDid || error instanceof InvalidPlcDocument
+          ? { message: error.message.slice(0, 200) }
+          : {};
       return {
-        didResolutionMetadata: { error: code },
+        didResolutionMetadata: { error: code, ...message },
         didDocument: null,
         didDocumentMetadata: {},
       };

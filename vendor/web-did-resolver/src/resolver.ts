@@ -23,6 +23,7 @@ import {
   settleDestinationGuard,
   type DestinationGuard,
 } from "./destination-guard.js";
+import { applyRepresentation } from "./representation.js";
 
 export {
   DestinationGuardError,
@@ -31,6 +32,11 @@ export {
   type DestinationGuard,
   type Runtime,
 } from "./destination-guard.js";
+export {
+  applyRepresentation,
+  DID_JSON,
+  DID_LD_JSON,
+} from "./representation.js";
 
 export interface WebResolverOptions extends CoreOptions {
   /**
@@ -58,21 +64,24 @@ export function getResolver(
   const guard = settleDestinationGuard(options);
   const coreOptions: CoreOptions = { ...options };
   delete (coreOptions as { destinationGuard?: unknown }).destinationGuard;
-  if (guard !== "node") return coreGetResolver(coreOptions) as ResolverRegistry;
 
-  // Node: bind the connect-time guard, loaded on first use so the module that
-  // imports node:dns and undici never reaches a Worker bundle.
+  // Under "node" the connect-time guard is loaded on first use so the module
+  // that imports node:dns and undici never reaches a Worker bundle.
   let core: Promise<DIDResolver> | undefined;
   const load = (): Promise<DIDResolver> =>
-    (core ??= loadNodeGuard().then(
-      (node) =>
-        coreGetResolver({
-          ...coreOptions,
-          fetch: node.guardedFetch({
-            allowPrivateHosts: coreOptions.allowPrivateHosts,
-          }),
-        }).web as DIDResolver,
-    ));
+    (core ??=
+      guard === "node"
+        ? loadNodeGuard().then(
+            (node) =>
+              coreGetResolver({
+                ...coreOptions,
+                fetch: node.guardedFetch({
+                  allowPrivateHosts: coreOptions.allowPrivateHosts,
+                }),
+              }).web as DIDResolver,
+          )
+        : Promise.resolve(coreGetResolver(coreOptions).web as DIDResolver));
+
   const web: DIDResolver = async (did, parsed, resolver, resolutionOptions) => {
     let inner: DIDResolver;
     try {
@@ -88,7 +97,11 @@ export function getResolver(
       };
       return failure;
     }
-    return inner(did, parsed, resolver, resolutionOptions);
+    // DID Core representation negotiation, which the core does not perform.
+    return applyRepresentation(
+      await inner(did, parsed, resolver, resolutionOptions),
+      resolutionOptions?.accept,
+    );
   };
   return { web };
 }

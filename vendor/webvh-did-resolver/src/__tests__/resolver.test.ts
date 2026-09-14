@@ -304,3 +304,90 @@ describe("did:webvh fetch boundaries (ThisDID fork)", () => {
     );
   });
 });
+
+describe("did:webvh resolution options (ThisDID)", () => {
+  const serveFixture = () =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: RequestInfo | URL) =>
+        String(url).endsWith("did-witness.json")
+          ? new Response(FIXTURE_WITNESS, { status: 200 })
+          : new Response(FIXTURE_LOG, { status: 200 }),
+      ),
+    );
+  const resolveWith = (options: Record<string, unknown>, query?: string) =>
+    getResolver(caller).webvh(
+      FIXTURE_DID,
+      query === undefined ? null : ({ query } as never),
+      null as never,
+      options,
+    );
+  const invalid = async (options: Record<string, unknown>, query?: string) => {
+    const result = await resolveWith(options, query);
+    expect(result.didDocument, JSON.stringify({ options, query })).toBeNull();
+    expect(
+      result.didResolutionMetadata.error,
+      JSON.stringify({ options, query }),
+    ).toBe("invalidOptions");
+  };
+
+  it("refuses malformed selectors instead of resolving something else", async () => {
+    serveFixture();
+    await invalid({ versionTime: "yesterday" });
+    await invalid({ versionTime: "2025-02-30T00:00:00Z" });
+    await invalid({ versionTime: "2025-01-01T00:00:00.123Z" });
+    await invalid({ versionTime: "2025-01-01T00:00:00+05:00" });
+    await invalid({ versionTime: 1735689600 });
+    await invalid({ versionId: 42 });
+    await invalid({ versionId: "junk" });
+    await invalid({ versionNumber: 0 });
+    await invalid({ versionNumber: "1.5" });
+    await invalid({ versionNumber: -1 });
+  });
+
+  it("refuses combined, repeated or contradictory selectors", async () => {
+    serveFixture();
+    await invalid({ versionNumber: 1, versionTime: "2025-01-01T00:00:00Z" });
+    await invalid({ versionId: "1-abc", versionNumber: 1 });
+    await invalid({}, "versionNumber=1&versionNumber=2");
+    await invalid({ versionNumber: 2 }, "versionNumber=1");
+  });
+
+  it("honours versionNumber from the options and from the DID URL query", async () => {
+    serveFixture();
+    const fromOptions = await resolveWith({ versionNumber: 1 });
+    expect(fromOptions.didResolutionMetadata.error).toBeUndefined();
+    expect(String(fromOptions.didDocumentMetadata.versionId)).toMatch(/^1-/);
+    const fromQuery = await resolveWith({}, "versionNumber=2");
+    expect(fromQuery.didResolutionMetadata.error).toBeUndefined();
+    expect(String(fromQuery.didDocumentMetadata.versionId)).toMatch(/^2-/);
+    const agreeing = await resolveWith({ versionNumber: 2 }, "versionNumber=2");
+    expect(String(agreeing.didDocumentMetadata.versionId)).toMatch(/^2-/);
+  });
+
+  it("returns notFound for a well-formed versionTime before the DID existed", async () => {
+    serveFixture();
+    const result = await resolveWith({ versionTime: "2000-01-01T00:00:00Z" });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe("notFound");
+  });
+
+  it("negotiates the representation", async () => {
+    serveFixture();
+    const plain = await resolveWith({ accept: "application/did+json" });
+    expect(plain.didResolutionMetadata.contentType).toBe(
+      "application/did+json",
+    );
+    expect(plain.didDocument?.["@context"]).toBeUndefined();
+    const linked = await resolveWith({ accept: "application/did+ld+json" });
+    expect(linked.didResolutionMetadata.contentType).toBe(
+      "application/did+ld+json",
+    );
+    expect(linked.didDocument?.["@context"]).toBeDefined();
+    const other = await resolveWith({ accept: "text/plain" });
+    expect(other.didDocument).toBeNull();
+    expect(other.didResolutionMetadata.error).toBe(
+      "representationNotSupported",
+    );
+  });
+});

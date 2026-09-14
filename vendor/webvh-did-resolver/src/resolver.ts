@@ -23,6 +23,8 @@ import {
   settleDestinationGuard,
   type DestinationGuard,
 } from "./destination-guard.js";
+import { InvalidOptions, readSelectors } from "./options.js";
+import { applyRepresentation } from "./representation.js";
 
 export {
   DestinationGuardError,
@@ -31,6 +33,17 @@ export {
   type DestinationGuard,
   type Runtime,
 } from "./destination-guard.js";
+export {
+  InvalidOptions,
+  parseUtcDatetime,
+  readSelectors,
+  type WebvhSelectors,
+} from "./options.js";
+export {
+  applyRepresentation,
+  DID_JSON,
+  DID_LD_JSON,
+} from "./representation.js";
 
 export interface WebvhResolverOptions {
   /** Data-integrity proof verifier. Defaults to WebCrypto Ed25519. */
@@ -181,10 +194,21 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
 
   const webvh = async (
     did: string,
-    _parsed: unknown,
+    parsed: { query?: string } | null,
     _resolver: unknown,
-    resolutionOptions: { versionId?: unknown; versionTime?: unknown } = {},
+    resolutionOptions: Record<string, unknown> = {},
   ): Promise<DIDResolutionResult> => {
+    // Selectors from the DID URL query and the options, validated before the
+    // core sees them; the method requires the query form to be honoured.
+    let selectors;
+    try {
+      selectors = readSelectors(parsed, resolutionOptions);
+    } catch (error) {
+      if (error instanceof InvalidOptions) {
+        return errorResult({ error: "invalidOptions", message: error.message });
+      }
+      throw error;
+    }
     let fetchPolicy: FetchPolicy | undefined;
     try {
       fetchPolicy = await policy();
@@ -199,12 +223,7 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
       result = await resolveDID(did, {
         verifier,
         ...(fetchPolicy ? { fetchPolicy } : {}),
-        ...(typeof resolutionOptions.versionId === "string"
-          ? { versionId: resolutionOptions.versionId }
-          : {}),
-        ...(typeof resolutionOptions.versionTime === "string"
-          ? { versionTime: new Date(resolutionOptions.versionTime) }
-          : {}),
+        ...selectors,
       });
     } catch (error) {
       return errorResult({
@@ -225,11 +244,14 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
     // …), matching what every other universal resolver returns for did:webvh
     // (Godiddy and the DIF resolver wrap the same core and emit this verbatim).
     // On this success path meta carries no `error`/`problemDetails`.
-    return {
-      didResolutionMetadata: { contentType: "application/did+ld+json" },
-      didDocument: result.doc as unknown as DIDDocument,
-      didDocumentMetadata: { ...meta },
-    };
+    return applyRepresentation(
+      {
+        didResolutionMetadata: { contentType: "application/did+ld+json" },
+        didDocument: result.doc as unknown as DIDDocument,
+        didDocumentMetadata: { ...meta },
+      },
+      resolutionOptions.accept,
+    );
   };
 
   return { webvh } as ResolverRegistry;

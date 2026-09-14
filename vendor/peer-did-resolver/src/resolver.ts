@@ -10,9 +10,23 @@
  * the single import the ThisDID Worker and the CLI share.
  */
 import { getResolver as coreGetResolver } from "peer-did-resolver";
-import type { ResolverRegistry } from "did-resolver";
+import type { DIDResolver, ResolverRegistry } from "did-resolver";
+import { applyRepresentation } from "./representation.js";
+
+export {
+  applyRepresentation,
+  DID_JSON,
+  DID_LD_JSON,
+} from "./representation.js";
 
 /** did:peer needs no configuration: the identifier encodes its own document. */
 export function getResolver(): ResolverRegistry {
-  return coreGetResolver() as ResolverRegistry;
+  const core = coreGetResolver().peer as DIDResolver;
+  // DID Core representation negotiation, which the core does not perform.
+  const peer: DIDResolver = async (did, parsed, resolver, options) =>
+    applyRepresentation(
+      await core(did, parsed, resolver, options),
+      options?.accept,
+    );
+  return { peer } as ResolverRegistry;
 }
