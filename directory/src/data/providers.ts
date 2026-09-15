@@ -19,7 +19,7 @@ export const PROVIDERS: ProviderProfile[] = [
     baseUrl: "https://thisdid.com/1.0/identifiers/",
     auth: "Open — no key",
     summary:
-      "Twenty-four isolated TypeScript driver Workers — the first hop of every routing chain, probation-verified against redundant upstreams while new.",
+      "Twenty-five isolated TypeScript driver Workers — the first hop of every routing chain, probation-verified against redundant upstreams while new.",
     methods: sorted(LOCAL_DRIVER_METHODS),
     links: [
       { label: "Resolver", url: "https://thisdid.com" },

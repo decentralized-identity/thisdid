@@ -1,0 +1,48 @@
+{
+  "name": "@thisdid/julia-did-resolver",
+  "version": "1.0.0",
+  "description": "did:julia resolver for the DIF did-resolver interface \u2014 Chia singleton state derived from the most recent spend and proven by singleton puzzle-hash recomputation, with no CLVM execution.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decentralized-identity/thisdid",
+    "directory": "vendor/julia-did-resolver"
+  },
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "did-resolver": ">=4.1.0"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "did-resolver": "^4.1.0"
+  }
+}

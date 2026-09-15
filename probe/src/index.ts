@@ -170,6 +170,13 @@ const CANARIES: { step: Step; did: string }[] = [
     step: "local",
     did: "did:oyd:zQmaBZTghndXTgxNwfbdpVLWdFf6faYE4oeuN2zzXdQt1kh",
   },
+  // did:julia — the personal-alias canary on Chia mainnet: the driver walks
+  // the singleton from the launcher ID the identifier encodes and proves the
+  // state it serves against the unspent coin's own puzzle hash (keyless).
+  {
+    step: "local",
+    did: "did:julia:ArD2JyqfkVVbT9Liegqu4jcfBEXtHnPofmF2rsBuq1TX",
+  },
   // The network-backed ens canary is enabled with ENS_CANARY_DID once the ens
   // driver's RPC secret is configured (same pattern as ETHR_CANARY_DID).
   // Godiddy: NOT a canary resolution — its public resolver API is

@@ -1,0 +1,42 @@
+{
+ "didDocument": {
+  "@context": [
+   "https://www.w3.org/ns/did/v1",
+   "https://w3id.org/security/multikey/v1",
+   "https://not.bot/ns/did-julia/v1"
+  ],
+  "id": "did:julia:BqJasSrzc9aGJmU4U3A2z4XrqozAAMiMhnqHaq4F2cDc",
+  "juliaAuthentication": {
+   "merkleRoot": "0x45cdff1c7c30d1cd32d49cf22e20c7c6ec74882ca1880d4c6b7d0e406e40eda1",
+   "classDepth": 1,
+   "requiredClasses": 2,
+   "classes": [
+    {
+     "classId": "0xd4eab10e9ab1801b3ccba8d2f9e0966876030d8aec0b87d7fa779949192b7595",
+     "requiredMembers": 2
+    },
+    {
+     "classId": "0xae4e6d48ab7f96e68cf3cc2122bddf61fc59e1fb52b2cf26e889aa0acdf40d53",
+     "requiredMembers": 1
+    }
+   ]
+  },
+  "juliaCustodians": [],
+  "juliaRecovery": {
+   "configured": true,
+   "recoveryAgents": true,
+   "delayBlocks": 1440,
+   "prerotation": "disabled"
+  }
+ },
+ "didDocumentMetadata": {
+  "versionId": "0xf295281cc99108b6c64fc71952cf2419da8df2830b1bd6842b44bc41a94ab75c",
+  "created": "2026-07-30T15:23:35Z",
+  "updated": "2026-08-01T15:21:50Z"
+ },
+ "didResolutionMetadata": {
+  "contentType": "application/did+ld+json",
+  "did:julia:stateVerified": true,
+  "did:julia:currentPuzzle": true
+ }
+}

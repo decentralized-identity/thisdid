@@ -13,6 +13,7 @@ import hederaWorker from "./hedera";
 import iden3Worker from "./iden3";
 import ionWorker from "./ion";
 import iotaWorker from "./iota";
+import juliaWorker from "./julia";
 import jwkWorker from "./jwk";
 import keyWorker from "./key";
 import nearWorker from "./near";
@@ -87,6 +88,10 @@ import {
   REFERENCE_DOCUMENT as OYD_REFERENCE_DOCUMENT,
   canaryFetch as oydCanaryFetch,
 } from "../../vendor/oyd-did-resolver/src/__tests__/fixture";
+import {
+  ALIAS_DID as JULIA_ALIAS_DID,
+  loadFixture as loadJuliaFixture,
+} from "../../vendor/julia-did-resolver/src/__tests__/fixtures";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -853,6 +858,97 @@ describe("Tier 1 driver Workers", () => {
     );
     expect(vm.publicKeyBase58).toBe(publicKey);
     expect(body.result.didDocumentMetadata.keyDiscovery).toBe("verified");
+  });
+
+  it("resolves did:julia against recorded Chia RPC, hash-verified", async () => {
+    const calls = loadJuliaFixture<
+      Array<{
+        method: string;
+        payload: Record<string, unknown>;
+        response: Record<string, unknown>;
+      }>
+    >("rpc_calls_ArD2.json");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const method = String(input).split("/").pop();
+        // The recordings predate Coinset's singleton extension, so this also
+        // exercises the portable per-generation traversal.
+        if (method === "get_singleton_info") {
+          return Response.json({ success: false, error: "unknown method" });
+        }
+        const payload = String(init?.body ?? "");
+        for (const call of calls) {
+          if (
+            call.method === method &&
+            JSON.stringify(call.payload) === payload
+          ) {
+            return Response.json(call.response);
+          }
+        }
+        throw new Error(`unrecorded ${method} ${payload}`);
+      }),
+    );
+    const body = await resolve(juliaWorker, JULIA_ALIAS_DID);
+    expect(body.driver).toMatchObject({
+      method: "julia",
+      packageName: "@thisdid/julia-did-resolver",
+      packageVersion: "1.0.0",
+    });
+    expect(body.result.didDocument?.id).toBe(JULIA_ALIAS_DID);
+    // The state served recomputed to the unspent coin's own puzzle hash.
+    expect(body.result.didResolutionMetadata["did:julia:stateVerified"]).toBe(
+      true,
+    );
+    expect(body.result.didResolutionMetadata["did:julia:currentPuzzle"]).toBe(
+      true,
+    );
+  });
+
+  it("fails did:julia closed when the served coin contradicts the spend", async () => {
+    const calls = loadJuliaFixture<
+      Array<{
+        method: string;
+        payload: Record<string, unknown>;
+        response: Record<string, unknown>;
+      }>
+    >("rpc_calls_ArD2.json");
+    const tampered = JSON.parse(JSON.stringify(calls)) as typeof calls;
+    for (const call of tampered) {
+      const records = (
+        call.response as {
+          coin_records?: Array<{
+            coin: { puzzle_hash: string };
+            spent: boolean;
+          }>;
+        }
+      ).coin_records;
+      for (const record of records ?? []) {
+        if (!record.spent) record.coin.puzzle_hash = `0x${"ab".repeat(32)}`;
+      }
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const method = String(input).split("/").pop();
+        if (method === "get_singleton_info") {
+          return Response.json({ success: false, error: "unknown method" });
+        }
+        const payload = String(init?.body ?? "");
+        for (const call of tampered) {
+          if (
+            call.method === method &&
+            JSON.stringify(call.payload) === payload
+          ) {
+            return Response.json(call.response);
+          }
+        }
+        throw new Error(`unrecorded ${method}`);
+      }),
+    );
+    const body = await resolve(juliaWorker, JULIA_ALIAS_DID);
+    expect(body.result.didDocument).toBeNull();
+    expect(body.result.didResolutionMetadata.error).toBe("unverifiableState");
   });
 
   it("fails closed when the iden3 network RPC secret is absent", async () => {
