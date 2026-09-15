@@ -50,6 +50,7 @@
     { "binding": "DRIVER_TZ", "service": "thisdid-driver-tz" },
     { "binding": "DRIVER_ION", "service": "thisdid-driver-ion" },
     { "binding": "DRIVER_OYD", "service": "thisdid-driver-oyd" },
+    { "binding": "DRIVER_JULIA", "service": "thisdid-driver-julia" },
   ],
   // Connected to the main resolver Worker through its D1 database + KV
   // namespace (same ids as ../wrangler.jsonc): probes are appended to D1,
