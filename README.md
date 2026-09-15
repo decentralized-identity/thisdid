@@ -496,12 +496,12 @@ application's dependency graph.
 ```bash
 npm run dev            # mother Worker + twenty-five bound driver Workers + Vite SPA
 npm run dev:worker     # mother Worker only (drivers must already be running)
-npm run dev:drivers    # twenty-five discoverable local driver processes on ports 8791–8809 and 8811–8816
+npm run dev:drivers    # twenty-five discoverable local driver processes on ports 8791–8809 and 8811–8817
 npm run dev:web        # Vite HMR dev server on http://localhost:5173 (proxies /1.0, /methods to :8787)
 npm test               # root Worker + probe + web test suites (per-package: cd vendor/<pkg> && pnpm test)
 ```
 
-`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8809 and 8811–8816
+`npm run dev` already starts the Vite development server. Driver processes use ports 8791–8809 and 8811–8817
 with separate inspector ports, while clients test the complete routing path through the mother API
 on port 8787. For local ethr resolution, copy
 `src/driver-workers/ethr/.dev.vars.example` to `src/driver-workers/ethr/.dev.vars` and add the full

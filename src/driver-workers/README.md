@@ -109,7 +109,7 @@ Publishing, deployment, commits, and pushes remain explicit maintainer actions.
 `npm run dev` starts the twenty-five driver processes, the mother Worker, and the Vite SPA
 together. Wrangler discovers the driver processes by their configured service names and connects
 the mother's Service Bindings at `http://localhost:8787`; nothing is deployed.
-`npm run dev:drivers` (ports 8791–8809 and 8811–8816; 8810 belongs to `dev:directory`) and
+`npm run dev:drivers` (ports 8791–8809 and 8811–8817; 8810 belongs to `dev:directory`) and
 `npm run dev:worker` are also available when
 separate terminals are preferable.
 
