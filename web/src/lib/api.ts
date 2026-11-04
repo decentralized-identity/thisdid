@@ -23,7 +23,7 @@ export interface ResolveOk {
 
 export type ResolveOutcome = ResolveOk | ResolveError;
 
-/** Normalized data the results UI renders (mirrors the design's `res`). */
+/** Normalized data the results UI renders. */
 export interface ResultView {
   did: string;
   method: string;

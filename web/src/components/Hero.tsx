@@ -28,7 +28,7 @@ const EXAMPLES = [
   },
   {
     short: "did:algo",
-    did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+    did: "did:algo:UTI7PAASILRDA3ISHY5M7J7LNRX2AIVQJWI7ZKCCGKVLMFD3VPR5PWSZ4I",
   },
   {
     short: "did:oyd",

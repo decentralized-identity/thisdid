@@ -410,6 +410,26 @@ function normalizedStringSet(value: unknown): string | undefined {
   return stableJson([...new Set(entries)].sort());
 }
 
+/**
+ * An http(s) endpoint in the form RFC 3986 §6.2.2–6.2.3 equates: lower-case
+ * scheme and host, the default port dropped, an empty path as "/" (did:webvh's
+ * implicit `#files` endpoint is `https://example.com/` in its specification,
+ * and some resolvers omit the slash). Anything else is compared verbatim, and
+ * so is a string that is not a valid URI (backslash, whitespace), which URL
+ * parsing would otherwise repair into an equal-looking value.
+ */
+function normalizedEndpoint(endpoint: unknown): unknown {
+  if (typeof endpoint !== "string" || !/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+  if (/[\\\s]/.test(endpoint)) return endpoint;
+  try {
+    return new URL(endpoint).href;
+  } catch {
+    return endpoint;
+  }
+}
+
 function normalizedServices(value: unknown, docId: string): string | undefined {
   if (value === undefined) return "[]";
   if (!Array.isArray(value)) return undefined;
@@ -436,7 +456,13 @@ function normalizedServices(value: unknown, docId: string): string | undefined {
           !Array.isArray(endpoint)),
     );
     const endpoints = validEndpoints
-      ? [...new Set(endpointEntries.map(stableJson))].sort()
+      ? [
+          ...new Set(
+            endpointEntries.map((endpoint) =>
+              stableJson(normalizedEndpoint(endpoint)),
+            ),
+          ),
+        ].sort()
       : undefined;
     if (
       !serviceId ||

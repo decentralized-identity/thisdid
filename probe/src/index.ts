@@ -176,11 +176,15 @@ const CANARIES: { step: Step; did: string }[] = [
   // quota-throttled, so probing it burned quota and misread 429s as
   // downtime. probeOne routes this entry to the unmetered health endpoint.
   { step: "godiddy", did: "health:godiddy" },
+  // GoPlausible is probed with did:algo only (maintainer's decision,
+  // 2026-09-23): its availability is what the routing needs, and did:nfd
+  // depends on the NFD registry as well. The address is upper-case base32:
+  // did:algo's method-specific id is case-sensitive and GoPlausible resolves
+  // only a valid Algorand address (a lower-cased one resolves to nothing).
   {
     step: "goplausible",
-    did: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+    did: "did:algo:UTI7PAASILRDA3ISHY5M7J7LNRX2AIVQJWI7ZKCCGKVLMFD3VPR5PWSZ4I",
   },
-  { step: "goplausible", did: "did:nfd:goplausible.algo" },
   // did:oyd — a live OYDID DID (from OwnYourData's uni-resolver test set),
   // resolved through resolver.ownyourdata.eu, the authoritative first hop for
   // the method. The OYDID server does the hash/log/signature verification.

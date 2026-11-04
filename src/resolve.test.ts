@@ -114,6 +114,19 @@ describe("resolveDid", () => {
     ).toBe("invalidDid");
   });
 
+  it("rejects DID URLs that did-resolver's parser accepts but DID Core forbids", async () => {
+    for (const input of [
+      "did:web:example.com?q=<script>",
+      "did:web:example.com#a#b",
+      "did:web:example.com/a b",
+    ]) {
+      expect(
+        (await resolveDid(input, env)).didResolutionMetadata.error,
+        input,
+      ).toBe("invalidDid");
+    }
+  });
+
   it("returns unsupportedDidMethod for methods outside the advertised catalog", async () => {
     expect(
       (await resolveDid("did:unknown:123", env)).didResolutionMetadata.error,

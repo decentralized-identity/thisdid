@@ -12,3 +12,10 @@ it("renders a syntactically valid four-provider status section", () => {
   expect(script).toBeTruthy();
   expect(() => new Function(script!)).not.toThrow();
 });
+
+it("loads once and never polls /data", () => {
+  const html = renderDashboard();
+  expect(html).not.toMatch(/setInterval|setTimeout/);
+  expect(html).not.toContain(">live</span>");
+  expect(html).toContain("<h2>Recent requests</h2>");
+});

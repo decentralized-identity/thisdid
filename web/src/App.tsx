@@ -146,20 +146,17 @@ export function App() {
     [],
   );
 
-  // Live all-time stats for the KPI strip and the routing animation (polled).
+  // All-time stats for the KPI strip and the routing animation, once per page
+  // load. Never poll: an open tab would keep re-running the D1 stats queries.
   useEffect(() => {
     let alive = true;
-    const load = () =>
-      void fetchStats().then((s) => {
-        if (!alive) return;
-        if (s) setStats(s);
-        setStatsPending(false);
-      });
-    load();
-    const id = setInterval(load, 20000);
+    void fetchStats().then((s) => {
+      if (!alive) return;
+      if (s) setStats(s);
+      setStatsPending(false);
+    });
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, []);
 

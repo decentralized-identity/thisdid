@@ -6,13 +6,15 @@
  * core; this package only maps its `resolveDID()` API onto the DIF
  * `getResolver()` registry contract and supplies the proof verifier the core
  * requires (its browser build ships no default and otherwise fails every
- * resolution with "Verifier implementation is required").
+ * resolution with "Verifier implementation is required"). It also owns the
+ * transport policy: every retrieval the core performs goes through a bounded,
+ * destination-checked fetch passed in through the core's `fetch` option.
  *
  * Retired in favor of the upstream package if didwebvh-ts ever exports a DIF
  * registry itself.
  */
 import { resolveDID } from "didwebvh-ts";
-import type { FetchPolicy, Verifier } from "didwebvh-ts";
+import type { Verifier } from "didwebvh-ts";
 import type {
   DIDDocument,
   DIDResolutionResult,
@@ -23,6 +25,11 @@ import {
   settleDestinationGuard,
   type DestinationGuard,
 } from "./destination-guard.js";
+import {
+  boundedFetch,
+  type FetchLike,
+  type FetchPolicy,
+} from "./fetch-policy.js";
 import { InvalidOptions, readSelectors } from "./options.js";
 import { applyRepresentation } from "./representation.js";
 
@@ -49,11 +56,10 @@ export interface WebvhResolverOptions {
   /** Data-integrity proof verifier. Defaults to WebCrypto Ed25519. */
   verifier?: Verifier;
   /**
-   * Fetch boundaries for the DID log, referenced logs and witness files
-   * (timeout, byte cap, redirect limit, private-host policy, fetch
-   * implementation) — added by the ThisDID fork of didwebvh-ts; every default
-   * fails closed. The policy travels with each resolution, so resolvers with
-   * different boundaries coexist in one process.
+   * Fetch boundaries for the DID log and witness file (timeout, byte cap,
+   * redirect limit, private-host policy, fetch implementation); every default
+   * fails closed. Each resolver builds its own bounded fetch, so resolvers
+   * with different boundaries coexist in one process.
    */
   fetchPolicy?: FetchPolicy;
   /**
@@ -66,7 +72,18 @@ export interface WebvhResolverOptions {
   destinationGuard?: DestinationGuard;
 }
 
-export type { FetchPolicy } from "didwebvh-ts";
+export {
+  boundedFetch,
+  FETCH_POLICY_DEFAULTS,
+  FetchPolicyError,
+  type FetchLike,
+  type FetchPolicy,
+} from "./fetch-policy.js";
+export {
+  isGlobalUnicastAddress,
+  isPrivateHost,
+  parseIpAddress,
+} from "./address-policy.js";
 
 /** Legacy uppercase error codes normalized to their DIF equivalents. */
 const ERROR_CODES: Record<string, string> = {
@@ -78,11 +95,13 @@ const ERROR_CODES: Record<string, string> = {
 };
 
 /**
- * didwebvh-ts reports every non-404 failure as `invalidDid`, collapsing
- * transport failures and unusable log content into the same code as genuine
- * syntax/verification failures — which maps to the wrong DIF error (and the
- * wrong HTTP status: 400 instead of 404/failover). The problem-details text is
- * the only differentiator, so classification is by detail:
+ * didwebvh-ts reports a missing log as `notFound`, some transport failures as
+ * `internalError` and everything else — including our fetch policy's refusals
+ * and limits, and unusable log content — as `invalidDid`. That collapses
+ * transport failures into the code for genuine syntax/verification failures,
+ * which maps to the wrong DIF error (and the wrong HTTP status: 400 instead
+ * of failover). The problem-details text is the only differentiator, so
+ * `invalidDid` and `internalError` are classified by detail:
  *
  *   - unreachable log (connection refused, non-404 HTTP error, timeout)
  *       → `networkError` (transport: resolvers should fail over, not 400)
@@ -97,9 +116,14 @@ function classify(meta: Record<string, unknown>): {
   const raw = typeof meta.error === "string" ? meta.error : "notFound";
   const normalized = ERROR_CODES[raw] ?? raw;
   const details = meta.problemDetails as { detail?: unknown } | undefined;
-  const detail =
-    typeof details?.detail === "string" ? details.detail.slice(0, 200) : "";
-  if (normalized !== "invalidDid") {
+  const text =
+    typeof details?.detail === "string"
+      ? details.detail
+      : typeof meta.message === "string"
+        ? meta.message
+        : "";
+  const detail = text.slice(0, 200);
+  if (normalized !== "invalidDid" && normalized !== "internalError") {
     return { error: normalized, ...(detail ? { message: detail } : {}) };
   }
   if (/^Invalid did:webvh identifier/i.test(detail)) {
@@ -119,7 +143,7 @@ function classify(meta: Record<string, unknown>): {
   if (/not valid JSON|Unexpected token|Unexpected end of JSON/i.test(detail)) {
     return { error: "notFound", message: detail };
   }
-  return { error: "invalidDid", ...(detail ? { message: detail } : {}) };
+  return { error: normalized, ...(detail ? { message: detail } : {}) };
 }
 
 /**
@@ -177,20 +201,22 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
     allowPrivateHosts: basePolicy?.allowPrivateHosts,
   });
 
-  // Under "node" the policy's fetch is the connect-time guard, loaded on first
-  // use so the module that imports node:dns and undici never reaches a Worker
-  // bundle. The settled policy is computed once per resolver.
-  let settled: Promise<FetchPolicy | undefined> | undefined;
-  const policy = (): Promise<FetchPolicy | undefined> =>
-    (settled ??=
+  // Under "node" the fetch underneath the bounds is the connect-time guard,
+  // loaded on first use so the module that imports node:dns and undici never
+  // reaches a Worker bundle. The bounded fetch is built once per resolver.
+  let settled: Promise<FetchLike> | undefined;
+  const transport = (): Promise<FetchLike> =>
+    (settled ??= (
       guard === "node"
-        ? loadNodeGuard().then((node) => ({
-            ...(basePolicy ?? {}),
-            fetch: node.guardedFetch({
+        ? loadNodeGuard().then((node) =>
+            node.guardedFetch({
               allowPrivateHosts: basePolicy?.allowPrivateHosts,
             }),
-          }))
-        : Promise.resolve(basePolicy));
+          )
+        : Promise.resolve(basePolicy?.fetch)
+    ).then((underlying) =>
+      boundedFetch({ ...(basePolicy ?? {}), fetch: underlying }),
+    ));
 
   const webvh = async (
     did: string,
@@ -209,9 +235,9 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
       }
       throw error;
     }
-    let fetchPolicy: FetchPolicy | undefined;
+    let fetchFn: FetchLike;
     try {
-      fetchPolicy = await policy();
+      fetchFn = await transport();
     } catch (error) {
       return errorResult({
         error: "internalError",
@@ -222,7 +248,7 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
     try {
       result = await resolveDID(did, {
         verifier,
-        ...(fetchPolicy ? { fetchPolicy } : {}),
+        fetch: fetchFn,
         ...selectors,
       });
     } catch (error) {
@@ -234,21 +260,42 @@ export function getResolver(options?: WebvhResolverOptions): ResolverRegistry {
       });
     }
 
-    const meta = result.meta as Record<string, unknown>;
-    if (typeof meta.error === "string") return errorResult(classify(meta));
-    if (!result.doc) return errorResult({ error: "notFound" });
-
+    // Any error, even one the core returns next to a document, is a failed
+    // resolution: the document is not handed out.
+    const resolutionMetadata = result.didResolutionMetadata as Record<
+      string,
+      unknown
+    >;
+    if (typeof resolutionMetadata.error === "string") {
+      return errorResult(classify(resolutionMetadata));
+    }
     // Forward the full metadata the didwebvh-ts core produces (versionId,
     // created, updated, deactivated PLUS webvh-native fields: scid, witness,
     // watchers, updateKeys, portable, previousLogEntryHash, latestVersionId,
     // …), matching what every other universal resolver returns for did:webvh
     // (Godiddy and the DIF resolver wrap the same core and emit this verbatim).
-    // On this success path meta carries no `error`/`problemDetails`.
+    // The core's types come from did-resolver 5, this package's from 4 (see the
+    // repository's dual-version note); the metadata is structurally the same.
+    const documentMetadata = {
+      ...(result.didDocumentMetadata ?? {}),
+    } as DIDResolutionResult["didDocumentMetadata"];
+    if (!result.didDocument) {
+      // DID Resolution: a deactivated DID resolves to no document with
+      // `deactivated: true` in the document metadata, and no error.
+      if (documentMetadata.deactivated === true) {
+        return {
+          didResolutionMetadata: {},
+          didDocument: null,
+          didDocumentMetadata: documentMetadata,
+        };
+      }
+      return errorResult({ error: "notFound" });
+    }
     return applyRepresentation(
       {
         didResolutionMetadata: { contentType: "application/did+ld+json" },
-        didDocument: result.doc as unknown as DIDDocument,
-        didDocumentMetadata: { ...meta },
+        didDocument: result.didDocument as unknown as DIDDocument,
+        didDocumentMetadata: documentMetadata,
       },
       resolutionOptions.accept,
     );

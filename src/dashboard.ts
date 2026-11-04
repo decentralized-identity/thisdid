@@ -3,7 +3,8 @@
  * (/dashboard 301-redirects there).
  * The shell is static HTML + inline vanilla JS that fetches /data
  * (with range/country/method filters) and renders KPIs, charts, tabbed
- * leaderboards and a live request feed. No third-party scripts (GDPR-friendly).
+ * leaderboards and a recent-request feed, once per page view and filter change
+ * (it never polls). No third-party scripts (GDPR-friendly).
  *
  * NOTE: the inline client script deliberately avoids backticks and ${...} so it
  * can live inside this template literal untouched. The one exception is the
@@ -50,9 +51,6 @@ export function renderDashboard(): string {
   .logo img{height:22px;width:auto;display:block}
   .brand{font-family:'Space Grotesk';font-weight:700;font-size:19px}.brand b{color:var(--accent)}
   .tag{font-size:13px;color:var(--faint)}
-  .live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);font-weight:600}
-  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(87,185,106,.6);animation:pulse 2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(87,185,106,.5)}70%{box-shadow:0 0 0 7px rgba(87,185,106,0)}100%{box-shadow:0 0 0 0 rgba(87,185,106,0)}}
   .back{font-size:13px;font-weight:600;color:var(--dim);text-decoration:none;border:1px solid var(--border);padding:8px 14px;border-radius:10px}
   .spacer{flex:1}
   .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
@@ -156,7 +154,6 @@ export function renderDashboard(): string {
     <span class="logo"><img src="/DIF_logo.png" alt="DIF"/></span>
     <span class="brand">this<b>DID</b></span><span class="tag">Resolver Analytics</span>
     <span class="spacer"></span>
-    <span class="live"><span class="dot"></span>live</span>
     <div class="theme-seg" id="theme-seg">
       <button class="theme-btn" data-m="dark" title="Dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></button>
       <button class="theme-btn" data-m="light" title="Light"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button>
@@ -218,7 +215,7 @@ export function renderDashboard(): string {
     <table><thead><tr><th class="rank">#</th><th>Key</th><th class="num">Requests</th></tr></thead><tbody id="lb"></tbody></table>
   </div>
 
-  <h2>Live requests</h2>
+  <h2>Recent requests</h2>
   <div class="panel">
     <table><thead><tr><th>DID</th><th>Routed to</th><th>Resolver</th><th>Geo</th><th>Status</th><th class="num">Latency</th><th class="num">When</th></tr></thead>
     <tbody id="recent"></tbody></table>
@@ -453,9 +450,9 @@ export function renderDashboard(): string {
     q('recent').innerHTML=skTable(7,6);
     q('older').style.display='none';
   }
-  function load(fresh){
+  function load(){
     q('bar').classList.add('on');
-    if(fresh) skeletons();
+    skeletons();
     fetch(api(),{headers:{accept:'application/json'}})
       .then(function(r){return r.json();})
       .then(function(d){ last=d; render(d); })
@@ -467,15 +464,16 @@ export function renderDashboard(): string {
       .catch(function(){ if(lastHealth)renderHealth(lastHealth); else q('provider-status').innerHTML='<div class="empty">Provider health is unavailable.</div>'; });
   }
 
-  function refilter(){ state.paged=false; state.cursor=null; load(true); }
+  function refilter(){ state.paged=false; state.cursor=null; load(); }
   q('ranges').addEventListener('click',function(e){ var b=e.target.closest('.range-btn'); if(!b)return; state.range=b.getAttribute('data-r'); refilter(); });
   q('tabs').addEventListener('click',function(e){ var b=e.target.closest('.tab'); if(!b)return; state.tab=b.getAttribute('data-t'); if(last){ q('lb').innerHTML=leaderboard(last); setActive('.tab','data-t',state.tab); } });
   q('fcountry').addEventListener('change',function(e){ state.country=e.target.value; refilter(); });
   q('fmethod').addEventListener('change',function(e){ state.method=e.target.value; refilter(); });
   q('older').addEventListener('click',loadOlder);
 
-  load(true);
-  setInterval(function(){ load(false); },10000);
+  // Once per page view and filter change. Never poll: an open tab would keep
+  // re-running the D1 stats queries (filtered views bypass the KV cache).
+  load();
 })();
 
   (function(){

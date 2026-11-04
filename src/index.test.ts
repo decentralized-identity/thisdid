@@ -158,6 +158,96 @@ describe("HTTP binding", () => {
   });
 });
 
+describe("DID syntax gate", () => {
+  // A D1 stand-in that records every statement it is asked to prepare.
+  const recordingDb = () => {
+    const statements: string[] = [];
+    const stmt = {
+      bind: () => stmt,
+      run: async () => ({}),
+      all: async () => ({ results: [] }),
+      first: async () => null,
+    };
+    return {
+      statements,
+      db: {
+        prepare: (sql: string) => {
+          statements.push(sql);
+          return stmt;
+        },
+        batch: async (list: unknown[]) => list.map(() => ({ results: [] })),
+      },
+    };
+  };
+  const trackingCtx = () => {
+    const pending: Promise<unknown>[] = [];
+    return {
+      pending,
+      ctx: { ...ctx, waitUntil: (p: Promise<unknown>) => void pending.push(p) },
+    };
+  };
+  const SCANNER = [
+    "4111111111111111",
+    "file:///etc/passwd",
+    "..\\..\\..\\windows/win.ini",
+    "http://bxss.me/t/fit.txt?.jpg",
+    '<!--#include src="http://bxss.me/t/fit.txt"-->',
+    "(select(0)from(select(sleep(15)))v)",
+    "DID: 063dfb6ec08428e99504fe76b2d8c78a MCID: 2D0AA6285E68C9B3",
+    "did:WEB:example.com",
+  ];
+
+  it("answers invalidDid at once, without resolving or recording", async () => {
+    for (const input of SCANNER) {
+      const { db, statements } = recordingDb();
+      const { ctx: c, pending } = trackingCtx();
+      const res = await app.request(
+        `/1.0/identifiers/${encodeURIComponent(input)}`,
+        {},
+        { ...env, DB: db } as unknown as Env,
+        c,
+      );
+      expect(res.status, input).toBe(400);
+      expect(
+        ((await res.json()) as { didResolutionMetadata: { error: string } })
+          .didResolutionMetadata.error,
+        input,
+      ).toBe("invalidDid");
+      await Promise.all(pending);
+      expect(pending, input).toHaveLength(0);
+      expect(statements, input).toEqual([]);
+    }
+  });
+
+  it("gates the JSON deep link the same way", async () => {
+    const { ctx: c, pending } = trackingCtx();
+    const res = await app.request(
+      "/did:WEB:example.com",
+      { headers: { accept: "application/did+json" } },
+      env,
+      c,
+    );
+    expect(res.status).toBe(400);
+    expect(pending).toHaveLength(0);
+  });
+
+  it("still resolves and records a syntactically valid DID", async () => {
+    const { db, statements } = recordingDb();
+    const { ctx: c, pending } = trackingCtx();
+    const res = await app.request(
+      "/1.0/identifiers/did%3Aunknown%3A123",
+      {},
+      { ...env, DB: db } as unknown as Env,
+      c,
+    );
+    expect(res.status).toBe(501);
+    await Promise.all(pending);
+    expect(
+      statements.some((sql) => sql.includes("INSERT INTO resolutions")),
+    ).toBe(true);
+  });
+});
+
 describe("/methods DIF badge enrichment", () => {
   const request = (extra: Partial<Env>) =>
     app.request(
@@ -216,5 +306,19 @@ describe("/methods DIF badge enrichment", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { dif: { recommended: unknown[] } };
     expect(body.dif.recommended.length).toBeGreaterThan(0);
+  });
+});
+
+describe("/data browser caching", () => {
+  const cacheControl = async (qs: string) =>
+    (await app.request(`/data?${qs}`, {}, env, ctx)).headers.get(
+      "cache-control",
+    );
+
+  it("lets browsers reuse only the unfiltered all-time summary", async () => {
+    expect(await cacheControl("range=all")).toBe("public, max-age=300");
+    expect(await cacheControl("range=day")).toBeNull();
+    expect(await cacheControl("range=all&country=TR")).toBeNull();
+    expect(await cacheControl("range=all&method=web")).toBeNull();
   });
 });

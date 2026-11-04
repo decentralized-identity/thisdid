@@ -4,11 +4,11 @@
  * undici, so it is exported from the package's `./node` entry, never from the
  * main entry the Worker bundles.
  *
- * The isomorphic policy in the core checks the literal hostname of every URL
- * and redirect target; it cannot see what that name resolves to. This guard
+ * The isomorphic fetch policy (fetch-policy.ts) checks the literal hostname of
+ * every URL and redirect target; it cannot see what that name resolves to. This guard
  * closes the gap: an undici Agent resolves each hostname exactly once at
  * connect time, refuses the connection unless every returned address is a
- * globally routable unicast address (the core's positive classification:
+ * globally routable unicast address (address-policy.ts, a positive classification:
  * IANA special-purpose, transition, multicast and reserved ranges are all
  * refused), and otherwise connects to precisely the addresses it validated —
  * so a name that flips between validation and connection (DNS rebinding)
@@ -19,7 +19,7 @@
  */
 import { lookup as dnsLookup } from "node:dns/promises";
 import { Agent, fetch as undiciFetch } from "undici";
-import { isPrivateHost } from "didwebvh-ts";
+import { isPrivateHost } from "./address-policy.js";
 
 export interface ResolvedAddress {
   address: string;
@@ -100,8 +100,9 @@ export function guardLookup(options: NodeGuardOptions = {}) {
 }
 
 /**
- * A `fetch` bound to a guarded undici Agent. Pass it to the core through its
- * fetch option (the ThisDID CLI does so automatically).
+ * A `fetch` bound to a guarded undici Agent. `getResolver()` puts it under the
+ * fetch policy's bounds by default on Node; hosts assembling their own
+ * transport can pass it as `fetchPolicy.fetch` with `destinationGuard: "caller"`.
  */
 export function guardedFetch(options: NodeGuardOptions = {}): typeof fetch {
   const agent = new Agent({ connect: { lookup: guardLookup(options) } });

@@ -131,6 +131,14 @@ export interface Stats {
 const RECENT_LIMIT = 30;
 
 const SUMMARY_TTL = 60;
+/** The unfiltered all-time summary feeds the landing page and barely moves per minute. */
+export const ALL_TIME_TTL = 300;
+
+/** Seconds the summary for `filter` may be cached; 0 = filtered, never cached. */
+export function summaryTtl(filter: StatsFilter): number {
+  if (filter.country || filter.method) return 0;
+  return filter.range === "all" ? ALL_TIME_TTL : SUMMARY_TTL;
+}
 
 let schemaReady = false;
 
@@ -215,10 +223,21 @@ async function ensureSchema(db: D1Database): Promise<void> {
   schemaReady = true;
 }
 
+/**
+ * A DID Core method-name (`1*( %x61-7A / DIGIT )`), as SQL over the `method`
+ * column. Rows recorded before the syntax gate existed carried whatever
+ * followed the first ":" of arbitrary input; no aggregate ever counts them.
+ */
+const VALID_METHOD_SQL =
+  "method GLOB '[a-z0-9]*' AND method NOT GLOB '*[^a-z0-9]*'";
+const VALID_METHOD = /^[a-z0-9]+$/;
+
 export async function recordResolution(
   env: Env,
   ev: ResolutionEvent,
 ): Promise<void> {
+  // Defense in depth: the HTTP routes only record syntactically valid DIDs.
+  if (!VALID_METHOD.test(ev.method)) return;
   try {
     if (env.DB) {
       await ensureSchema(env.DB);
@@ -292,7 +311,7 @@ function whereClause(f: StatsFilter): {
   sql: string;
   binds: (string | number)[];
 } {
-  const clauses: string[] = [];
+  const clauses: string[] = [VALID_METHOD_SQL];
   const binds: (string | number)[] = [];
   const since = sinceFor(f.range);
   if (since != null) {
@@ -406,7 +425,7 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
           : "date(ts/1000,'unixepoch')";
 
   const calBinds: (string | number)[] = [Date.now() - 371 * DAY];
-  const calClauses = ["ts >= ?"];
+  const calClauses = ["ts >= ?", VALID_METHOD_SQL];
   if (filter.country) {
     calClauses.push("country = ?");
     calBinds.push(filter.country);
@@ -491,10 +510,10 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
     // DIDs (unbounded distinct values), so an unbounded SELECT would bloat every
     // /data response, its KV cache entry, and the dashboard <select>.
     db.prepare(
-      "SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL ORDER BY k LIMIT 500",
+      `SELECT DISTINCT country k FROM resolutions WHERE country IS NOT NULL AND ${VALID_METHOD_SQL} ORDER BY k LIMIT 500`,
     ),
     db.prepare(
-      "SELECT DISTINCT method k FROM resolutions WHERE method IS NOT NULL AND method != '' ORDER BY k LIMIT 500",
+      `SELECT DISTINCT method k FROM resolutions WHERE ${VALID_METHOD_SQL} ORDER BY k LIMIT 500`,
     ),
     group("method"),
     groupAnswer("provider"),
@@ -613,18 +632,18 @@ async function computeStats(env: Env, filter: StatsFilter): Promise<Stats> {
 
 export async function getStats(env: Env, filter: StatsFilter): Promise<Stats> {
   // Cache the unfiltered summaries (the dashboard default + the landing page).
-  const cacheable = !filter.country && !filter.method;
+  const ttl = summaryTtl(filter);
   const key = `analytics:sum:${filter.range}`;
 
-  if (cacheable && env.STATS_KV) {
+  if (ttl && env.STATS_KV) {
     const cached = await env.STATS_KV.get(key);
     if (cached) return JSON.parse(cached) as Stats;
   }
   const stats = await computeStats(env, filter);
-  if (cacheable && env.STATS_KV) {
+  if (ttl && env.STATS_KV) {
     // Non-blocking cache write — never delays the response.
     env.STATS_KV.put(key, JSON.stringify(stats), {
-      expirationTtl: SUMMARY_TTL,
+      expirationTtl: ttl,
     }).catch(() => {});
   }
   return stats;

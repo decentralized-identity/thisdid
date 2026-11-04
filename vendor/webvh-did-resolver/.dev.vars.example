@@ -1,0 +1,14 @@
+# Environment for the thisdid-resolve-webvh CLI, every value at its default.
+# The ThisDID driver Worker reads the same names from its wrangler.jsonc
+# `vars`, set to these defaults. Copy to .dev.vars (gitignored) and run
+#   node --env-file=.dev.vars lib/bin.js <did>
+# An unset or empty variable takes the same default.
+
+# Wall-clock bound per retrieval in milliseconds, body included (positive integer).
+WEBVH_TIMEOUT_MS=8000
+# Largest DID log or witness file accepted, in bytes (positive integer; 4 MiB).
+WEBVH_MAX_RESPONSE_BYTES=4194304
+# Redirect hops followed, each re-validated (non-negative integer; 0 disables).
+WEBVH_MAX_REDIRECTS=3
+# 1 permits http:// and loopback / private hosts. Local development only.
+WEBVH_ALLOW_PRIVATE_HOSTS=0

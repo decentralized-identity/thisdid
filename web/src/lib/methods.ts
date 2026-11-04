@@ -339,8 +339,8 @@ const OVERRIDES: Record<string, string> = {
   empe: "did:empe:testnet:006308981b61932c5eaae1c39ace8ee3892f4a1f",
   hedera:
     "did:hedera:testnet:zHirM7oP62rzBmw4oSbWZTSeTLzb9zrDTfQa1cdMBWCPp_0.0.7280148",
-  nfd: "did:nfd:nfdomains.algo",
-  algo: "did:algo:uti7paasilrda3ishy5m7j7lnrx2aivqjwi7zkccgkvlmfd3vpr5pwsz4i",
+  nfd: "did:nfd:goplausible.algo",
+  algo: "did:algo:UTI7PAASILRDA3ISHY5M7J7LNRX2AIVQJWI7ZKCCGKVLMFD3VPR5PWSZ4I",
 };
 
 export function exampleFor(methodId: string): string | undefined {

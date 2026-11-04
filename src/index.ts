@@ -6,12 +6,16 @@ import { openApiSpec } from "./openapi/spec";
 import { FEATURED_METHODS, ALL_METHODS, LOCAL_DRIVER_METHODS } from "./methods";
 import { getDifBadges } from "./dif-badges";
 import {
+  ALL_TIME_TTL,
   getStats,
   parseFilter,
   recentPage,
   recordMismatch,
   recordResolution,
+  summaryTtl,
 } from "./analytics";
+import { canonicalDid } from "./canonical-did";
+import { didMethod, isDidOrDidUrl } from "./did-syntax";
 import { getHealth } from "./routing/health";
 import { providerTag, type Step } from "./resolvers/registry";
 import { renderDashboard } from "./dashboard";
@@ -83,15 +87,17 @@ function track(
   result: ThisDidResolution,
 ) {
   try {
+    // Only a syntactically valid DID is ever recorded (the routes refuse the
+    // rest before resolution); its method is the DID Core method-name.
+    const method = didMethod(did);
+    if (method === null) return;
     const m = result.didResolutionMetadata;
     const cf = (c.req.raw as Request & { cf?: IncomingRequestCfProperties }).cf;
     c.executionCtx.waitUntil(
       recordResolution(c.env, {
-        did,
-        // Cap the derived method: for a malformed DID `did.split(":")[1]` can be
-        // an arbitrarily long attacker-chosen blob, which would otherwise bloat
-        // the row and the DISTINCT-method cardinality behind /data.
-        method: (did.split(":")[1]?.toLowerCase() ?? "").slice(0, 40),
+        // Equivalent forms of one DID are one entity in analytics.
+        did: canonicalDid(did),
+        method,
         route: m.route ?? null,
         provider: m.provider ?? null,
         resolver: m.resolver ?? null,
@@ -111,6 +117,22 @@ function track(
   } catch {
     // analytics must never break resolution
   }
+}
+
+/**
+ * The answer to anything that is not a DID or DID URL (DID Core §3.1/§3.2):
+ * `invalidDid` at once — nothing is resolved and nothing is recorded, so
+ * scanner payloads never reach a resolver or the analytics leaderboards.
+ */
+function invalidDidResponse(c: Context<{ Bindings: Env }>) {
+  return c.json(
+    {
+      didResolutionMetadata: { error: "invalidDid" },
+      didDocument: null,
+      didDocumentMetadata: {},
+    },
+    400,
+  );
 }
 
 /** Resolve a DID and record analytics. Always returns a DIF resolution result. */
@@ -175,16 +197,8 @@ app.get("/1.0/identifiers/:did{.+}", async (c) => {
   // Hono already percent-decodes the route param exactly once; decoding again
   // would corrupt any DID whose identifier legitimately contains a `%XX`
   // (e.g. `did:web:example.com%3A3000`, a host with a port).
-  const did = c.req.param("did");
-  if (did.length > 4096)
-    return c.json(
-      {
-        didResolutionMetadata: { error: "invalidDid" },
-        didDocument: null,
-        didDocumentMetadata: {},
-      },
-      400,
-    );
+  const did = c.req.param("did").trim();
+  if (did.length > 4096 || !isDidOrDidUrl(did)) return invalidDidResponse(c);
   const result = await resolveAndTrack(c, did);
   return resolutionResponse(result);
 });
@@ -348,9 +362,13 @@ app.get("/status", async (c) => {
 app.use("/data", cors());
 app.use("/recent", cors());
 // Aggregated analytics (respects ?range=&country=&method=).
-app.get("/data", async (c) =>
-  c.json(await getStats(c.env, parseFilter(new URL(c.req.url)))),
-);
+app.get("/data", async (c) => {
+  const filter = parseFilter(new URL(c.req.url));
+  // The landing page's all-time summary: browsers may reuse it as long as KV keeps it.
+  if (filter.range === "all" && summaryTtl(filter))
+    c.header("Cache-Control", `public, max-age=${ALL_TIME_TTL}`);
+  return c.json(await getStats(c.env, filter));
+});
 // Cursor-paginated live feed: ?before=<cursor>&limit=<n> plus the same filters.
 app.get("/recent", async (c) => {
   const url = new URL(c.req.url);
@@ -388,16 +406,8 @@ app.get("/:did{did:.+}", async (c) => {
     // Hono already percent-decodes the route param exactly once; decoding again
     // would corrupt any DID whose identifier legitimately contains a `%XX`
     // (e.g. `did:web:example.com%3A3000`, a host with a port).
-    const did = c.req.param("did");
-    if (did.length > 4096)
-      return c.json(
-        {
-          didResolutionMetadata: { error: "invalidDid" },
-          didDocument: null,
-          didDocumentMetadata: {},
-        },
-        400,
-      );
+    const did = c.req.param("did").trim();
+    if (did.length > 4096 || !isDidOrDidUrl(did)) return invalidDidResponse(c);
     const result = await resolveAndTrack(c, did);
     return resolutionResponse(result);
   }

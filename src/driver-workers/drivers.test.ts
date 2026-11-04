@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
+import { FETCH_POLICY_DEFAULTS } from "@thisdid/webvh-did-resolver";
 
 import cheqdWorker from "./cheqd";
 import cidWorker from "./cid";
@@ -386,6 +389,54 @@ describe("Tier 1 driver Workers", () => {
   it("rejects a non-webvh DID at the webvh driver boundary", async () => {
     const body = await resolve(webvhWorker, "did:web:example.com");
     expect(body.result.didResolutionMetadata.error).toBe("invalidDid");
+  });
+
+  it("applies the WEBVH_* vars from its environment to the wrapper", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("x".repeat(2048), { status: 200 })),
+    );
+    const body = await resolve(
+      webvhWorker,
+      "did:webvh:QmUnreachableScid1234:example.com",
+      { WEBVH_MAX_RESPONSE_BYTES: "512" },
+    );
+    expect(body.result.didDocument).toBeNull();
+    expect(body.result.didResolutionMetadata.error).toBe("networkError");
+    expect(body.result.didResolutionMetadata.message).toContain(
+      "exceeds 512 bytes",
+    );
+  });
+
+  it("fails closed on a malformed WEBVH_* var without fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = await resolve(
+      webvhWorker,
+      "did:webvh:QmUnreachableScid1234:example.com",
+      { WEBVH_TIMEOUT_MS: "0" },
+    );
+    expect(body.result.didDocument).toBeNull();
+    expect(body.result.didResolutionMetadata.error).toBe("internalError");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sets every WEBVH_* var in wrangler.jsonc to the package default", () => {
+    const config = readFileSync(
+      fileURLToPath(new URL("./webvh/wrangler.jsonc", import.meta.url).href),
+      "utf8",
+    );
+    const expected = {
+      WEBVH_TIMEOUT_MS: String(FETCH_POLICY_DEFAULTS.timeoutMs),
+      WEBVH_MAX_RESPONSE_BYTES: String(FETCH_POLICY_DEFAULTS.maxResponseBytes),
+      WEBVH_MAX_REDIRECTS: String(FETCH_POLICY_DEFAULTS.maxRedirects),
+      WEBVH_ALLOW_PRIVATE_HOSTS: FETCH_POLICY_DEFAULTS.allowPrivateHosts
+        ? "1"
+        : "0",
+    };
+    for (const [name, value] of Object.entries(expected)) {
+      expect(config, name).toMatch(new RegExp(`"${name}":\\s*"${value}"`));
+    }
   });
 
   it("fails closed when the ebsi registry var is absent", async () => {

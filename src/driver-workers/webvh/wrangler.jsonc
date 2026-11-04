@@ -14,4 +14,17 @@
   "compatibility_date": "2024-12-18",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  "vars": {
+    // Fetch boundaries for the DID log and witness file, passed to
+    // @thisdid/webvh-did-resolver (the same names its CLI reads). Set to the
+    // package defaults; an unset or empty value also takes the default and a
+    // malformed one fails every resolution closed (internalError). Override
+    // for local `wrangler dev` in a .dev.vars next to this file.
+    "WEBVH_TIMEOUT_MS": "8000", // wall-clock bound per retrieval in ms, body included
+    "WEBVH_MAX_RESPONSE_BYTES": "4194304", // largest DID log or witness file (4 MiB)
+    "WEBVH_MAX_REDIRECTS": "3", // redirect hops, each re-validated; "0" disables
+    // "1" permits http:// and private hosts — local development only; must
+    // stay "0" in any deployment.
+    "WEBVH_ALLOW_PRIVATE_HOSTS": "0",
+  },
 }

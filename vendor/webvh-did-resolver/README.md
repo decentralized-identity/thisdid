@@ -11,23 +11,27 @@ runtime dependency.
 
 1. **The DIF `getResolver()` registry contract** over `didwebvh-ts`'s `resolveDID()` function,
    returning complete DID resolution results (never throwing) and **classifying failures into
-   accurate DIF codes** — the core reports every non-404 failure as `invalidDid`, so the wrapper
-   distinguishes by problem details: unreachable log → `networkError` (resolvers fail over
-   instead of returning 400), unparseable log content → `notFound`, malformed identifiers and
-   genuine proof/history verification failures → `invalidDid`.
+   accurate DIF codes** — the core reports transport failures as `internalError` or `invalidDid`
+   and unusable log content as `invalidDid`, so the wrapper distinguishes by problem details:
+   unreachable log, timeout or size limit → `networkError` (resolvers fail over instead of
+   returning 400), unparseable log content → `notFound`, refused destinations, malformed
+   identifiers and genuine proof/history/document failures → `invalidDid`. A deactivated DID
+   resolves to no document with `deactivated: true` and no error, as DID Resolution specifies.
 2. **A default proof verifier.** `didwebvh-ts`'s browser build ships no verifier and fails every
    resolution with "Verifier implementation is required". This package supplies a WebCrypto
    Ed25519 verifier (native in Cloudflare workerd, Node ≥ 20, and browsers); a custom `Verifier`
    can be injected via options.
 3. **History metadata mapping** — `created`, `updated`, `versionId`, `deactivated` into
    `didDocumentMetadata`; `versionId`/`versionTime` resolution options pass through.
-4. **Fetch boundaries** (from the ThisDID fork of `didwebvh-ts`): `getResolver({ fetchPolicy })`
-   bounds every retrieval a resolution performs — the DID log, referenced verification-method
-   logs and witness files — with a wall-clock timeout, a streamed byte cap, manual redirects
-   re-validated per hop and a private-host policy, all failing closed. The policy travels with
-   each resolution (`ResolutionOptions.fetchPolicy` in the fork), so resolvers with different
-   boundaries coexist in one process.
-5. **The connection-level half of the destination policy.** The core's hostname policy sees
+4. **Fetch boundaries** (`src/fetch-policy.ts`): `didwebvh-ts` retrieves the DID log and the
+   witness file through whatever `fetch` it is given and reads each body whole. This package
+   gives it a bounded one through the core's `fetch` option: `getResolver({ fetchPolicy })`
+   enforces a wall-clock timeout covering the body, a streamed byte cap, manual redirects
+   re-validated per hop, https only and a private-host policy for every literal host (a positive
+   classification, `src/address-policy.ts`), all failing closed — the transport requirements of
+   the method's "Resolver Transport Hardening" section. Each resolver builds its own bounded
+   fetch, so resolvers with different boundaries coexist in one process.
+5. **The connection-level half of the destination policy.** The fetch policy's host check sees
    literal names only; what a name resolves to is decided at the connection, by whoever
    `destinationGuard` names:
 
@@ -87,15 +91,31 @@ DID resolved, 1 when the resolver reported an error
 (`didResolutionMetadata.error`), 2 on a usage or configuration error.
 `--version-id <id>` and `--version-time <iso>` are passed through as
 resolution options, `--compact` prints single-line JSON, `--help` prints the
-full reference. Host options are read from the environment, under the same names the ThisDID
-Worker uses, so one `.dev.vars` file drives both:
+full reference. Host options are read from the environment; an unset or empty
+variable takes its default, the same value the library falls back to
+(`FETCH_POLICY_DEFAULTS`). The ThisDID driver Worker reads the same four names
+from its wrangler `vars` (set to these defaults in
+`src/driver-workers/webvh/wrangler.jsonc`) through the same `optionsFromEnv()`
+this package exports — `getResolver({ ...optionsFromEnv(env) })` — and there a
+malformed value fails every resolution closed with `internalError`.
+`WEBVH_ALLOW_PRIVATE_HOSTS` must stay `0` in any deployment.
 
-| Variable                    | Effect                                                                                                |
-| --------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `WEBVH_TIMEOUT_MS`          | wall-clock bound per retrieval in ms (`fetchPolicy.timeoutMs`, default 8000)                          |
-| `WEBVH_MAX_RESPONSE_BYTES`  | largest log or witness file accepted (`fetchPolicy.maxResponseBytes`, default 4 MiB)                  |
-| `WEBVH_MAX_REDIRECTS`       | redirect hops followed, each re-validated (`fetchPolicy.maxRedirects`, default 3)                     |
-| `WEBVH_ALLOW_PRIVATE_HOSTS` | `1` — permit http:// and loopback / private hosts (`fetchPolicy.allowPrivateHosts`; development only) |
+| Variable                    | Default           | Effect                                                                                               |
+| --------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `WEBVH_TIMEOUT_MS`          | `8000`            | wall-clock bound per retrieval in ms, body included (`fetchPolicy.timeoutMs`; positive)              |
+| `WEBVH_MAX_RESPONSE_BYTES`  | `4194304` (4 MiB) | largest DID log or witness file accepted (`fetchPolicy.maxResponseBytes`; positive)                  |
+| `WEBVH_MAX_REDIRECTS`       | `3`               | redirect hops followed, each re-validated (`fetchPolicy.maxRedirects`; `0` disables)                 |
+| `WEBVH_ALLOW_PRIVATE_HOSTS` | `0`               | `1` permits http:// and loopback / private hosts (`fetchPolicy.allowPrivateHosts`; development only) |
+
+A malformed value — not a number, a negative or zero where a positive integer
+is required, anything but 1/0 (true/false, yes/no, on/off) for the flag — exits
+2 without resolving. [`.dev.vars.example`](.dev.vars.example) lists all four at
+their defaults:
+
+```sh
+cp .dev.vars.example .dev.vars          # .dev.vars is gitignored
+node --env-file=.dev.vars lib/bin.js <did>
+```
 
 ## License
 

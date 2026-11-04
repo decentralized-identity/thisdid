@@ -392,6 +392,63 @@ describe("compareCores", () => {
     ).toBe("match");
   });
 
+  it("equates RFC 3986-equivalent http(s) endpoints (did:webvh implicit services)", () => {
+    // didwebvh-ts 3.x and Godiddy on 2026-09-24: `<did>#files` with the
+    // specification's `https://opsecid.github.io/` against `#files` with
+    // `https://opsecid.github.io`.
+    const webvh =
+      "did:webvh:Qmb3KLhAKJ9wZx1gTPzcPfCxviRkiEJ4RGdHNviaedGu3i:opsecid.github.io";
+    const vm = {
+      id: `${webvh}#key-0`,
+      controller: webvh,
+      type: "Multikey",
+      publicKeyMultibase: "zKeyOne",
+    };
+    const doc = (files: string, endpoint: string, whois: string) =>
+      result({
+        id: webvh,
+        verificationMethod: [vm],
+        service: [
+          { id: files, type: "relativeRef", serviceEndpoint: endpoint },
+          {
+            id: whois,
+            type: "LinkedVerifiablePresentation",
+            serviceEndpoint: "https://opsecid.github.io/whois.vp",
+          },
+        ],
+      });
+    const local = doc(
+      `${webvh}#files`,
+      "https://opsecid.github.io/",
+      `${webvh}#whois`,
+    );
+    expect(
+      compareCores(local, doc("#files", "https://opsecid.github.io", "#whois")),
+    ).toBe("match");
+    expect(
+      compareCores(
+        local,
+        doc("#files", "HTTPS://OpSecId.GitHub.io:443", "#whois"),
+      ),
+    ).toBe("match");
+    // Different resources stay different.
+    expect(
+      compareCores(local, doc("#files", "https://attacker.example", "#whois")),
+    ).toBe("mismatch");
+    expect(
+      compareCores(
+        doc(`${webvh}#files`, "https://opsecid.github.io/docs", "#whois"),
+        doc(`${webvh}#files`, "https://opsecid.github.io/docs/", "#whois"),
+      ),
+    ).toBe("mismatch");
+    expect(
+      compareCores(
+        local,
+        doc("#files", "https://opsecid.github.io\\", "#whois"),
+      ),
+    ).toBe("mismatch");
+  });
+
   it("matches meaningful keyless documents but not empty documents", () => {
     const serviceOnly = {
       id: DID,

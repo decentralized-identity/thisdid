@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { FETCH_POLICY_DEFAULTS } from "../fetch-policy.js";
 import {
   COMMAND,
   USAGE,
@@ -96,7 +98,9 @@ describe(COMMAND, () => {
   });
 
   it("maps the documented environment variables onto resolver options", () => {
-    expect(optionsFromEnv({})).toEqual({});
+    expect(optionsFromEnv({})).toEqual({
+      fetchPolicy: { ...FETCH_POLICY_DEFAULTS },
+    });
     expect(
       optionsFromEnv({
         WEBVH_TIMEOUT_MS: "3000",
@@ -114,10 +118,72 @@ describe(COMMAND, () => {
     });
   });
 
+  it("falls back to the default for every unset or empty variable", () => {
+    expect(
+      optionsFromEnv({
+        WEBVH_TIMEOUT_MS: "",
+        WEBVH_MAX_RESPONSE_BYTES: "  ",
+        WEBVH_MAX_REDIRECTS: undefined,
+        WEBVH_ALLOW_PRIVATE_HOSTS: "",
+      }).fetchPolicy,
+    ).toEqual(FETCH_POLICY_DEFAULTS);
+    expect(
+      optionsFromEnv({ WEBVH_MAX_REDIRECTS: "0" }).fetchPolicy,
+    ).toMatchObject({
+      maxRedirects: 0,
+      timeoutMs: FETCH_POLICY_DEFAULTS.timeoutMs,
+    });
+  });
+
+  // The example file, the README table and --help each restate the defaults;
+  // these checks keep all three equal to FETCH_POLICY_DEFAULTS.
+  const VARIABLES = {
+    WEBVH_TIMEOUT_MS: String(FETCH_POLICY_DEFAULTS.timeoutMs),
+    WEBVH_MAX_RESPONSE_BYTES: String(FETCH_POLICY_DEFAULTS.maxResponseBytes),
+    WEBVH_MAX_REDIRECTS: String(FETCH_POLICY_DEFAULTS.maxRedirects),
+    WEBVH_ALLOW_PRIVATE_HOSTS: FETCH_POLICY_DEFAULTS.allowPrivateHosts
+      ? "1"
+      : "0",
+  };
+
+  it(".dev.vars.example sets every variable to its default", () => {
+    const example = readFileSync(
+      new URL("../../.dev.vars.example", import.meta.url),
+      "utf8",
+    );
+    const entries = Object.fromEntries(
+      example
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "" && !line.startsWith("#"))
+        .map((line) => line.split("=", 2) as [string, string]),
+    );
+    expect(entries).toEqual(VARIABLES);
+    expect(optionsFromEnv(entries).fetchPolicy).toEqual(FETCH_POLICY_DEFAULTS);
+  });
+
+  it("documents every default in the README and in --help", () => {
+    const readme = readFileSync(
+      new URL("../../README.md", import.meta.url),
+      "utf8",
+    );
+    for (const [name, value] of Object.entries(VARIABLES)) {
+      expect(readme, name).toMatch(
+        new RegExp(`\\| \`${name}\`\\s*\\| \`${value}\``),
+      );
+      expect(USAGE, name).toMatch(
+        new RegExp(`${name}\\b.*\\(default ${value}\\)`),
+      );
+    }
+  });
+
   it("exits 2 on a malformed environment value without resolving", async () => {
     for (const env of [
       { WEBVH_MAX_REDIRECTS: "-1" },
       { WEBVH_ALLOW_PRIVATE_HOSTS: "sometimes" },
+      { WEBVH_TIMEOUT_MS: "0" },
+      { WEBVH_TIMEOUT_MS: "8s" },
+      { WEBVH_MAX_RESPONSE_BYTES: "0" },
     ]) {
       const c = capture();
       expect(await main(["did:webvh:x"], { ...{}, ...env }, c.io)).toBe(2);

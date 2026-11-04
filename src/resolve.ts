@@ -4,6 +4,7 @@
  * successful result annotated with ThisDID route metadata for the UI banner.
  */
 import { parse, type DIDResolutionResult } from "did-resolver";
+import { isDidOrDidUrl } from "./did-syntax";
 import {
   chainFor,
   stepAllowed,
@@ -416,7 +417,9 @@ async function resolveDidInner(
   hooks?: ResolveHooks,
 ): Promise<ThisDidResolution> {
   const trimmed = (did || "").trim();
-  const parsed = parse(trimmed);
+  // DID Core §3.1/§3.2 syntax first: did-resolver's parser is looser about the
+  // path, query and fragment than the specification.
+  const parsed = isDidOrDidUrl(trimmed) ? parse(trimmed) : null;
   if (!parsed) return errorResult("invalidDid");
 
   const method = parsed.method;

@@ -4,8 +4,8 @@
  * `thisdid-resolve-webvh <did>` resolves one did:webvh identifier with this
  * package alone — no resolver service, no Worker — and prints the DIF
  * resolution result as JSON on stdout.
- * Configuration comes from environment variables, so a `.dev.vars` file or a
- * production secret set drives the CLI unchanged.
+ * Configuration comes from the WEBVH_* environment variables in USAGE, the
+ * same names the ThisDID driver Worker reads from its wrangler `vars`.
  * Exit status: 0 resolved, 1 the resolver reported an error
  * (`didResolutionMetadata.error` is set), 2 usage or configuration error.
  *
@@ -14,11 +14,23 @@
  * process.
  */
 import { Resolver, type DIDResolutionOptions } from "did-resolver";
+import { optionsFromEnv, type EnvVars } from "./env.js";
 import {
   DestinationGuardError,
+  FETCH_POLICY_DEFAULTS,
   getResolver,
   type WebvhResolverOptions,
 } from "./resolver.js";
+
+// The environment helpers live in env.ts, shared with the driver Worker; the
+// CLI contract re-exports them under its own names.
+export {
+  EnvConfigError as CliConfigError,
+  envFlag,
+  envInteger,
+  envPositiveInteger,
+  optionsFromEnv,
+} from "./env.js";
 
 export const COMMAND = "thisdid-resolve-webvh";
 
@@ -38,16 +50,19 @@ Options:
 The connection is checked as well as the name: each hostname is resolved once,
 any private answer is refused, and the socket opens only to validated addresses.
 
-Environment (all optional):
-  WEBVH_TIMEOUT_MS            integer — wall-clock bound per retrieval (default 8000)
-  WEBVH_MAX_RESPONSE_BYTES    integer — largest log or witness file accepted (default 4194304)
-  WEBVH_MAX_REDIRECTS         integer — redirect hops followed, each re-validated (default 3)
-  WEBVH_ALLOW_PRIVATE_HOSTS   "1" — permit http:// and loopback / private hosts (development only)
+Environment (all optional; an unset variable takes its default; the ThisDID
+driver Worker reads the same names from its wrangler vars):
+  WEBVH_TIMEOUT_MS            positive integer — wall-clock bound per retrieval in ms (default ${FETCH_POLICY_DEFAULTS.timeoutMs})
+  WEBVH_MAX_RESPONSE_BYTES    positive integer — largest log or witness file accepted (default ${FETCH_POLICY_DEFAULTS.maxResponseBytes})
+  WEBVH_MAX_REDIRECTS         integer — redirect hops followed, each re-validated; 0 disables (default ${FETCH_POLICY_DEFAULTS.maxRedirects})
+  WEBVH_ALLOW_PRIVATE_HOSTS   1/0 — permit http:// and loopback / private hosts, development only (default ${FETCH_POLICY_DEFAULTS.allowPrivateHosts ? 1 : 0})
+The package's .dev.vars.example lists them at their defaults:
+  cp .dev.vars.example .dev.vars && node --env-file=.dev.vars lib/bin.js <did>
 
 Exit status: 0 resolved, 1 resolution error, 2 usage or configuration error.
 `;
 
-export type CliEnv = Readonly<Record<string, string | undefined>>;
+export type CliEnv = EnvVars;
 
 export interface CliIo {
   stdout(text: string): void;
@@ -60,57 +75,6 @@ export interface ParsedArgs {
   compact: boolean;
   help: boolean;
   error?: string;
-}
-
-/** Thrown for a malformed environment value; reported as exit status 2. */
-export class CliConfigError extends Error {}
-
-/** An optional non-negative integer variable. */
-export function envInteger(env: CliEnv, name: string): number | undefined {
-  const raw = env[name]?.trim();
-  if (raw === undefined || raw === "") return undefined;
-  if (!/^\d+$/.test(raw)) {
-    throw new CliConfigError(
-      `${name} must be a non-negative integer, got "${env[name]}"`,
-    );
-  }
-  const value = Number(raw);
-  if (!Number.isSafeInteger(value)) {
-    throw new CliConfigError(`${name} exceeds the maximum safe integer`);
-  }
-  return value;
-}
-
-const TRUE = new Set(["1", "true", "yes", "on"]);
-const FALSE = new Set(["0", "false", "no", "off"]);
-
-/** An optional boolean variable; anything but a clear yes/no is an error. */
-export function envFlag(env: CliEnv, name: string): boolean | undefined {
-  const raw = env[name]?.trim().toLowerCase();
-  if (raw === undefined || raw === "") return undefined;
-  if (TRUE.has(raw)) return true;
-  if (FALSE.has(raw)) return false;
-  throw new CliConfigError(
-    `${name} must be 1/0 (true/false), got "${env[name]}"`,
-  );
-}
-
-/** Map the documented environment variables onto `getResolver()` options. */
-export function optionsFromEnv(env: CliEnv): WebvhResolverOptions {
-  const options: WebvhResolverOptions = {};
-  const fetchPolicy: NonNullable<WebvhResolverOptions["fetchPolicy"]> = {};
-  const timeoutMs = envInteger(env, "WEBVH_TIMEOUT_MS");
-  if (timeoutMs !== undefined) fetchPolicy.timeoutMs = timeoutMs;
-  const maxResponseBytes = envInteger(env, "WEBVH_MAX_RESPONSE_BYTES");
-  if (maxResponseBytes !== undefined)
-    fetchPolicy.maxResponseBytes = maxResponseBytes;
-  const maxRedirects = envInteger(env, "WEBVH_MAX_REDIRECTS");
-  if (maxRedirects !== undefined) fetchPolicy.maxRedirects = maxRedirects;
-  const allowPrivateHosts = envFlag(env, "WEBVH_ALLOW_PRIVATE_HOSTS");
-  if (allowPrivateHosts !== undefined)
-    fetchPolicy.allowPrivateHosts = allowPrivateHosts;
-  if (Object.keys(fetchPolicy).length > 0) options.fetchPolicy = fetchPolicy;
-  return options;
 }
 
 /** Parse `<did> [--version-id x] [--version-time t] [--compact] [--help]`. */
